@@ -1,0 +1,12 @@
+# OpenAI's guided-diffusion README enumerates 15 named released checkpoints
+# with exact first-party Azure Blob download links; the adapter reads metadata only.
+[[source]]
+name = "openai-guided-diffusion-checkpoints"
+adapter = "openai_guided_diffusion_checkpoints"
+enabled = false
+entry_tags = ["field:computer-vision", "ecosystem:openai", "model-family:guided-diffusion", "kind:checkpoint", "evidence:first-party-checkpoint-download-list"]
+repository = "openai/guided-diffusion"
+branch = "main"
+document_path = "README.md"
+max_response_bytes = 4194304
+max_checkpoints = 100

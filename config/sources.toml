@@ -7360,3 +7360,378 @@ name_path = "name"
 version_path = "versionId"
 release_id_template = "{id}@{version}"
 next_cursor_path = "nextPageToken"
+
+# SDSS's authors publish three exact pretrained and photo-z checkpoint files.
+[[source]]
+name = "sdss-ssl-checkpoints"
+adapter = "sdss_ssl_checkpoints"
+enabled = true
+entry_tags = ["field:astronomy", "ecosystem:sdss", "kind:pretrained-checkpoint"]
+url = "https://portal.nersc.gov/project/dasrepo/self-supervised-learning-sdss/models.html"
+max_response_bytes = 2097152
+max_links = 2000
+schedule = "weekly"
+
+# ALIGNN's first-party all_models_alignn_atomwise.json enumerates literal
+# handle-to-Figshare-file IDs. URLs identify exact archive files; filenames
+# are not asserted and checkpoint bytes are not downloaded.
+[[source]]
+name = "alignn-atomwise-checkpoints"
+adapter = "alignn_atomwise_registry"
+enabled = true
+repository = "usnistgov/alignn"
+branch = "main"
+source_path = "alignn/ff/all_models_alignn_atomwise.json"
+entry_tags = ["field:computational-chemistry", "ecosystem:alignn", "model-family:atomistic", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100
+
+# 25 named model handles have direct Figshare file IDs in the JSON map. The
+# registry does not state downloadable filenames, so the source records retain
+# only each exact handle and ndownloader URL.
+
+# Cohere's archived 2022 release notes identify exact dated API model IDs and
+# document their retirement/routing date. These historical snapshots are not
+# covered by the active model overview or Rerank-only lifecycle source.
+[[source]]
+name = "cohere-legacy-snapshots-retired-2022-12-02-sizing-update"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:cohere", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history", "lifecycle:retired", "retired-on:2022-12-02"]
+url = "https://docs.cohere.com/v1/changelog/model-sizing-update-improvements"
+provider_namespace = "cohere:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "monthly"
+max_response_bytes = 4194304
+max_entries = 100
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '\b(?P<name>large-20220926|small-20220926)\b'
+identity_source = "name"
+require_url = false
+
+[[source]]
+name = "cohere-legacy-snapshots-retired-2022-12-02-model-upgrades"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:cohere", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history", "lifecycle:retired", "retired-on:2022-12-02"]
+url = "https://docs.cohere.com/v1/changelog/improvements-to-current-models-new-beta-model-command"
+provider_namespace = "cohere:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "monthly"
+max_response_bytes = 4194304
+max_entries = 100
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '\b(?P<name>xlarge-20220609|medium-20220926)\b'
+identity_source = "name"
+require_url = false
+
+# Exact ESM-1v ensemble members 2–5, listed in first-party loader source.
+[[source]]
+name = "esm1v-ensemble-variants"
+adapter = "esm1v_variant_registry"
+enabled = true
+repository = "facebookresearch/esm"
+branch = "main"
+max_source_bytes = 524288
+max_entries = 8
+schedule = "monthly"
+
+# The enabled README table lists the family as esm1v_t33_650M_UR90S_[1-5]
+# but gives a direct asset link only for member 1. The source loader declares
+# literal functions for members 2–5; each resolves to fair-esm/models/{name}.pt.
+
+# Google Cloud publishes a public, exact-ID lifecycle table for open models
+# offered through Vertex AI Model as a Service. The table gives deprecation
+# and retirement dates plus a self-deploy alternative. It is a lifecycle
+# snapshot, not a complete or authoritative snapshot of current availability.
+#
+# Verified source: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/deprecations/open-models
+# The page defines deprecation as the migration-notice period and retirement as
+# endpoint deactivation. A live metadata-only smoke returned 16 exact model IDs.
+[[source]]
+name = "google-vertex-managed-open-model-lifecycle"
+adapter = "google_vertex_open_model_lifecycle"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:google-vertex-ai", "kind:hosted-model", "evidence:provider-lifecycle-history"]
+url = "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/deprecations/open-models"
+provider_namespace = "google:vertex-managed-open-model"
+schedule = "weekly"
+max_response_bytes = 2097152
+max_entries = 500
+
+# LeRobot's first-party VLA-JEPA guide lists three exact pretrained checkpoints.
+[[source]]
+name = "lerobot-vlajepa-checkpoints"
+adapter = "lerobot_vlajepa_checkpoints"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:lerobot", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 5
+
+# Primary inventory: https://github.com/huggingface/lerobot/blob/main/docs/source/vla_jepa.mdx
+# Exact model refs: https://huggingface.co/lerobot/VLA-JEPA-LIBERO,
+# https://huggingface.co/lerobot/VLA-JEPA-Pretrain, and
+# https://huggingface.co/lerobot/VLA-JEPA-SimplerEnv.
+# Table dataset labels are descriptive; no dataset repository IDs are inferred.
+
+# Nixtla's first-party transfer-learning repository lists ten downloadable
+# N-BEATS/N-HiTS checkpoints trained on M4 frequency subsets. Disabled pending
+# source review; this documents exact `.ckpt` artifacts, not model architectures.
+# Primary inventory: https://github.com/Nixtla/transfer-learning-time-series
+[[source]]
+name = "nixtla-transfer-learning-time-series"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:time-series-forecasting", "ecosystem:nixtla", "kind:pretrained-checkpoint"]
+url = "https://github.com/Nixtla/transfer-learning-time-series"
+provider_namespace = "nixtla:transfer-learning-checkpoint"
+artifact_kind = "catalog_record"
+model_status = "released"
+allowed_origins = ["https://github.com", "https://nixtla-public.s3.amazonaws.com"]
+schedule = "monthly"
+max_response_bytes = 2097152
+max_entries = 20
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '<a href="(?P<url>https://nixtla-public\.s3\.amazonaws\.com/transfer/pretrained_models/(?P<id>(?:nhits|nbeats)_m4_[a-z]+(?:_tiny)?)\.ckpt)"[^>]*>(?P<name>Pretrained (?:N-HiTS|N-BEATS) M4 [A-Za-z]+(?: \(Tiny\))?)</a>'
+name_template = "{name}"
+identity_source = "id"
+relation = "weights"
+crawl = false
+require_url = true
+
+# Open X-Embodiment documents one RT-1-X JAX checkpoint in a public GCS prefix.
+# This adapter lists and records exact object names under that prefix only.
+[[source]]
+name = "open-x-rt1x-checkpoint"
+adapter = "open_x_rt1x_checkpoint"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:open-x-embodiment", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 8388608
+max_files = 5000
+max_pages = 50
+
+# First-party download instructions:
+# https://github.com/google-deepmind/open_x_embodiment/blob/main/README.md
+# gs://gdm-robotics-open-x-embodiment/open_x_embodiment_and_rt_x_oss/rt_1_x_jax/
+# The adapter enumerates only that fixed model prefix via the public GCS JSON API.
+# It does not fetch checkpoint bytes, index datasets, or include RT-2 (no weights
+# were found in the official release materials).
+
+# OpenAI's guided-diffusion README enumerates 15 named released checkpoints
+# with exact first-party Azure Blob download links; the adapter reads metadata only.
+[[source]]
+name = "openai-guided-diffusion-checkpoints"
+adapter = "openai_guided_diffusion_checkpoints"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:openai", "model-family:guided-diffusion", "kind:checkpoint", "evidence:first-party-checkpoint-download-list"]
+repository = "openai/guided-diffusion"
+branch = "main"
+document_path = "README.md"
+max_response_bytes = 4194304
+max_checkpoints = 100
+
+# PP-Structure publishes direct layout, table-recognition, and KIE checkpoint
+# URLs in a separate table from the PP-OCR model lists.
+[[source]]
+name = "paddleocr-ppstructure-model-list"
+adapter = "paddleocr_ppstructure_model_list"
+enabled = true
+repository = "PaddlePaddle/PaddleOCR"
+branch = "main"
+source_path = "docs/version2.x/ppstructure/models_list.en.md"
+provider_namespace = "paddleocr:ppstructure-model"
+max_response_bytes = 8388608
+max_rows = 10000
+
+# Historical timm v0.6.13 source declares five original PoolFormer release
+# checkpoints on the sail-sg/poolformer GitHub release. These are exact legacy
+# URLs distinct from the current timm Hugging Face Hub presets.
+[[source]]
+name = "timm-legacy-poolformer-v0613"
+adapter = "timm_legacy_poolformer"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:timm", "kind:checkpoint"]
+repository = "huggingface/pytorch-image-models"
+tag = "v0.6.13"
+schedule = "weekly"
+
+# The official Transformer-M README contains a three-row checkpoint table with
+# model labels and source-published OneDrive share URLs.
+[[source]]
+name = "transformer-m-official-checkpoints"
+adapter = "transformer_m_checkpoints"
+enabled = true
+entry_tags = ["field:graph-machine-learning", "field:computational-chemistry", "ecosystem:transformer-m", "model-family:molecular-graph-transformer", "kind:checkpoint"]
+repository = "lsj2408/Transformer-M"
+branch = "main"
+document_path = "README.md"
+provider_namespace = "transformer-m:checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 10000
+
+# Opt-in catalog of DeepSeek publisher models in Vertex AI Model Garden. This
+# is the publisher-scoped API listing, not project-owned tuned models or
+# deployed endpoints. Versions are returned with immutable IDs and mapped to
+# exact name@versionId resource IDs. Coverage is limited to Google-hosted
+# deployment offerings, not DeepSeek's complete model catalog.
+# References:
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models/list
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/machine-learning/predictions/get-batch-model-garden
+[[source]]
+name = "vertex-model-garden-deepseek-publisher"
+adapter = "json_catalog"
+enabled = true
+activation_env = "VERTEX_AI_ACCESS_TOKEN"
+entry_tags = ["field:machine-learning", "ecosystem:deepseek", "ecosystem:google-vertex-ai", "kind:model-garden-offering", "evidence:provider-catalog"]
+url = "https://us-central1-aiplatform.googleapis.com/v1beta1/publishers/deepseek-ai/models?listAllVersions=true"
+provider_namespace = "google:vertex-model-garden"
+model_card_url_template = "https://us-central1-aiplatform.googleapis.com/v1beta1/{id_path}"
+model_page_crawl = false
+model_status = "documented"
+auth_env = "VERTEX_AI_ACCESS_TOKEN"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+headers = { "x-goog-user-project" = "${GOOGLE_CLOUD_PROJECT}" }
+cursor_param = "pageToken"
+page_size = 100
+page_size_param = "pageSize"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "publisherModels"
+id_path = "name"
+name_path = "name"
+version_path = "versionId"
+release_id_template = "{id}@{version}"
+next_cursor_path = "nextPageToken"
+
+# Opt-in catalog of Meta publisher models in Vertex AI Model Garden. This is
+# the publisher-scoped API listing, not project-owned tuned models or deployed
+# endpoints. Versions are returned with immutable IDs and mapped to exact
+# name@versionId resource IDs. The entries describe Google-hosted deployment
+# offerings, not Meta's complete model catalog.
+# References:
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models/list
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/machine-learning/predictions/get-batch-model-garden
+[[source]]
+name = "vertex-model-garden-meta-publisher"
+adapter = "json_catalog"
+enabled = true
+activation_env = "VERTEX_AI_ACCESS_TOKEN"
+entry_tags = ["field:machine-learning", "ecosystem:meta", "ecosystem:google-vertex-ai", "kind:model-garden-offering", "evidence:provider-catalog"]
+url = "https://us-central1-aiplatform.googleapis.com/v1beta1/publishers/meta/models?listAllVersions=true"
+provider_namespace = "google:vertex-model-garden"
+model_card_url_template = "https://us-central1-aiplatform.googleapis.com/v1beta1/{id_path}"
+model_page_crawl = false
+model_status = "documented"
+auth_env = "VERTEX_AI_ACCESS_TOKEN"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+headers = { "x-goog-user-project" = "${GOOGLE_CLOUD_PROJECT}" }
+cursor_param = "pageToken"
+page_size = 100
+page_size_param = "pageSize"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "publisherModels"
+id_path = "name"
+name_path = "name"
+version_path = "versionId"
+release_id_template = "{id}@{version}"
+next_cursor_path = "nextPageToken"
+
+# Opt-in catalog of OpenAI publisher models in Vertex AI Model Garden. This is
+# the publisher-scoped API listing, not project-owned tuned models or deployed
+# endpoints. Versions are returned with immutable IDs and mapped to exact
+# name@versionId resource IDs. Coverage is limited to Google-hosted offerings,
+# not OpenAI's complete model catalog.
+# References:
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models/list
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models
+# https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-create-remote-model-open
+[[source]]
+name = "vertex-model-garden-openai-publisher"
+adapter = "json_catalog"
+enabled = true
+activation_env = "VERTEX_AI_ACCESS_TOKEN"
+entry_tags = ["field:machine-learning", "ecosystem:openai", "ecosystem:google-vertex-ai", "kind:model-garden-offering", "evidence:provider-catalog"]
+url = "https://us-central1-aiplatform.googleapis.com/v1beta1/publishers/openai/models?listAllVersions=true"
+provider_namespace = "google:vertex-model-garden"
+model_card_url_template = "https://us-central1-aiplatform.googleapis.com/v1beta1/{id_path}"
+model_page_crawl = false
+model_status = "documented"
+auth_env = "VERTEX_AI_ACCESS_TOKEN"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+headers = { "x-goog-user-project" = "${GOOGLE_CLOUD_PROJECT}" }
+cursor_param = "pageToken"
+page_size = 100
+page_size_param = "pageSize"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "publisherModels"
+id_path = "name"
+name_path = "name"
+version_path = "versionId"
+release_id_template = "{id}@{version}"
+next_cursor_path = "nextPageToken"
+
+# First-party Piper voice/quality inventory with direct model and matching
+# config assets pinned to the published piper-voices v1.0.0 repository revision.
+# The original rhasspy/piper repository is archived; keep this proposal disabled
+# pending registration and review of its snapshot semantics.
+# Source: https://github.com/rhasspy/piper/blob/master/VOICES.md
+[[source]]
+name = "piper-voice-catalog"
+adapter = "piper_voice_catalog"
+enabled = true
+entry_tags = ["field:speech", "task:text-to-speech", "ecosystem:piper", "kind:checkpoint"]
+repository = "rhasspy/piper"
+branch = "master"
+document_path = "VOICES.md"
+schedule = "monthly"
+max_response_bytes = 2097152
+max_rows = 2000
+
+# OpenRouter documents this separate endpoint as the unpaginated list of all
+# currently available video-generation models. It requires a Bearer API key, so
+# keep it disabled until the dedicated adapter is registered and reviewed.
+# This is a live routing-availability snapshot, not a historical or global model
+# census. The adapter retains provider fields as raw evidence and never submits
+# generation requests or fetches model/weight bytes.
+[[source]]
+name = "openrouter-video-models"
+adapter = "openrouter_video"
+enabled = true
+activation_env = "OPENROUTER_API_KEY"
+entry_tags = [
+  "field:video-generation",
+  "ecosystem:openrouter",
+  "kind:hosted-model",
+  "evidence:current-api-availability",
+]
+url = "https://openrouter.ai/api/v1/videos/models"
+model_page_base_url = "https://openrouter.ai"
+token_env = "OPENROUTER_API_KEY"
+schedule = "daily"
+max_response_bytes = 16777216
+max_models = 100000

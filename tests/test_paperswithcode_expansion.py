@@ -354,3 +354,42 @@ def test_evaluation_model_links_do_not_treat_github_or_dataset_urls_as_model_ids
         _evaluation_model_identifier_from_url("https://www.kaggle.com/datasets/example/models")
         is None
     )
+    assert _evaluation_model_identifier_from_url(
+        "https://doi.org/10.5281/zenodo.12345"
+    ) == Identifier("zenodo:record", "12345")
+    assert _evaluation_model_identifier_from_url(
+        "https://zenodo.org/records/12345/files/weights.bin"
+    ) == Identifier("zenodo:record", "12345")
+    assert _evaluation_model_identifier_from_url("https://doi.org/10.1000/example") is None
+
+
+def test_evaluation_model_links_project_exact_zenodo_record_identity() -> None:
+    from modelome.sources.paperswithcode import _evaluation_records
+
+    row = {
+        "model_name": "Zenodo Published Model",
+        "paper_url": "https://arxiv.org/abs/2401.12345",
+        "paper_title": "Zenodo Published Model paper",
+        "model_links": [
+            {
+                "url": "https://zenodo.org/records/12345/files/model.safetensors",
+                "title": "Zenodo weights",
+            }
+        ],
+    }
+    records, rejected, _ = _evaluation_records(
+        [{"task": "Classification", "datasets": [{"dataset": "Example", "sota": {"rows": [row]}}]}],
+        revision="c" * 40,
+        data_path="data/train.parquet",
+        dataset_id="pwc-archive/evaluation-tables",
+        license="CC-BY-SA-4.0",
+        max_model_rows=10,
+    )
+
+    assert rejected == {}
+    linked_model = next(model for model in records[0].models if model.name == "Zenodo weights")
+    assert linked_model.identifiers == (Identifier("zenodo:record", "12345"),)
+    assert linked_model.status is ModelStatus.CANDIDATE
+    assert linked_model.confidence == 0.65
+    model_link = next(link for link in records[0].links if link.relation == "model_artifact")
+    assert model_link.model_local_ids == (linked_model.local_id,)

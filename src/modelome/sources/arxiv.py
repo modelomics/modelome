@@ -11,7 +11,12 @@ from urllib.parse import quote, urlsplit
 
 from modelome.http import HttpClient, HttpResponse
 from modelome.models import ArtifactKind, Identifier, Link, SourceIssue, SourcePage, SourceRecord
-from modelome.normalize import canonicalize_url, content_hash
+from modelome.normalize import (
+    canonicalize_url,
+    content_hash,
+    extract_url_mentions,
+    infer_url_relation,
+)
 
 Clock = Callable[[], datetime]
 
@@ -665,6 +670,16 @@ class ArxivSourceAdapter:
             )
         if license_url := _optional_web_url(raw_fields.get("license")):
             links.append(Link(license_url, relation="license", locator="metadata.license"))
+        comments = _text(raw_fields.get("comments"))
+        for url, span in extract_url_mentions(comments):
+            if _optional_web_url(url):
+                links.append(
+                    Link(
+                        url,
+                        relation=infer_url_relation(comments, span),
+                        locator=f"metadata.comments:{span}",
+                    )
+                )
 
         raw_payload = dict(raw_fields)
         raw_payload["versions"] = versions

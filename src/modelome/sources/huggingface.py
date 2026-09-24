@@ -683,12 +683,11 @@ class HuggingFaceSourceAdapter:
             )
             response = self.client.get(url, headers=headers)
             payload = self._revision_json(response)
-            commits = (
-                payload
-                if isinstance(payload, Sequence)
-                and not isinstance(payload, (str, bytes, bytearray))
-                else []
-            )
+            if not isinstance(payload, Sequence) or isinstance(
+                payload, (str, bytes, bytearray)
+            ):
+                raise ValueError(f"{self.name}: revision commits must be a JSON array")
+            commits = payload
             valid_commits = tuple(
                 commit
                 for commit in commits

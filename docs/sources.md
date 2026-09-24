@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **411 enabled
-source entries** (393 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **429 enabled
+source entries** (407 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -83,9 +83,22 @@ Additional first-party checkpoint inventories cover four Graphcore GPS++
 archives, four GenCast objects, eleven ESMFold ablations, four Cellpose v4
 files, three AceFF releases, eleven SSL4EO-S12 Drive links, four SDXL
 base/refiner variants, and ESPnet's archived CSJ Conformer. LeRobot's
-π₀-FAST guide contributes a base-to-fine-tune relation. A Cloudflare notice
+π₀-FAST guide contributes a base-to-fine-tune relation. The SDSS authors'
+NERSC page lists three exact astronomy checkpoint files. A Cloudflare notice
 adds nineteen October 2025 retired IDs; a credential-gated Vertex source lists
 versioned Mistral publisher offerings. These sources do not fetch weight bytes.
+Additional inventories index ALIGNN atomwise checkpoints, ESM-1v ensemble
+members, LeRobot VLA-JEPA policies, OpenAI guided-diffusion weights,
+PaddleOCR PP-Structure archives, historical timm PoolFormer files, and
+Transformer-M releases. Piper's archived voice index adds 142 named
+language and quality variants with paired ONNX and config links.
+Open X-Embodiment lists its RT-1-X TensorStore
+objects, while Nixtla lists ten forecasting checkpoints. Dated Cohere and
+Google Vertex lifecycle pages preserve exact retired or scheduled model IDs.
+Vertex publisher catalogs for DeepSeek, Meta, and OpenAI are available when
+the caller supplies Google Cloud credentials. OpenRouter's separate video-model
+list is available when the caller supplies its API key; it reports current
+routing availability, not historical models.
 The GitLab adapter scans public project release metadata one request per page and emits
 low-confidence model-file candidates. The Cohere and Mistral Models API proposals
 remain opt-in because their authenticated lists can include caller-owned models.

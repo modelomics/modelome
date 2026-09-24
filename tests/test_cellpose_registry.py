@@ -14,10 +14,32 @@ def test_emits_only_documented_cellpose_checkpoint_names_and_explicit_urls() -> 
     page = source.fetch_page({})
 
     assert page.complete and page.authoritative_snapshot
-    assert page.upstream_count == 25
+    assert page.upstream_count == 58
     by_id = {record.source_record_id: record for record in page.records}
     assert "checkpoint:cyto3" in by_id
     assert "checkpoint:denoise_nuclei" in by_id
+    for checkpoint in (
+        "size_cyto3.npy",
+        "cyto2_cp3",
+        "tissuenet_cp3",
+        "livecell_cp3",
+        "yeast_PhC_cp3",
+        "bact_phase_cp3",
+        "transformer_cp3",
+        "neurips_cellpose_default",
+        "CPx",
+        "TN1",
+        "LC4",
+        "tissuenet",
+        "general",
+        "style_choice.npy",
+        "cyto_0",
+        "size_nuclei_0.npy",
+    ):
+        assert f"checkpoint:{checkpoint}" in by_id
+        assert by_id[f"checkpoint:{checkpoint}"].releases[0].metadata["weight_url"] == (
+            f"https://www.cellpose.org/models/{checkpoint}"
+        )
     for family in ("cytotorch", "cyto2torch", "nucleitorch"):
         for ensemble_member in range(4):
             checkpoint = f"{family}_{ensemble_member}"

@@ -1,0 +1,18 @@
+# Google Cloud publishes a public, exact-ID lifecycle table for open models
+# offered through Vertex AI Model as a Service. The table gives deprecation
+# and retirement dates plus a self-deploy alternative. It is a lifecycle
+# snapshot, not a complete or authoritative snapshot of current availability.
+#
+# Verified source: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/deprecations/open-models
+# The page defines deprecation as the migration-notice period and retirement as
+# endpoint deactivation. A live metadata-only smoke returned 16 exact model IDs.
+[[source]]
+name = "google-vertex-managed-open-model-lifecycle"
+adapter = "google_vertex_open_model_lifecycle"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:google-vertex-ai", "kind:hosted-model", "evidence:provider-lifecycle-history"]
+url = "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/deprecations/open-models"
+provider_namespace = "google:vertex-managed-open-model"
+schedule = "weekly"
+max_response_bytes = 2097152
+max_entries = 500

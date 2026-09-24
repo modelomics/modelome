@@ -1,6 +1,7 @@
-# Proposed bounded source for Cellpose's own named website checkpoints.
-# Cellpose documents the download template as /models/MODEL_NAME. This
-# proposal excludes Cellpose 4 built-ins already available through Hugging Face.
+# Proposed bounded source for Cellpose's own named website checkpoints and
+# learned size-model files. The official docs give a finite set of names and
+# the /models/MODEL_NAME download template. Cellpose 4 built-ins are proposed
+# separately in cellpose_hf_checkpoints.toml.
 [[source]]
 name = "cellpose-website-checkpoints"
 adapter = "cellpose_registry"
@@ -11,4 +12,6 @@ schedule = "weekly"
 
 [evidence]
 cellpose_v3_model_guide = "https://cellpose.readthedocs.io/en/v3.1.1.1/models.html"
+cellpose_current_models_module = "https://cellpose.readthedocs.io/en/v3.1.1.1/_modules/cellpose/models.html"
+cellpose_legacy_ensemble_guide = "https://cellpose.readthedocs.io/en/stable/models.html"
 cellpose_restore_guide = "https://cellpose.readthedocs.io/en/latest/restore.html"

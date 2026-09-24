@@ -132,14 +132,19 @@ def test_fixture_model_names_are_not_runtime_seed_constants() -> None:
     runtime_literals = {
         path: _executable_string_literals(path) for path in RUNTIME_ROOT.rglob("*.py")
     }
-    # These occurrences are source identifiers or generic model-context terms,
-    # not fixture seeds.
+    # These occurrences are source identifiers or exact first-party checkpoint
+    # descriptions, not fixture seeds.
     source_identifier_literals = {
         "Transformer": {
             "src/modelome/sources/catalog.py",
+            "src/modelome/sources/cellpose_registry.py",
             "src/modelome/sources/github_release_assets.py",
             "src/modelome/sources/gitlab_release_assets.py",
             "src/modelome/sources/robotics_registry_v3.py",
+            "src/modelome/sources/transformer_m_checkpoints.py",
+        },
+        "U-Net": {
+            "src/modelome/sources/cellpose_registry.py",
         },
         "nnU-Net": {
             "src/modelome/sources/nnunet_registry.py",

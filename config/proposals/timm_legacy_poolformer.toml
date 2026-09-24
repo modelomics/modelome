@@ -1,0 +1,16 @@
+# Historical timm v0.6.13 source declares five original PoolFormer release
+# checkpoints on the sail-sg/poolformer GitHub release. These are exact legacy
+# URLs distinct from the current timm Hugging Face Hub presets.
+[[source]]
+name = "timm-legacy-poolformer-v0613"
+adapter = "timm_legacy_poolformer"
+enabled = false
+entry_tags = ["field:computer-vision", "ecosystem:timm", "kind:checkpoint"]
+repository = "huggingface/pytorch-image-models"
+tag = "v0.6.13"
+schedule = "weekly"
+
+[evidence]
+timm_poolformer_source = "https://github.com/huggingface/pytorch-image-models/blob/v0.6.13/timm/models/poolformer.py"
+timm_poolformer_module = "https://raw.githubusercontent.com/huggingface/pytorch-image-models/v0.6.13/timm/models/poolformer.py"
+sail_sg_poolformer_release = "https://github.com/sail-sg/poolformer/releases/tag/v1.0"

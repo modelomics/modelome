@@ -1,0 +1,14 @@
+# Exact ESM-1v ensemble members 2–5, listed in first-party loader source.
+[[source]]
+name = "esm1v-ensemble-variants"
+adapter = "esm1v_variant_registry"
+enabled = false
+repository = "facebookresearch/esm"
+branch = "main"
+max_source_bytes = 524288
+max_entries = 8
+schedule = "monthly"
+
+# The enabled README table lists the family as esm1v_t33_650M_UR90S_[1-5]
+# but gives a direct asset link only for member 1. The source loader declares
+# literal functions for members 2–5; each resolves to fair-esm/models/{name}.pt.

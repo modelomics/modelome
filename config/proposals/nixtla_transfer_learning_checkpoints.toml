@@ -1,0 +1,26 @@
+# Nixtla's first-party transfer-learning repository lists ten downloadable
+# N-BEATS/N-HiTS checkpoints trained on M4 frequency subsets. Disabled pending
+# source review; this documents exact `.ckpt` artifacts, not model architectures.
+# Primary inventory: https://github.com/Nixtla/transfer-learning-time-series
+[[source]]
+name = "nixtla-transfer-learning-time-series"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:time-series-forecasting", "ecosystem:nixtla", "kind:pretrained-checkpoint"]
+url = "https://github.com/Nixtla/transfer-learning-time-series"
+provider_namespace = "nixtla:transfer-learning-checkpoint"
+artifact_kind = "catalog_record"
+model_status = "released"
+allowed_origins = ["https://github.com", "https://nixtla-public.s3.amazonaws.com"]
+schedule = "monthly"
+max_response_bytes = 2097152
+max_entries = 20
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '<a href="(?P<url>https://nixtla-public\.s3\.amazonaws\.com/transfer/pretrained_models/(?P<id>(?:nhits|nbeats)_m4_[a-z]+(?:_tiny)?)\.ckpt)"[^>]*>(?P<name>Pretrained (?:N-HiTS|N-BEATS) M4 [A-Za-z]+(?: \(Tiny\))?)</a>'
+name_template = "{name}"
+identity_source = "id"
+relation = "weights"
+crawl = false
+require_url = true

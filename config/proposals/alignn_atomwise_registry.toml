@@ -1,0 +1,18 @@
+# ALIGNN's first-party all_models_alignn_atomwise.json enumerates literal
+# handle-to-Figshare-file IDs. URLs identify exact archive files; filenames
+# are not asserted and checkpoint bytes are not downloaded.
+[[source]]
+name = "alignn-atomwise-checkpoints"
+adapter = "alignn_atomwise_registry"
+enabled = false
+repository = "usnistgov/alignn"
+branch = "main"
+source_path = "alignn/ff/all_models_alignn_atomwise.json"
+entry_tags = ["field:computational-chemistry", "ecosystem:alignn", "model-family:atomistic", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100
+
+# 26 named model handles have direct Figshare file IDs in the JSON map. The
+# registry does not state downloadable filenames, so the source records retain
+# only each exact handle and ndownloader URL.

@@ -1,0 +1,44 @@
+# OpenRouter documents this separate endpoint as the unpaginated list of all
+# currently available video-generation models. It requires a Bearer API key, so
+# keep it disabled until the dedicated adapter is registered and reviewed.
+# This is a live routing-availability snapshot, not a historical or global model
+# census. The adapter retains provider fields as raw evidence and never submits
+# generation requests or fetches model/weight bytes.
+[[source]]
+name = "openrouter-video-models"
+adapter = "openrouter_video"
+enabled = false
+activation_env = "OPENROUTER_API_KEY"
+entry_tags = [
+  "field:video-generation",
+  "ecosystem:openrouter",
+  "kind:hosted-model",
+  "evidence:current-api-availability",
+]
+url = "https://openrouter.ai/api/v1/videos/models"
+model_page_base_url = "https://openrouter.ai"
+token_env = "OPENROUTER_API_KEY"
+schedule = "daily"
+max_response_bytes = 16777216
+max_models = 100000
+
+[evidence]
+api_documentation = "https://openrouter.ai/docs/api/api-reference/video-generation/list-videos-models"
+response_items_path = "data"
+response_contract = "one list of all available video-generation models; no pagination cursor or total is documented"
+authentication = "Authorization: Bearer OPENROUTER_API_KEY"
+supported_fields = [
+  "id",
+  "name",
+  "description",
+  "created",
+  "generate_audio",
+  "supported_durations",
+  "supported_resolutions",
+  "supported_aspect_ratios",
+  "supported_frame_images",
+  "supported_sizes",
+  "pricing_skus",
+  "allowed_passthrough_parameters",
+  "seed",
+]

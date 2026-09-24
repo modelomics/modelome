@@ -269,6 +269,35 @@ def test_invalid_optional_relation_does_not_quarantine_primary_work() -> None:
     assert page.records[0].raw["relation"] == item["relation"]
 
 
+def test_uri_typed_supplement_relation_emits_exact_hosted_artifact_link() -> None:
+    item = work()
+    item["relation"] = {
+        "is-supplemented-by": [
+            {
+                "id-type": "uri",
+                "id": "https://zenodo.org/records/123/files/model.safetensors?download=1",
+            },
+            {"id-type": "uri", "id": "javascript:alert(1)"},
+        ]
+    }
+    client = QueuedClient(response([item], total=1, cursor=""))
+
+    page = adapter(client).fetch_page({})
+
+    assert page.complete is True
+    record = page.records[0]
+    artifact_link = next(
+        link for link in record.links if "model.safetensors" in link.url
+    )
+    assert artifact_link.url == (
+        "https://zenodo.org/records/123/files/model.safetensors?download=1"
+    )
+    assert artifact_link.relation == "is-supplemented-by"
+    assert artifact_link.locator == "$.relation.is-supplemented-by[0]"
+    assert not any(link.url.startswith("javascript:") for link in record.links)
+    assert record.models == ()
+
+
 def test_constructor_rejects_non_web_api_url() -> None:
     with pytest.raises(ValueError, match=r"HTTP\(S\)"):
         CrossrefSourceAdapter(url="file:///private/crossref.json")

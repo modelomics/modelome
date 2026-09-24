@@ -137,3 +137,36 @@ def test_adapter_rejects_unsafe_object_names_in_checkpoint_prefix() -> None:
 
     with pytest.raises(ValueError, match="invalid GCS object name"):
         adapter.fetch_page({})
+
+
+def test_adapter_separates_checkpoint_files_from_tensorstore_metadata() -> None:
+    client = _Client(
+        [
+            {
+                "items": [
+                    {"name": _PREFIX + "_METADATA", "size": "12", "generation": "1"},
+                    {"name": _PREFIX + "checkpoint", "size": "900", "generation": "2"},
+                    {
+                        "name": _PREFIX + "step/_METADATA",
+                        "size": "12",
+                        "generation": "3",
+                    },
+                    {"name": _PREFIX + "step/checkpoint", "size": "900", "generation": "4"},
+                ]
+            }
+        ]
+    )
+
+    page = OpenXRT1XCheckpointSourceAdapter(client=client).fetch_page({})
+
+    links = page.records[0].links
+    weight_filenames = [
+        link.url.rsplit("/", 1)[-1].split("?", 1)[0]
+        for link in links
+        if link.relation == "weights"
+    ]
+    assert weight_filenames == ["checkpoint", "checkpoint"]
+    assert sum(link.relation == "checkpoint_metadata" for link in links) == 2
+    assert page.records[0].releases[0].metadata["objects"][0]["object_role"] == (
+        "checkpoint_metadata"
+    )

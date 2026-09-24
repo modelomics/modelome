@@ -452,6 +452,14 @@ def _work_links(work: Mapping[str, Any], doi_url: str) -> Iterable[Link]:
                         relation=_text(predicate) or "related_work",
                         locator=f"$.relation.{predicate}[{index}]",
                     )
+                elif id_type in {"uri", "url", "purl"}:
+                    target = _safe_url(identifier)
+                    if target:
+                        yield Link(
+                            target,
+                            relation=_text(predicate) or "related_work",
+                            locator=f"$.relation.{predicate}[{index}]",
+                        )
     # Crossref's structured reference list is a useful citation graph for
     # publisher-hosted papers whose full text is not openly reusable.  A cited
     # DOI is evidence about the bibliographic relationship, not a request to

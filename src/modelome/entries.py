@@ -1247,6 +1247,13 @@ def _identifiers(value: Any, field: str) -> tuple[EntryIdentifier, ...]:
             raise ValueError(f"{field} must contain objects")
         namespace = _required_text(item.get("namespace"), f"{field} namespace")
         identifier_value = _required_text(item.get("value"), f"{field} value")
+        # The live Workers AI HTML catalog has used a source-specific namespace,
+        # while Cloudflare's exact provider IDs in its public catalog and
+        # lifecycle notices use the stable namespace below. These are the same
+        # literal @cf model IDs, so normalize only that declared provider-ID
+        # form; do not alias unrelated Cloudflare identifiers.
+        if namespace == "cloudflare-workers-ai:model" and identifier_value.startswith("@cf/"):
+            namespace = "cloudflare:workers-ai"
         # arXiv's version suffix identifies a revision of the same paper. Keep
         # revision identity in the distinct ``arxiv:version`` namespace, while
         # normalizing common versioned forms of the base paper identifier.

@@ -367,6 +367,74 @@ def test_exact_full_terminal_pages_without_link_are_accepted() -> None:
     assert client.calls == [repo_url, releases_url, assets_url]
 
 
+def test_default_asset_item_cap_matches_ten_documented_pages() -> None:
+    repo_url = "https://api.github.com/repositories?per_page=1&since=100"
+    releases_url = "https://api.github.com/repos/lab/model/releases?per_page=1&page=1"
+    assets_first = "https://api.github.com/repos/lab/model/releases/501/assets?per_page=100&page=1"
+    assets_second = "https://api.github.com/repos/lab/model/releases/501/assets?per_page=100&page=2"
+    ordinary_assets = [
+        {
+            "id": 600 + index,
+            "name": f"readme-{index}.txt",
+            "browser_download_url": f"https://github.com/lab/model/download/readme-{index}.txt",
+        }
+        for index in range(100)
+    ]
+    client = RouteClient(
+        {
+            repo_url: ([{"id": 101, "full_name": "lab/model", "private": False}], {}),
+            releases_url: (
+                [
+                    {
+                        "id": 501,
+                        "tag_name": "v1",
+                        "name": "Model checkpoint release",
+                        "body": "Neural model weights",
+                        "html_url": "https://github.com/lab/model/releases/tag/v1",
+                    }
+                ],
+                {},
+            ),
+            assets_first: (ordinary_assets, {"Link": f'<{assets_second}>; rel="next"'}),
+            assets_second: (
+                [
+                    {
+                        "id": 700,
+                        "name": "resnet50.safetensors",
+                        "browser_download_url": (
+                            "https://github.com/lab/model/releases/download/v1/resnet50.safetensors"
+                        ),
+                    }
+                ],
+                {},
+            ),
+        }
+    )
+    adapter = GitHubHistoricalReleaseAssetsSourceAdapter(
+        initial_since=100,
+        max_repository_id=200,
+        max_repositories=1,
+        page_size=1,
+        client=client,
+    )
+
+    state: dict[str, Any] = {}
+    records = []
+    for _ in range(10):
+        page = adapter.fetch_page(state)
+        state = dict(page.next_state)
+        records.extend(page.records)
+        if page.complete:
+            break
+    else:
+        pytest.fail("bounded scan did not complete after the second asset page")
+
+    assert adapter.max_assets_per_release == 1_000
+    assert [record.source_record_id for record in records] == ["github-release-asset:101:501:700"]
+    assert state["truncated_asset_release_count"] == 0
+    assert assets_second in client.calls
+
+
 def test_release_cap_is_reported_and_scan_advances_to_later_repository() -> None:
     repository_url = "https://api.github.com/repositories?per_page=2&since=100"
     first_releases = "https://api.github.com/repos/lab/first/releases?per_page=2&page=1"

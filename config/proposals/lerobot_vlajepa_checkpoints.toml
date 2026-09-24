@@ -1,0 +1,15 @@
+# LeRobot's first-party VLA-JEPA guide lists three exact pretrained checkpoints.
+[[source]]
+name = "lerobot-vlajepa-checkpoints"
+adapter = "lerobot_vlajepa_checkpoints"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:lerobot", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 5
+
+# Primary inventory: https://github.com/huggingface/lerobot/blob/main/docs/source/vla_jepa.mdx
+# Exact model refs: https://huggingface.co/lerobot/VLA-JEPA-LIBERO,
+# https://huggingface.co/lerobot/VLA-JEPA-Pretrain, and
+# https://huggingface.co/lerobot/VLA-JEPA-SimplerEnv.
+# Table dataset labels are descriptive; no dataset repository IDs are inferred.

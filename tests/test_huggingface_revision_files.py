@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import pytest
+
 from modelome.http import HttpResponse
 from modelome.sources.huggingface import HuggingFaceSourceAdapter
 
@@ -432,3 +434,61 @@ def test_ref_names_attach_only_to_their_exact_target_commit() -> None:
     assert parent.records[0].releases[0].metadata["weight_files"] == [
         "old-model.safetensors"
     ]
+
+
+def test_malformed_commit_page_cannot_silently_complete_revision_history() -> None:
+    repo = "lab/revision-model"
+    commits = f"https://huggingface.co/api/models/{repo}/commits/refs%2Fheads%2Fmain"
+    routes = _revision_routes(repo)
+    routes[commits] = (200, {"error": "truncated"}, {})
+    client = _RouteClient(routes)
+    adapter = HuggingFaceSourceAdapter(
+        client=client,
+        include_revisions=True,
+        include_revision_files=True,
+    )
+
+    catalog = adapter.fetch_page({})
+    ref_page = adapter.fetch_page(catalog.next_state)
+
+    with pytest.raises(ValueError, match="revision commits must be a JSON array"):
+        adapter.fetch_page(ref_page.next_state)
+
+
+def test_commit_cursor_resumes_after_current_tree_tasks_drain() -> None:
+    repo = "lab/revision-model"
+    commits = f"https://huggingface.co/api/models/{repo}/commits/refs%2Fheads%2Fmain"
+    commits_next = f"{commits}?cursor=page-2"
+    tree_a = f"https://huggingface.co/api/models/{repo}/tree/commit-a?recursive=true&expand=false"
+    tree_b = f"https://huggingface.co/api/models/{repo}/tree/commit-b?recursive=true&expand=false"
+    routes = _revision_routes(repo)
+    routes[commits] = (
+        200,
+        [{"id": "commit-a"}],
+        {"Link": f'<{commits_next}>; rel="next"'},
+    )
+    routes[commits_next] = (200, [{"id": "commit-b"}], {})
+    routes[tree_a] = (200, [{"type": "file", "path": "old.safetensors"}], {})
+    routes[tree_b] = (200, [{"type": "file", "path": "new.safetensors"}], {})
+    client = _RouteClient(routes)
+    adapter = HuggingFaceSourceAdapter(
+        client=client,
+        include_revisions=True,
+        include_revision_files=True,
+    )
+
+    catalog = adapter.fetch_page({})
+    ref_page = adapter.fetch_page(catalog.next_state)
+    first_commits_page = adapter.fetch_page(ref_page.next_state)
+    first_tree = adapter.fetch_page(first_commits_page.next_state)
+    assert first_tree.records[0].releases[0].metadata["weight_files"] == [
+        "old.safetensors"
+    ]
+    assert first_tree.next_state["revision_queue"][0]["next_url"] == commits_next
+
+    second_commits_page = adapter.fetch_page(first_tree.next_state)
+    second_tree = adapter.fetch_page(second_commits_page.next_state)
+    assert second_tree.records[0].releases[0].metadata["weight_files"] == [
+        "new.safetensors"
+    ]
+    assert second_tree.complete is True

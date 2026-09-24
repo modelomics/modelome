@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -86,6 +87,7 @@ def raw_record(
     *,
     version: str = "v1",
     datestamp: str = "2026-08-31",
+    comments: str = "",
 ) -> str:
     return f"""
 <record>
@@ -105,9 +107,41 @@ def raw_record(
       <raw:authors>First Author and Second Author</raw:authors>
       <raw:categories>cs.LG</raw:categories>
       <raw:abstract>We introduce an example architecture.</raw:abstract>
+      <raw:comments>{comments}</raw:comments>
     </raw:arXivRaw>
   </metadata>
 </record>"""
+
+
+def test_extracts_http_links_from_official_arxiv_comments_field() -> None:
+    root = ET.fromstring(
+        oai_response(
+            raw_record(
+                comments=(
+                    "Code and pretrained model weights: "
+                    "https://github.com/example/model and https://example.org/model.pt"
+                ),
+            )
+        )
+    )
+    element = root.find(f"{{{OAI_NAMESPACE}}}record")
+    assert element is not None
+
+    record = ArxivSourceAdapter()._record(element)
+
+    comment_links = [
+        link
+        for link in record.links
+        if (link.locator or "").startswith("metadata.comments:")
+    ]
+    assert [link.url for link in comment_links] == [
+        "https://github.com/example/model",
+        "https://example.org/model.pt",
+    ]
+    assert [link.relation for link in comment_links] == [
+        "weights",
+        "embedded",
+    ]
 
 
 def deleted_record(arxiv_id: str, datestamp: str) -> str:

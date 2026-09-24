@@ -1,0 +1,16 @@
+# First-party Piper voice/quality inventory with direct model and matching
+# config assets pinned to the published piper-voices v1.0.0 repository revision.
+# The original rhasspy/piper repository is archived; keep this proposal disabled
+# pending registration and review of its snapshot semantics.
+# Source: https://github.com/rhasspy/piper/blob/master/VOICES.md
+[[source]]
+name = "piper-voice-catalog"
+adapter = "piper_voice_catalog"
+enabled = false
+entry_tags = ["field:speech", "task:text-to-speech", "ecosystem:piper", "kind:checkpoint"]
+repository = "rhasspy/piper"
+branch = "master"
+document_path = "VOICES.md"
+schedule = "monthly"
+max_response_bytes = 2097152
+max_rows = 2000

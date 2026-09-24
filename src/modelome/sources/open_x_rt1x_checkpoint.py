@@ -188,13 +188,23 @@ class OpenXRT1XCheckpointSourceAdapter:
         links = []
         for item in files:
             path = item["name"]
+            filename = path.rsplit("/", 1)[-1]
+            if filename == "checkpoint":
+                relation = "weights"
+                object_role = "checkpoint"
+            elif filename == "_METADATA":
+                relation = "checkpoint_metadata"
+                object_role = "checkpoint_metadata"
+            else:
+                relation = "model_artifact"
+                object_role = "unclassified_checkpoint_prefix_object"
             url = f"https://storage.googleapis.com/{_BUCKET}/{quote(path, safe='/')}"
             generation = item["generation"]
             url = f"{url}?generation={generation}"
             links.append(
                 Link(
                     url,
-                    relation="model_artifact",
+                    relation=relation,
                     locator=path,
                     crawl=False,
                     model_local_ids=(local_id,),
@@ -204,6 +214,7 @@ class OpenXRT1XCheckpointSourceAdapter:
                 {
                     "object_name": path,
                     "url": url,
+                    "object_role": object_role,
                     "generation": item.get("generation"),
                     "md5_hash": item.get("md5_hash"),
                     "size_bytes": item.get("size"),

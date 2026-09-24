@@ -10,6 +10,7 @@ evidence, not as a claim that OpenRouter owns the underlying model or weights.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
@@ -253,6 +254,167 @@ class OpenRouterModelsSourceAdapter:
     def _model_page_url(self, model_id: str) -> str:
         return canonicalize_url(
             f"{self.model_page_base_url}/{quote(model_id, safe='/~:._-')}"
+        )
+
+
+class OpenRouterVideoModelsSourceAdapter:
+    """Capture OpenRouter's complete current video-generation model list.
+
+    The first-party ``GET /api/v1/videos/models`` contract says its ``data``
+    array contains all available video-generation models (unlike the broader
+    models endpoint, whose documented modality filter covers text, image,
+    audio, and embeddings). This separate source requires ``OPENROUTER_API_KEY``
+    because the video API documents Bearer authentication. The endpoint has no
+    pagination or reported total, so completeness relies on its documented
+    single-list response contract; byte, row-count, and schema limits fail
+    closed. This is a snapshot of current OpenRouter routing availability only.
+    """
+
+    disable_derived_extraction = True
+    coverage_limitation = (
+        "Captures the current complete list returned by OpenRouter's video-model "
+        "catalog endpoint. It is a snapshot of video-generation routing "
+        "availability, not a historical catalog or a census of models outside "
+        "OpenRouter. The first-party endpoint has no cursor or reported total."
+    )
+
+    def __init__(
+        self,
+        *,
+        name: str = "openrouter-video-models",
+        url: str = "https://openrouter.ai/api/v1/videos/models",
+        model_page_base_url: str = "https://openrouter.ai",
+        token: str | None = None,
+        max_response_bytes: int = 16 * 1024 * 1024,
+        max_models: int = 100_000,
+        client: HttpClient | Any | None = None,
+    ) -> None:
+        self.name = _required_text(name, "source name")
+        self.url = _web_url(url, self.name, "catalog URL")
+        self.model_page_base_url = _web_url(
+            model_page_base_url,
+            self.name,
+            "model-page base URL",
+        ).rstrip("/")
+        self._token = _required_text(
+            token if token is not None else os.environ.get("OPENROUTER_API_KEY", ""),
+            "OPENROUTER_API_KEY",
+        )
+        self.max_response_bytes = _positive_int(
+            max_response_bytes,
+            "max_response_bytes",
+            self.name,
+        )
+        self.max_models = _positive_int(max_models, "max_models", self.name)
+        self.client = client or HttpClient(max_response_bytes=self.max_response_bytes)
+        self.checkpoint_signature = content_hash(
+            {
+                "adapter": "openrouter-video-models-v1",
+                "url": self.url,
+                "model_page_base_url": self.model_page_base_url,
+                "max_response_bytes": self.max_response_bytes,
+                "max_models": self.max_models,
+            }
+        )
+
+    def fetch_page(self, state: Mapping[str, Any]) -> SourcePage:
+        if state:
+            raise ValueError(f"{self.name}: this catalog does not accept pagination state")
+        try:
+            response: HttpResponse = self.client.get(
+                self.url,
+                headers={
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {self._token}",
+                },
+            )
+        except Exception as error:
+            if self._token in str(error):
+                raise RuntimeError(f"{self.name}: catalog request failed") from None
+            raise
+        if response.status != 200:
+            raise ValueError(f"{self.name}: catalog returned HTTP {response.status}")
+        if len(response.body) > self.max_response_bytes:
+            raise ValueError(
+                f"{self.name}: catalog exceeds {self.max_response_bytes} bytes"
+            )
+        payload = response.json()
+        if not isinstance(payload, Mapping) or not _is_sequence(payload.get("data")):
+            raise ValueError(f"{self.name}: catalog data is not a JSON list")
+        items = payload["data"]
+        if len(items) > self.max_models:
+            raise ValueError(f"{self.name}: catalog exceeds {self.max_models} models")
+        # The documented endpoint is unpaginated. If a future response begins
+        # advertising pagination, do not silently treat the first page as all.
+        if "links" in payload:
+            links = payload["links"]
+            if not isinstance(links, Mapping):
+                raise ValueError(f"{self.name}: catalog pagination links are malformed")
+            if links.get("next") not in (None, ""):
+                raise ValueError(f"{self.name}: catalog unexpectedly returned a next page")
+        if any(
+            payload.get(key) not in (None, "")
+            for key in ("next", "next_url", "nextCursor")
+        ):
+            raise ValueError(f"{self.name}: catalog unexpectedly returned a next page")
+
+        records = tuple(self._record(item, index) for index, item in enumerate(items))
+        record_ids = [record.source_record_id for record in records]
+        if len(record_ids) != len(set(record_ids)):
+            raise ValueError(f"{self.name}: catalog contains duplicate model IDs")
+        return SourcePage(
+            records=records,
+            next_state={
+                "catalog_sha256": content_hash(response.body),
+                "model_count": len(records),
+            },
+            complete=True,
+            upstream_count=len(records),
+            authoritative_snapshot=True,
+        )
+
+    def _record(self, item: Any, index: int) -> SourceRecord:
+        if not isinstance(item, Mapping):
+            raise ValueError(f"{self.name}: catalog item {index} is not an object")
+        model_id = _required_text(item.get("id"), f"catalog item {index} ID")
+        title = _required_text(item.get("name"), f"catalog item {index} name")
+        identifier = Identifier("openrouter:model", model_id)
+        model_url = canonicalize_url(
+            f"{self.model_page_base_url}/{quote(model_id, safe='/~:._-')}"
+        )
+        model_local_id = f"{model_id}#model"
+        description = _text(item.get("description"))
+        text_parts = [description] if description else []
+        for key, label in (
+            ("supported_durations", "supported durations"),
+            ("supported_resolutions", "supported resolutions"),
+            ("supported_aspect_ratios", "supported aspect ratios"),
+        ):
+            values = _text_values(item.get(key))
+            if values:
+                text_parts.append(f"{label}: {', '.join(values)}")
+        if item.get("generate_audio") is True:
+            text_parts.append("generates audio: yes")
+        return SourceRecord(
+            source_record_id=model_id,
+            kind=ArtifactKind.PROVIDER_PAGE,
+            canonical_url=model_url,
+            title=title,
+            raw=dict(item),
+            text="\n".join(text_parts),
+            published_at=_timestamp(item.get("created")),
+            identifiers=(identifier,),
+            links=(Link(model_url, relation="model_page", locator="$.id", crawl=False),),
+            models=(
+                ModelHint(
+                    local_id=model_local_id,
+                    name=title,
+                    identifiers=(identifier,),
+                    aliases=_aliases(item, model_id, title),
+                    status=ModelStatus.RELEASED,
+                    locator="$.id",
+                ),
+            ),
         )
 
 

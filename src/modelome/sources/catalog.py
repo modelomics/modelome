@@ -14,6 +14,7 @@ from modelome.semantic_scholar_citations import SemanticScholarCitationGraphAdap
 from modelome.sources.acl_anthology import AclAnthologySourceAdapter
 from modelome.sources.admet_ai_checkpoint_registry import ADMETAICheckpointRegistrySourceAdapter
 from modelome.sources.aggregator_registry import OpenMLFlowRegistrySourceAdapter
+from modelome.sources.alignn_atomwise_registry import AlignnAtomwiseRegistrySourceAdapter
 from modelome.sources.allennlp_model_archives import AllenNLPModelArchiveSourceAdapter
 from modelome.sources.alphachip_rl_checkpoint import AlphaChipRlCheckpointAdapter
 from modelome.sources.alphafold_registry import AlphaFoldParameterArchiveSourceAdapter
@@ -62,6 +63,7 @@ from modelome.sources.dipy_registry import DipyPretrainedRegistrySourceAdapter
 from modelome.sources.dopamine_checkpoint_bundles import DopamineCheckpointBundleAdapter
 from modelome.sources.eartharxiv import EarthArxivSourceAdapter
 from modelome.sources.esa_fm4cs import EsaFm4csSourceAdapter
+from modelome.sources.esm1v_variants import ESM1vVariantRegistryAdapter
 from modelome.sources.esmfold_ablation_registry import ESMFoldAblationRegistryAdapter
 from modelome.sources.espnet_archived_zenodo import EspnetArchivedZenodoCheckpointAdapter
 from modelome.sources.espnet_model_zoo import EspnetModelZooSourceAdapter
@@ -96,6 +98,7 @@ from modelome.sources.google_gencast_checkpoint_inventory import (
 from modelome.sources.google_graphcast_checkpoint_inventory import (
     GoogleGraphCastCheckpointInventorySourceAdapter,
 )
+from modelome.sources.google_vertex_open_model_lifecycle import GoogleVertexOpenModelLifecycle
 from modelome.sources.gpt4all_model_catalog import Gpt4AllModelCatalogSourceAdapter
 from modelome.sources.graph_ml_registry import GraphMLRegistrySourceAdapter
 from modelome.sources.graphcore_gpspp_checkpoints import (
@@ -123,6 +126,9 @@ from modelome.sources.lerobot_pi0fast_libero_lineage import (
     LeRobotPi0FastLiberoLineageSourceAdapter,
 )
 from modelome.sources.lerobot_pi05_libero_relation import LeRobotPi05LiberoRelationSourceAdapter
+from modelome.sources.lerobot_vlajepa_checkpoints import (
+    LeRobotVLAJEPACheckpointSourceAdapter,
+)
 from modelome.sources.line_checkpoint_card_catalog import (
     LineCheckpointCardCatalogSourceAdapter,
 )
@@ -161,6 +167,9 @@ from modelome.sources.ollama_library_tags import OllamaLibraryTagCatalogAdapter
 from modelome.sources.onnx_model_zoo import OnnxModelZooSourceAdapter
 from modelome.sources.open_x_rt1x_checkpoint import OpenXRT1XCheckpointSourceAdapter
 from modelome.sources.openai_gpt2_checkpoints import OpenAIGPT2CheckpointSourceAdapter
+from modelome.sources.openai_guided_diffusion_checkpoints import (
+    OpenAIGuidedDiffusionCheckpointSourceAdapter,
+)
 from modelome.sources.openai_models import OpenAIModelsSourceAdapter
 from modelome.sources.openaire import OpenAireGraphSourceAdapter
 from modelome.sources.openalex import OpenAlexSourceAdapter
@@ -171,7 +180,10 @@ from modelome.sources.openfold3_registry import OpenFold3ParameterRegistryAdapte
 from modelome.sources.openmmlab import OpenMMLabModelIndexSourceAdapter
 from modelome.sources.openpi_checkpoint_manifest import OpenPiCheckpointManifestAdapter
 from modelome.sources.openreview import OpenReviewSourceAdapter
-from modelome.sources.openrouter import OpenRouterModelsSourceAdapter
+from modelome.sources.openrouter import (
+    OpenRouterModelsSourceAdapter,
+    OpenRouterVideoModelsSourceAdapter,
+)
 from modelome.sources.openvino_model_zoo import OpenVinoModelZooSourceAdapter
 from modelome.sources.openvla_checkpoints import OpenVLACheckpointSourceAdapter
 from modelome.sources.osf_preprints import OsfPreprintSourceAdapter
@@ -196,6 +208,9 @@ from modelome.sources.paddlenlp_taskflow_uie import PaddleNlpTaskflowUieSourceAd
 from modelome.sources.paddleocr_current_model_list import (
     PaddleOcrCurrentModelListSourceAdapter,
 )
+from modelome.sources.paddleocr_ppstructure_model_list import (
+    PaddleOcrPPStructureModelListSourceAdapter,
+)
 from modelome.sources.paddlerec_catalog import PaddleRecCatalogSourceAdapter
 from modelome.sources.paddlespeech_ssl_manifest import PaddleSpeechSslManifestSourceAdapter
 from modelome.sources.paddlex_model_list import PaddleXModelListSourceAdapter
@@ -210,6 +225,7 @@ from modelome.sources.paperswithcode import (
 from modelome.sources.pelican_vla_checkpoint_registry import (
     PelicanVLACheckpointRegistrySourceAdapter,
 )
+from modelome.sources.piper_voice_catalog import PiperVoiceCatalogSourceAdapter
 from modelome.sources.plos import PlosSourceAdapter
 from modelome.sources.pmc import PmcSourceAdapter
 from modelome.sources.proteinmpnn import ProteinMpnSourceAdapter
@@ -250,6 +266,7 @@ from modelome.sources.tensorflow_audioset_checkpoints import (
 from modelome.sources.tensorflow_garden import TensorFlowGardenSourceAdapter
 from modelome.sources.tensorflow_hub_archive import TensorFlowHubArchiveSourceAdapter
 from modelome.sources.tensorflow_tpu_efficientnet import TensorFlowTPUEfficientNetSourceAdapter
+from modelome.sources.timm_legacy_poolformer import TimmLegacyPoolFormerSourceAdapter
 from modelome.sources.timm_model_registry import TimmModelRegistrySourceAdapter
 from modelome.sources.torch_hub_extra import TorchHubListingSourceAdapter
 from modelome.sources.torchaudio_pipeline_registry import (
@@ -263,6 +280,7 @@ from modelome.sources.torchvision_weight_registry import (
     TorchvisionWeightRegistrySourceAdapter,
 )
 from modelome.sources.torchxrayvision_registry import TorchXRayVisionRegistrySourceAdapter
+from modelome.sources.transformer_m_checkpoints import TransformerMCheckpointSourceAdapter
 from modelome.sources.ultralytics_release_checkpoints import (
     UltralyticsReleaseCheckpointSourceAdapter,
 )
@@ -504,6 +522,15 @@ def create_source(
             **injected,
         )
 
+    if adapter == "timm_legacy_poolformer":
+        return TimmLegacyPoolFormerSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository"))
+            or "huggingface/pytorch-image-models",
+            tag=_text(expanded.get("tag")) or "v0.6.13",
+            **injected,
+        )
+
     if adapter in {"torchvision_weight_registry", "torchvision-weight-registry"}:
         return TorchvisionWeightRegistrySourceAdapter(
             name=name,
@@ -626,6 +653,20 @@ def create_source(
             **injected,
         )
 
+    if adapter == "paddleocr_ppstructure_model_list":
+        return PaddleOcrPPStructureModelListSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "PaddlePaddle/PaddleOCR",
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=(
+                _text(expanded.get("source_path"))
+                or "docs/version2.x/ppstructure/models_list.en.md"
+            ),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            max_rows=_integer(expanded.get("max_rows"), 10_000),
+            **injected,
+        )
+
     if adapter in {"paddlerec_catalog", "paddlerec-algorithm-catalog"}:
         return PaddleRecCatalogSourceAdapter(
             name=name,
@@ -739,6 +780,59 @@ def create_source(
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
             max_entries=_integer(expanded.get("max_entries"), 100),
             **injected,
+        )
+
+    if adapter == "transformer_m_checkpoints":
+        return TransformerMCheckpointSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "lsj2408/Transformer-M",
+            branch=_text(expanded.get("branch")) or "main",
+            document_path=_text(expanded.get("document_path")) or "README.md",
+            provider_namespace=(
+                _text(expanded.get("provider_namespace")) or "transformer-m:checkpoint"
+            ),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 10_000),
+            **injected,
+        )
+
+    if adapter == "esm1v_variant_registry":
+        return ESM1vVariantRegistryAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "facebookresearch/esm",
+            branch=_text(expanded.get("branch")) or "main",
+            max_source_bytes=_integer(expanded.get("max_source_bytes"), 512 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 8),
+            **injected,
+        )
+
+    if adapter == "openai_guided_diffusion_checkpoints":
+        return OpenAIGuidedDiffusionCheckpointSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "openai/guided-diffusion",
+            branch=_text(expanded.get("branch")) or "main",
+            document_path=_text(expanded.get("document_path")) or "README.md",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_checkpoints=_integer(expanded.get("max_checkpoints"), 100),
+            client=injected["client"],
+        )
+
+    if adapter == "alignn_atomwise_registry":
+        return AlignnAtomwiseRegistrySourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "google_vertex_open_model_lifecycle":
+        return GoogleVertexOpenModelLifecycle(
+            name=name,
+            url=_text(expanded.get("url"))
+            or "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/deprecations/open-models",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 500),
+            client=injected["client"],
         )
 
     if adapter == "fourcastnet_checkpoint_registry":
@@ -1155,6 +1249,25 @@ def create_source(
             client=injected["client"],
         )
 
+    if adapter == "openrouter_video":
+        api_key = _credential(expanded, environment, defaults=("OPENROUTER_API_KEY",))
+        if not api_key:
+            raise ValueError(f"{name}: configured credential environment variable is unset")
+        return OpenRouterVideoModelsSourceAdapter(
+            name=name,
+            url=(
+                _text(expanded.get("url"))
+                or "https://openrouter.ai/api/v1/videos/models"
+            ),
+            model_page_base_url=(
+                _text(expanded.get("model_page_base_url")) or "https://openrouter.ai"
+            ),
+            token=api_key,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 16 * 1024 * 1024),
+            max_models=_integer(expanded.get("max_models"), 100_000),
+            client=injected["client"],
+        )
+
     if adapter in {"replicate_models", "replicate-models"}:
         token = _credential(expanded, environment, defaults=("REPLICATE_API_TOKEN",))
         if not token:
@@ -1483,6 +1596,14 @@ def create_source(
             **injected,
         )
 
+    if adapter == "lerobot_vlajepa_checkpoints":
+        return LeRobotVLAJEPACheckpointSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 5),
+            **injected,
+        )
+
     if adapter == "paddlehelix_gem_checkpoint":
         return PaddleHelixGemCheckpointSourceAdapter(
             name=name,
@@ -1683,6 +1804,8 @@ def create_source(
             "galaxea_vla_checkpoints",
             "gpt4all_model_catalog",
             "bpemb_pretrained_vector_registry",
+            "piper_voice_catalog",
+            "openrouter_video",
         }
         else _required_text(expanded, "url")
     )
@@ -2460,6 +2583,17 @@ def create_source(
             source_path=_required_text(expanded, "source_path"),
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
             max_rows=_integer(expanded.get("max_rows"), 10_000),
+            **injected,
+        )
+
+    if adapter == "piper_voice_catalog":
+        return PiperVoiceCatalogSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "rhasspy/piper",
+            branch=_text(expanded.get("branch")) or "master",
+            document_path=_text(expanded.get("document_path")) or "VOICES.md",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_rows=_integer(expanded.get("max_rows"), 2_000),
             **injected,
         )
 

@@ -33,6 +33,7 @@ _PHONE_NUMBER = re.compile(r"(?<!\d)(?:\+?\d[\s().-]*){7,}\d")
 _CONTROL_CHARACTER = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _TOKEN = re.compile(r"[a-z][a-z0-9+-]*", re.IGNORECASE)
 _KAGGLE_VERSION = re.compile(r"^[1-9][0-9]*$")
+_ZENODO_DOI = re.compile(r"^10\.5281/zenodo\.([1-9][0-9]*)$", re.IGNORECASE)
 _TITLE_STOPWORDS = frozenset(
     {
         "a",
@@ -1021,9 +1022,22 @@ def _evaluation_model_identifier_from_url(value: str) -> Identifier | None:
         return identifier
 
     parts = urlsplit(canonicalize_url(value))
-    if (parts.hostname or "").casefold() not in {"kaggle.com", "www.kaggle.com"}:
+    host = (parts.hostname or "").casefold()
+    path_segments = [segment for segment in parts.path.split("/") if segment]
+    if host in {"doi.org", "dx.doi.org"}:
+        doi_match = _ZENODO_DOI.fullmatch("/".join(path_segments))
+        if doi_match:
+            return Identifier("zenodo:record", doi_match.group(1))
+    if (
+        host in {"zenodo.org", "www.zenodo.org"}
+        and len(path_segments) >= 2
+        and path_segments[0] in {"record", "records"}
+        and _KAGGLE_VERSION.fullmatch(path_segments[1])
+    ):
+        return Identifier("zenodo:record", path_segments[1])
+    if host not in {"kaggle.com", "www.kaggle.com"}:
         return None
-    segments = [segment for segment in parts.path.split("/") if segment]
+    segments = path_segments
     if segments[:3] == ["api", "v1", "models"]:
         segments = segments[3:]
     elif segments[:1] == ["models"]:
