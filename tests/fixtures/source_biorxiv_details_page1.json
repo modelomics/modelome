@@ -1,0 +1,45 @@
+{
+  "messages": [
+    {
+      "status": "ok",
+      "category": "all",
+      "interval": "2026-08-25:2026-08-31",
+      "cursor": 0,
+      "count": 2,
+      "count_new_papers": "2",
+      "total": "3"
+    }
+  ],
+  "collection": [
+    {
+      "doi": "https://doi.org/10.1101/2026.08.30.123456",
+      "title": "Deep Atlas for Cellular Morphology",
+      "authors": "Example, A.; Researcher, B.",
+      "date": "2026-08-30",
+      "version": "1",
+      "type": "new results",
+      "license": "cc_by",
+      "category": "bioinformatics",
+      "jatsxml": "https://www.biorxiv.org/content/early/2026/08/30/2026.08.30.123456.source.xml",
+      "abstract": "We introduce Deep Atlas, a neural network for cellular morphology.",
+      "funder": "NA",
+      "published": "NA",
+      "server": "bioRxiv"
+    },
+    {
+      "doi": "10.64898/2026.08.29.654321",
+      "title": "A multimodal biological foundation model",
+      "authors": "Scientist, C.",
+      "date": "2026-08-31",
+      "version": "2",
+      "type": "revised",
+      "license": "cc_by_nc_nd",
+      "category": "bioengineering",
+      "jatsxml": "https://www.biorxiv.org/content/early/2026/08/31/2026.08.29.654321.source.xml",
+      "abstract": "The second version includes a larger training corpus.",
+      "funder": [{"name": "Example Funder", "id": "https://ror.org/012345678"}],
+      "published": "10.1038/s41586-026-01234-5",
+      "server": "bioRxiv"
+    }
+  ]
+}

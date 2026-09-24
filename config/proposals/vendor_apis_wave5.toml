@@ -1,0 +1,25 @@
+# SambaNova documents GET /v1/models as a list of all currently available
+# SambaCloud models and its SDK calls the result the Full SambaCloud Model List.
+# The bearer key is required, so treat observations as current API-availability
+# evidence. This endpoint is distinct from SambaStudio's private Model Hub and
+# user-created endpoint inventory.
+[[source]]
+name = "sambanova-cloud-models"
+adapter = "json_catalog"
+enabled = true
+activation_env = "SAMBANOVA_API_KEY"
+entry_tags = ["field:machine-learning", "ecosystem:sambanova", "kind:hosted-model", "evidence:current-api-availability"]
+url = "https://api.sambanova.ai/v1/models"
+provider_namespace = "sambanova-cloud:model"
+model_card_url_template = "https://api.sambanova.ai/v1/models/{id_path}"
+model_page_crawl = false
+auth_env = "SAMBANOVA_API_KEY"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+schedule = "daily"
+max_response_bytes = 4194304
+
+[source.mapping]
+items_path = "data"
+id_path = "id"
+name_path = "id"

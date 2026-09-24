@@ -1,0 +1,18 @@
+# TorchGeo's first-party `torchgeo/models` source tree declares downloadable
+# checkpoint URLs as literal torchvision WeightsEnum constants. The adapter
+# AST-parses a pinned GitHub source archive and never retrieves model binaries.
+[[source]]
+name = "torchgeo-pretrained-weight-registry"
+adapter = "torchgeo_weight_registry"
+enabled = false
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:torchgeo", "kind:pretrained-weights"]
+repository = "torchgeo/torchgeo"
+branch = "main"
+package_path = "torchgeo/models"
+max_archive_bytes = 67108864
+max_module_bytes = 2097152
+max_modules = 1000
+
+[evidence]
+upstream_registry = "https://github.com/torchgeo/torchgeo/tree/main/torchgeo/models"
+weight_docs = "https://docs.torchgeo.org/en/latest/tutorials/pretrained_weights.html"

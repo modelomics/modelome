@@ -1,0 +1,9 @@
+{
+  "name": "papers",
+  "description": "Core paper metadata.",
+  "README": "Papers license: ODC-BY.",
+  "files": [
+    "https://ai2-s2ag.s3.amazonaws.com/staging/2026-08-25/papers/part-000.jsonl.gz?X-Amz-Credential=temporary-one&X-Amz-Signature=sig-one",
+    "https://ai2-s2ag.s3.amazonaws.com/staging/2026-08-25/papers/part-001.jsonl.gz?X-Amz-Credential=temporary-two&X-Amz-Signature=sig-two"
+  ]
+}

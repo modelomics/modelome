@@ -1,0 +1,15 @@
+{
+  "dataset": "abstracts",
+  "start_release": "2026-08-11",
+  "end_release": "2026-08-25",
+  "diffs": [
+    {
+      "from_release": "2026-08-11",
+      "to_release": "2026-08-25",
+      "update_files": [
+        "https://ai2-s2ag.s3.amazonaws.com/updates/2026-08-11-to-2026-08-25/abstracts/update-000.jsonl.gz?X-Amz-Signature=abstract-update"
+      ],
+      "delete_files": []
+    }
+  ]
+}

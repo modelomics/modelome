@@ -1,0 +1,29 @@
+# robomimic's first-party documentation publishes exact downloadable policy
+# checkpoints for its v0.1 CoRL 2021 benchmark. The registry is intentionally
+# limited to direct .pth artifacts linked from that page; it does not claim to
+# cover newer robomimic models, datasets, or checkpoints published elsewhere.
+[[source]]
+name = "robomimic-v0.1-pretrained-policies"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:robomimic", "kind:pretrained-policy"]
+url = "https://robomimic.github.io/docs/model_zoo/robomimic_v0.1.html"
+provider_namespace = "robomimic:pretrained-policy"
+artifact_kind = "weights"
+model_status = "released"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100
+
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://downloads\.cs\.stanford\.edu/downloads/rt_benchmark/model_zoo/.+\.pth$'
+identity_source = "href"
+identity_pattern = '^https://downloads\.cs\.stanford\.edu/downloads/rt_benchmark/model_zoo/(?P<id>[A-Za-z0-9_./-]+\.pth)$'
+name_source = "identity"
+relation = "model_artifact"
+require_url = true
+
+[evidence]
+catalog = "https://robomimic.github.io/docs/model_zoo/robomimic_v0.1.html"
+using_models = "https://robomimic.github.io/docs/tutorials/using_pretrained_models.html"

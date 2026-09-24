@@ -1,0 +1,33 @@
+# Azure AI Foundry's first-party catalog is a distinct availability plane: it
+# declares model offerings operated and supported by Azure, including selected
+# upstream providers. The namespace below identifies Azure offerings; it does
+# not assert that Azure authored the underlying model. The source reads only
+# the public documentation table and does not call a tenant-scoped API.
+[[source]]
+name = "azure-foundry-models-sold-by-azure"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:azure-foundry", "kind:hosted-model-offering"]
+url = "https://learn.microsoft.com/en-us/azure/foundry/foundry-models/concepts/models-sold-directly-by-azure?view=azureml-api-2"
+provider_namespace = "azure:foundry-model-offering"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 8388608
+max_entries = 10000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model ID \\| Description \\| Context Window \\| Max Output Tokens \\| Training Data'
+name_column = 0
+identity_source = "name"
+require_url = false
+
+# Microsoft Learn documents the Foundry model catalog and its distinction
+# between models sold/operated by Azure and partner/community offerings:
+# https://learn.microsoft.com/en-us/azure/foundry/foundry-models/concepts/models-sold-directly-by-azure?view=azureml-api-2
+#
+# Scope note: this page covers the Azure sold/hosted catalog's detailed rows,
+# including exact model IDs, capability summaries and versions where listed.
+# It is a current provider availability/documentation plane, not a full model
+# history or a substitute for original provider catalogs.

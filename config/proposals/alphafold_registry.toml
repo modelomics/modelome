@@ -1,0 +1,15 @@
+# Disabled opt-in source for the exact AlphaFold parameter archive URL selected
+# by DeepMind's official download script. The archive itself is never fetched.
+[[source]]
+name = "alphafold-parameter-archive"
+adapter = "alphafold_parameter_archive"
+enabled = false
+entry_tags = ["field:biology", "subfield:protein-structure-prediction", "ecosystem:alphafold", "kind:checkpoint-archive"]
+repository = "google-deepmind/alphafold"
+branch = "main"
+schedule = "weekly"
+max_script_bytes = 262144
+
+[evidence]
+parameter_download_script = "https://github.com/google-deepmind/alphafold/blob/main/scripts/download_alphafold_params.sh"
+parameter_archive = "https://storage.googleapis.com/alphafold/alphafold_params_2022-12-06.tar"

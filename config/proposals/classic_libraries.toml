@@ -1,0 +1,42 @@
+# Candidate first-party documented technique catalogs, not release inventories.
+# These selectors were checked against the current official documentation pages.
+
+[[source]]
+name = "lightgbm-python-estimators"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:lightgbm", "kind:machine-learning-component"]
+url = "https://lightgbm.readthedocs.io/en/stable/Python-API.html"
+provider_namespace = "lightgbm:machine-learning-component"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 5000
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://lightgbm\.readthedocs\.io/en/stable/pythonapi/lightgbm\.LGBM(?:Classifier|Regressor|Ranker)\.html$'
+identity_source = "url"
+identity_pattern = 'lightgbm\.(?P<id>LGBM(?:Classifier|Regressor|Ranker))\.html$'
+relation = "model_page"
+require_url = true
+
+[[source]]
+name = "imbalanced-learn-over-sampling"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:imbalanced-learn", "kind:machine-learning-component", "task:class-imbalance"]
+url = "https://imbalanced-learn.org/stable/references/over_sampling.html"
+provider_namespace = "imbalanced-learn:technique"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 5000
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://imbalanced-learn\.org/stable/references/generated/imblearn\.over_sampling\.[A-Za-z0-9_]+\.html$'
+identity_source = "url"
+identity_pattern = 'imblearn\.over_sampling\.(?P<id>[A-Za-z0-9_]+)\.html$'
+relation = "model_page"
+require_url = true

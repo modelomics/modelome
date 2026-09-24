@@ -1,0 +1,24 @@
+# Uber Orbit documents three Bayesian time-series forecasting techniques.
+# This proposal records the concrete DLT and LGT prediction classes from its
+# first-party API index; base classes and estimators are not forecast models.
+[[source]]
+name = "orbit-bayesian-forecasting-models"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:time-series-machine-learning", "ecosystem:orbit", "kind:machine-learning-component", "task:forecasting"]
+url = "https://uber.github.io/orbit/orbit.models.html"
+provider_namespace = "orbit:machine-learning-component"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 100
+
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://uber\.github\.io/orbit/orbit\.models\.html$'
+raw_href_pattern = '#orbit\.models\.(?:dlt\.DLT|lgt\.LGT)(?:Aggregated|Full|MAP)$'
+identity_source = "href"
+identity_pattern = '#(?P<id>orbit\.models\.(?:dlt\.DLT|lgt\.LGT)(?:Aggregated|Full|MAP))$'
+relation = "model_page"
+require_url = true

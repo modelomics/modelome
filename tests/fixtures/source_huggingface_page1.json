@@ -1,0 +1,38 @@
+[
+  {
+    "_id": "internal-1",
+    "id": "example-lab/example-vision-xl",
+    "modelId": "example-lab/example-vision-xl",
+    "author": "example-lab",
+    "sha": "abc123",
+    "createdAt": "2026-08-20T08:00:00.000Z",
+    "lastModified": "2026-08-31T10:15:00.000Z",
+    "pipeline_tag": "image-classification",
+    "tags": [
+      "image-classification",
+      "arxiv:2608.12345",
+      "base_model:finetune:example-lab/example-vision-base"
+    ],
+    "baseModels": ["example-lab/example-vision-base"],
+    "cardData": {
+      "base_model": "example-lab/example-vision-base",
+      "paper": "https://arxiv.org/abs/2608.12345",
+      "code": "https://github.com/example-lab/example-vision-xl"
+    },
+    "siblings": [
+      {"rfilename": "README.md"},
+      {"rfilename": "config.json"},
+      {"rfilename": "weights.safetensors"}
+    ]
+  },
+  {
+    "id": "research-group/scientific-generator",
+    "sha": "def456",
+    "createdAt": "2026-08-21T08:00:00Z",
+    "lastModified": "2026-08-30T09:00:00Z",
+    "pipeline_tag": "unconditional-image-generation",
+    "tags": ["chemistry"],
+    "cardData": {"license": "apache-2.0"},
+    "siblings": [{"rfilename": "README.md"}]
+  }
+]

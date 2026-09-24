@@ -1,0 +1,43 @@
+Model,Bucket,Domain,Reference
+AlexNet,classic_cv,vision,https://proceedings.neurips.cc/paper/2012/hash/c399862d3b9d6b76c8436e924a68c45b-Abstract.html
+VGG16,classic_cv,vision,https://arxiv.org/abs/1409.1556
+VGG19,classic_cv,vision,https://arxiv.org/abs/1409.1556
+ResNet-152 (ImageNet),classic_cv,vision,https://arxiv.org/abs/1512.03385
+GANs,gan,image,https://arxiv.org/abs/1406.2661
+Image-to-image cGAN,gan,image,https://arxiv.org/abs/1611.07004
+WGAN (Wasserstein GAN),gan,image,https://arxiv.org/abs/1701.07875
+ProgressiveGAN,gan,image,https://arxiv.org/abs/1710.10196
+BigGAN-deep 512x512,gan,image,https://arxiv.org/abs/1809.11096
+StyleGAN2,gan,image,https://arxiv.org/abs/1912.04958
+ProteinGAN,gan,biology,https://www.nature.com/articles/s42256-021-00310-5
+Transformer,transformer,language,https://proceedings.neurips.cc/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf
+BERT-Large,transformer,language,https://arxiv.org/abs/1810.04805
+GPT-3 175B (davinci),transformer,language,https://arxiv.org/abs/2005.14165
+T5-11B,transformer,language,https://arxiv.org/abs/1910.10683
+ViT-Huge/14,transformer,vision,https://arxiv.org/abs/2010.11929
+CLIP (ViT L/14@336px),transformer,multimodal,https://arxiv.org/abs/2103.00020
+AlphaFold 2,transformer,biology,https://www.nature.com/articles/s41586-021-03819-2
+Denoising Diffusion Probabilistic Models (LSUN Bedroom),image_diffusion,image,https://arxiv.org/abs/2006.11239
+GLIDE,image_diffusion,image,https://arxiv.org/abs/2112.10741
+Imagen,image_diffusion,image,https://arxiv.org/abs/2205.11487
+Stable Diffusion 1.5,image_diffusion,image,https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5
+Stable Diffusion XL (SDXL),image_diffusion,image,https://arxiv.org/abs/2307.01952
+GenMS,chemistry_materials_diffusion,materials,https://arxiv.org/abs/2409.06762
+DecompDiff,chemistry_materials_diffusion,chemistry,https://arxiv.org/abs/2403.07902
+ShapeMol,chemistry_materials_diffusion,chemistry,https://arxiv.org/abs/2308.11890
+GenCast,physics_earth_diffusion,earth_science,https://arxiv.org/abs/2312.15796
+Earth-2 (cBottle-SR),physics_earth_diffusion,earth_science,https://arxiv.org/abs/2505.06474v1
+DiffDock,biology_diffusion,biology,https://arxiv.org/abs/2210.01776
+RFdiffusion,biology_diffusion,biology,https://www.nature.com/articles/s41586-023-06415-8
+RNADiffFold,biology_diffusion,biology,https://www.biorxiv.org/content/10.1101/2024.05.28.596177v2.abstract
+AlphaFold 3,biology_diffusion,biology,https://www.nature.com/articles/s41586-024-07487-w
+DeepSEA,biology_neural,biology,https://www.nature.com/articles/nmeth.3547
+Enformer,biology_neural,biology,https://www.nature.com/articles/s41592-021-01252-x
+U-Net,medicine_neural,medicine,https://arxiv.org/abs/1505.04597
+nnU-Net,medicine_neural,medicine,https://www.nature.com/articles/s41592-020-01008-z
+SchNet,chemistry_neural,chemistry,https://proceedings.neurips.cc/paper/2017/hash/303ed4c69846ab36c2904d3ba8573050-Abstract.html
+DimeNet,chemistry_neural,chemistry,https://arxiv.org/abs/2003.03123
+Fourier Neural Operator,physics_neural,physics,https://arxiv.org/abs/2010.08895
+MeshGraphNets,physics_neural,physics,https://arxiv.org/abs/2010.03409
+Crystal Graph Convolutional Neural Network,materials_neural,materials,https://link.aps.org/doi/10.1103/PhysRevLett.120.145301
+NequIP,materials_neural,materials,https://www.nature.com/articles/s41467-022-29939-5

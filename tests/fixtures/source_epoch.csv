@@ -1,0 +1,3 @@
+Model,Organization,Publication date,Abstract,Approach,Task,Domain,Last modified,Link,Reference,Archived links,Base model
+Example Vision XL,Example Lab,2026-08-20,A catalog abstract,Convolution,Classification,Vision,2026-08-31,https://huggingface.co/example-lab/example-vision-xl,https://doi.org/10.5555/example.1,https://web.archive.org/web/20260831/https://example.test/model,Example Vision Base
+Example Scientific Generator,Research Group,2026-08-21,Generates molecular structures,Score matching,Generation,Chemistry,2026-08-30,https://example.test/scientific-generator,https://github.com/example/scientific-generator,,

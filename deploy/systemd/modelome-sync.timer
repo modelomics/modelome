@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the Modelome every day
+
+[Timer]
+OnCalendar=*-*-* 02:17:00 UTC
+Persistent=true
+RandomizedDelaySec=20m
+Unit=modelome-sync.service
+
+[Install]
+WantedBy=timers.target
+

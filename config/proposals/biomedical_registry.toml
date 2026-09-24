@@ -1,0 +1,17 @@
+# Bounded, first-party StarDist pretrained model registry proposal. This remains
+# disabled until the adapter is wired into the source catalog.
+[[source]]
+name = "stardist-pretrained-models"
+adapter = "stardist_pretrained_registry"
+enabled = false
+repository = "stardist/stardist"
+branch = "main"
+source_path = "stardist/models/__init__.py"
+max_source_bytes = 2097152
+max_models = 1000
+schedule = "weekly"
+
+# Primary source: https://github.com/stardist/stardist/blob/main/stardist/models/__init__.py
+# The package registers exact built-in 2D/3D model names, release archive URLs,
+# and SHA-256 values. The adapter pins each scan to the resolved Git commit and
+# does not download model archives. BioImage.IO contributions are not enumerated.

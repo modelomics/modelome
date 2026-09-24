@@ -1,0 +1,26 @@
+{
+  "release_id": "2026-08-25",
+  "README": "Release-wide license and usage terms.",
+  "datasets": [
+    {
+      "name": "abstracts",
+      "description": "Paper abstract text, where available.",
+      "README": "Abstracts license: ODC-BY."
+    },
+    {
+      "name": "citations",
+      "description": "Citation edges.",
+      "README": "Citations license: ODC-BY."
+    },
+    {
+      "name": "paper-ids",
+      "description": "Mapping from SHA-based IDs to corpus IDs.",
+      "README": "Paper IDs license: ODC-BY."
+    },
+    {
+      "name": "papers",
+      "description": "Core paper metadata.",
+      "README": "Papers license: ODC-BY."
+    }
+  ]
+}

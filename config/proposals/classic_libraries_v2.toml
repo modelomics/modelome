@@ -1,0 +1,104 @@
+# Additional live-documented technique catalogs. These identities are API
+# techniques/components, not software releases.
+
+[[source]]
+name = "xgboost-python-estimators"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:xgboost", "kind:machine-learning-component"]
+url = "https://xgboost.readthedocs.io/en/stable/python/python_api.html"
+provider_namespace = "xgboost:machine-learning-component"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 16777216
+max_entries = 5000
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://xgboost\.readthedocs\.io/en/stable/python/python_api\.html$'
+raw_href_pattern = '#xgboost\.(?:XGBClassifier|XGBRegressor|XGBRanker|XGBRFClassifier|XGBRFRegressor)$'
+identity_source = "href"
+identity_pattern = '#xgboost\.(?P<id>XGB(?:RF)?(?:Classifier|Regressor)|XGBRanker)$'
+relation = "model_page"
+require_url = true
+
+[[source]]
+name = "catboost-python-estimators"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:catboost", "kind:machine-learning-component"]
+url = "https://catboost.ai/docs/en/concepts/python-reference_catboost"
+provider_namespace = "catboost:machine-learning-component"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 5000
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://catboost\.ai/docs/en/concepts/python-reference_catboost(?:classifier|regressor|ranker)$'
+identity_source = "url"
+identity_pattern = 'python-reference_(?P<id>catboost(?:classifier|regressor|ranker))$'
+relation = "model_page"
+require_url = true
+
+[[source]]
+name = "river-ml-technique-overview"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:online-machine-learning", "ecosystem:river", "kind:machine-learning-component"]
+url = "https://riverml.xyz/latest/api/overview/"
+provider_namespace = "river:machine-learning-component"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 16777216
+max_entries = 10000
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://riverml\.xyz/latest/api/(?:anomaly|cluster)/[A-Za-z0-9_]+/?$'
+identity_source = "url"
+identity_pattern = '/api/(?P<id>(?:anomaly|cluster)/[A-Za-z0-9_]+)/?$'
+relation = "model_page"
+require_url = true
+
+[[source]]
+name = "optuna-samplers"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:hyperparameter-optimization", "ecosystem:optuna", "kind:machine-learning-component"]
+url = "https://optuna.readthedocs.io/en/stable/reference/samplers/index.html"
+provider_namespace = "optuna:sampler"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 5000
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://optuna\.readthedocs\.io/en/stable/reference/samplers/generated/optuna\.samplers\.(?:RandomSampler|TPESampler|GPSampler|CmaEsSampler|NSGAIISampler|NSGAIIISampler|GridSampler|QMCSampler|BruteForceSampler|PartialFixedSampler)\.html$'
+identity_source = "url"
+identity_pattern = 'optuna\.samplers\.(?P<id>[A-Za-z0-9_]+)\.html$'
+relation = "model_page"
+require_url = true
+
+[[source]]
+name = "gpflow-model-classes"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:gaussian-processes", "ecosystem:gpflow", "kind:machine-learning-component"]
+url = "https://gpflow.github.io/GPflow/develop/api/gpflow/models/index.html"
+provider_namespace = "gpflow:machine-learning-component"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 16777216
+max_entries = 5000
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://gpflow\.github\.io/GPflow/develop/api/gpflow/models/index\.html$'
+raw_href_pattern = '#gpflow\.models\.(?:BayesianGPLVM|CGLB|GPLVM|GPMC|SGPR|SVGP|VGP|VGPOpperArchambeau)$'
+identity_source = "href"
+identity_pattern = '#gpflow\.models\.(?P<id>[A-Za-z0-9_]+)$'
+relation = "model_page"
+require_url = true

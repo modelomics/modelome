@@ -1,0 +1,19 @@
+# Coqui TTS maintains a nested first-party index of TTS, vocoder, and voice
+# conversion model handles and their artifact URLs. The adapter admits only
+# checkpoint files served by Coqui's download gateway from those model families.
+[[source]]
+name = "coqui-tts-model-registry"
+adapter = "coqui_tts_registry"
+enabled = true
+entry_tags = ["field:speech", "task:text-to-speech", "ecosystem:coqui-tts", "kind:checkpoint"]
+repository = "coqui-ai/TTS"
+branch = "dev"
+source_path = "TTS/.models.json"
+provider_namespace = "coqui:tts-model"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 20000
+max_depth = 8
+
+[evidence]
+first_party_registry = "https://github.com/coqui-ai/TTS/blob/dev/TTS/.models.json"

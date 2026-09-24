@@ -1,0 +1,14 @@
+# Proposed bounded source for Cellpose's own named website checkpoints.
+# Cellpose documents the download template as /models/MODEL_NAME. This
+# proposal excludes Cellpose 4 built-ins already available through Hugging Face.
+[[source]]
+name = "cellpose-website-checkpoints"
+adapter = "cellpose_registry"
+enabled = false
+entry_tags = ["field:computer-vision", "subfield:bioimage-analysis", "ecosystem:cellpose", "kind:checkpoint"]
+model_url_base = "https://www.cellpose.org/models"
+schedule = "weekly"
+
+[evidence]
+cellpose_v3_model_guide = "https://cellpose.readthedocs.io/en/v3.1.1.1/models.html"
+cellpose_restore_guide = "https://cellpose.readthedocs.io/en/latest/restore.html"

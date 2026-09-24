@@ -1,0 +1,18 @@
+# Diffusion Policy's first-party experiment site indexes the released run
+# checkpoints directly on its own Columbia-hosted domain, outside Hugging Face.
+# The adapter accepts only named, scored epoch checkpoints under the documented
+# image and low_dim experiment roots; it excludes latest aliases and does not
+# fetch checkpoint bytes. Keep disabled until catalog wiring and source review.
+[[source]]
+name = "diffusion-policy-checkpoints"
+adapter = "diffusion_policy_checkpoints"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:diffusion-policy", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_directories = 1024
+max_entries = 20000
+
+[evidence]
+experiment_index = "https://diffusion-policy.cs.columbia.edu/data/experiments/"
+official_readme = "https://github.com/real-stanford/diffusion_policy"

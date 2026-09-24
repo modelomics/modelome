@@ -1,0 +1,21 @@
+# Fairseq's first-party wav2vec documentation contains explicit pretrained
+# model tables with direct .pt checkpoint links. This proposal reads only rows
+# with a model name and a declared downloadable artifact from that document; it
+# does not enumerate models published only in downstream hubs or other repos.
+[[source]]
+name = "fairseq-wav2vec-checkpoints"
+adapter = "markdown_model_table"
+enabled = true
+entry_tags = ["field:speech", "task:speech-representation-learning", "ecosystem:fairseq", "kind:checkpoint"]
+repository = "facebookresearch/fairseq"
+branch = "main"
+document_path = "examples/wav2vec/README.md"
+provider_namespace = "fairseq:wav2vec-checkpoint"
+model_column = 0
+model_header_pattern = "^Description$"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_rows = 10000
+
+[evidence]
+first_party_checkpoint_tables = "https://github.com/facebookresearch/fairseq/blob/main/examples/wav2vec/README.md"

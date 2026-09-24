@@ -1,0 +1,27 @@
+{
+  "messages": [
+    {
+      "status": "ok",
+      "interval": "2026-08-25:2026-08-31",
+      "cursor": 0,
+      "count": 1,
+      "total": "1"
+    }
+  ],
+  "collection": [
+    {
+      "biorxiv_doi": "10.1101/2025.01.02.25320000",
+      "published_doi": "https://doi.org/10.1016/j.example.2026.100001",
+      "published_journal": "Example Medicine",
+      "preprint_platform": "medRxiv",
+      "preprint_title": "A deep clinical risk model",
+      "preprint_authors": "Clinician, E.; Engineer, F.",
+      "preprint_category": "health informatics",
+      "preprint_date": "2025-01-03",
+      "published_date": "2026-08-30",
+      "preprint_abstract": "We introduce a deep neural network for clinical risk prediction.",
+      "preprint_author_corresponding": "Clinician E",
+      "preprint_author_corresponding_institution": "Example Hospital"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "meta": {
+    "count": 2,
+    "next_cursor": "opaque-cursor-page-2"
+  },
+  "results": [
+    {
+      "id": "https://openalex.org/W1234567890",
+      "doi": "https://doi.org/10.5555/example.1",
+      "title": "A Cross-Domain Learning Method",
+      "publication_date": "2026-08-29",
+      "updated_date": "2026-08-31T11:30:00Z",
+      "abstract_inverted_index": {
+        "abstract.": [2],
+        "A": [0],
+        "reconstructed": [1]
+      },
+      "ids": {
+        "openalex": "https://openalex.org/W1234567890",
+        "doi": "https://doi.org/10.5555/example.1",
+        "pmid": "https://pubmed.ncbi.nlm.nih.gov/12345678"
+      },
+      "primary_location": {
+        "landing_page_url": "https://doi.org/10.5555/example.1",
+        "pdf_url": "https://repository.example.test/paper.pdf"
+      },
+      "best_oa_location": null,
+      "locations": []
+    }
+  ]
+}

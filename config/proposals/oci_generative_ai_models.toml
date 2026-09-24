@@ -1,0 +1,13 @@
+# OCI's first-party public list of offered pretrained foundation models.
+# The adapter follows only linked Oracle model cards and extracts the explicit
+# OCI model name from each card. The maximum of 100 bounds linked detail fetches.
+[[source]]
+name = "oci-generative-ai-pretrained-models"
+adapter = "oci_generative_ai_model_catalog"
+enabled = false
+url = "https://docs.oracle.com/en-us/iaas/Content/generative-ai/pretrained-models.htm"
+provider_namespace = "oci:generative-ai-model"
+entry_tags = ["provider:oracle-oci", "kind:foundation-model"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_entries = 100

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "modelome"
+version = "0.1.0"
+description = "An evidence-backed, continuously updated registry of deep-learning models"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Modelome contributors" }]
+dependencies = [
+  "pyarrow>=20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "pytest-cov>=6.0",
+  "ruff>=0.11",
+]
+
+[project.scripts]
+modelome = "modelome.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/modelome"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

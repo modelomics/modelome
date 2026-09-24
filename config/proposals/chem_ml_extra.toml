@@ -1,0 +1,28 @@
+# First-party Uni-MOF checkpoint listing proposal. Disabled until catalog wiring.
+[[source]]
+name = "unimof-checkpoints"
+adapter = "unimof_checkpoint_registry"
+enabled = false
+repository = "dptech-corp/Uni-MOF"
+branch = "main"
+readme_path = "README.md"
+entry_tags = ["field:scientific-machine-learning", "domain:materials", "kind:checkpoint"]
+schedule = "weekly"
+
+# The repository README lists four Uni-MOF pretraining/fine-tuning checkpoints
+# plus one single-system checkpoint as exact GitHub release assets. The adapter
+# admits only literal .pt asset links from table rows and does not fetch weights.
+# It complements DeepChem's model-family documentation inventory; it does not
+# duplicate Uni-Mol's Hugging Face-hosted checkpoints.
+
+# Chemprop's official documentation demonstrates downloading this exact
+# CheMeleon checkpoint from Zenodo. It is a singleton documented pretrained
+# weight, separate from the Uni-MOF release table above.
+[[source]]
+name = "chemprop-chemeleon-checkpoint"
+adapter = "chemprop_chemeleon_checkpoint"
+enabled = false
+documentation_url = "https://chemprop.readthedocs.io/en/main/chemeleon_foundation_finetuning.html"
+weight_url = "https://zenodo.org/records/15460715/files/chemeleon_mp.pt"
+entry_tags = ["field:scientific-machine-learning", "domain:chemistry", "ecosystem:chemprop", "kind:checkpoint"]
+schedule = "weekly"

@@ -1,0 +1,23 @@
+[Unit]
+Description=Modelome incremental sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=modelome
+Group=modelome
+WorkingDirectory=/opt/modelome
+EnvironmentFile=-/etc/modelome.env
+Environment=MODELOME_STORE=/var/lib/modelome/store
+Environment=MODELOME_LAKE=/var/lib/modelome/lake
+StateDirectory=modelome
+ExecStart=/opt/modelome/.venv/bin/modelome daily
+ExecStartPost=/opt/modelome/.venv/bin/modelome benchmark --minimum-recall 1.0
+
+# The crawler only needs outbound network access and its state directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/modelome

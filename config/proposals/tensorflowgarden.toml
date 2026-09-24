@@ -1,0 +1,10 @@
+# Proposed first-party TensorFlow Model Garden documentation source.
+[[source]]
+name = "tensorflow-model-garden"
+adapter = "tensorflow_model_garden"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:tensorflow", "kind:model-checkpoint"]
+url = "https://github.com/tensorflow/models"
+artifact_kind = "model_card"
+schedule = "weekly"
+max_bytes = 8388608

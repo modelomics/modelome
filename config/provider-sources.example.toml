@@ -1,0 +1,62 @@
+# Example only: copy this source table into config/sources.toml after replacing
+# the placeholder endpoint and namespace with an official provider catalog. Keep
+# it disabled while validating paths, then set enabled = true deliberately.
+# The adapter contains no provider or model names; all semantics come from paths.
+
+[[source]]
+name = "example-provider-catalog"
+adapter = "json_catalog"
+enabled = false
+url = "https://api.example.invalid/v1/models"
+schedule = "daily"
+
+# This namespace must be stable and provider-specific. It becomes the exact
+# identifier namespace for both the provider-page artifact and model entity.
+provider_namespace = "example:model"
+
+# Provider IDs are often mutable deployment aliases, not trained checkpoints.
+# Enable this only when the provider documents each ID as an immutable release;
+# then the adapter emits an exact-ID ReleaseHint for every item.
+# provider_id_is_release = true
+
+# {id} and {name} are URL-encoded before substitution. Use {id_path} only when
+# the provider documents a slash-delimited resource name; its segments remain
+# URL-encoded while the separators remain paths. The template may be absolute
+# or relative to `url`.
+model_card_url_template = "https://console.example.invalid/models/{id}"
+
+# Pagination parameters are optional. `page_size_param` is sent only when set.
+page_size = 100
+page_size_param = "limit"
+cursor_param = "after"
+
+# Optional header authentication is read only from the named environment
+# variable. Never put a credential in this file, the URL, or a pagination URL.
+# Omit these three settings for a public unauthenticated catalog. Use an empty
+# auth_scheme for key-style headers such as `X-API-Key`.
+auth_env = "EXAMPLE_PROVIDER_MODELS_TOKEN"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+
+# Alternatively, an API-key query parameter can be read from the same
+# environment variable. Never embed it in `url`, a card template, or a cursor.
+# auth_query_param = "key"
+
+[source.mapping]
+# Paths are dotted JSON object keys, optionally prefixed with `$.`. Numeric
+# segments address array elements. Use `$` when the response itself is a list.
+items_path = "data.models"
+id_path = "id"
+name_path = "display_name"
+created_path = "created_at"
+updated_path = "updated_at"
+base_model_path = "lineage.base_model"
+total_path = "pagination.total"
+
+# Cursor pagination: read a scalar from this path and send it using
+# `cursor_param` on the next request.
+next_cursor_path = "pagination.next_cursor"
+
+# Alternatively, remove next_cursor_path and configure a relative or absolute
+# server-provided URL. If both fields contain values, next_url_path wins.
+# next_url_path = "pagination.next_url"

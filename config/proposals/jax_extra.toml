@@ -1,0 +1,17 @@
+# Proposal for Scenic's first-party JAX/Flax baseline checkpoint inventory.
+# Keep disabled until the jax_extra_registry adapter is registered by the
+# catalog loader.
+[[source]]
+name = "scenic-baseline-model-zoo"
+adapter = "jax_extra_registry"
+enabled = false
+repository = "google-research/scenic"
+branch = "main"
+source_path = "scenic/projects/baselines/README.md"
+max_response_bytes = 4194304
+max_entries = 10000
+schedule = "weekly"
+
+# Primary source: https://github.com/google-research/scenic/blob/main/scenic/projects/baselines/README.md
+# The Model Zoo tables declare model, dataset, pretraining and direct checkpoint
+# URLs. The adapter reads this document only and does not retrieve weights.

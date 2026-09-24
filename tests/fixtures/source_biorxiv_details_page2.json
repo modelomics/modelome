@@ -1,0 +1,29 @@
+{
+  "messages": [
+    {
+      "status": "ok",
+      "category": "all",
+      "interval": "2026-08-25:2026-08-31",
+      "cursor": 2,
+      "count": 1,
+      "count_new_papers": "2",
+      "total": 3
+    }
+  ],
+  "collection": [
+    {
+      "doi": "10.1101/2026.08.31.777777",
+      "title": "Neural protein design across families",
+      "authors": "Biologist, D.",
+      "date": "2026-08-31",
+      "version": 1,
+      "type": "new results",
+      "license": "cc0",
+      "category": "synthetic biology",
+      "jatsxml": "https://www.biorxiv.org/content/early/2026/08/31/2026.08.31.777777.source.xml",
+      "abstract": "A deep generative model designs proteins across families.",
+      "published": "NA",
+      "server": "bioRxiv"
+    }
+  ]
+}

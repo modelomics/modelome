@@ -1,0 +1,14 @@
+# AWS's first-party regional matrix associates each Region/status matrix with a
+# direct model-card link. The adapter keys records by that exact linked card ID
+# and retains the per-Region In-Region/Geo/Global availability and lifecycle text.
+[[source]]
+name = "aws-bedrock-region-matrix"
+adapter = "aws_bedrock_region_matrix"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:aws-bedrock", "kind:hosted-model-availability"]
+url = "https://docs.aws.amazon.com/bedrock/latest/userguide/models-region-compatibility.html"
+provider_namespace = "aws:bedrock-model-card"
+schedule = "daily"
+max_response_bytes = 8388608
+max_entries = 5000
+max_cells = 250000

@@ -1,0 +1,12 @@
+# First-party MLX-LM model-type aliases. These are architecture-loading aliases,
+# not pretrained checkpoint records. Consider enabling after reviewing this scope.
+[[source]]
+name = "mlx-lm-model-type-remapping"
+adapter = "mlx_registry"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:mlx"]
+repository = "ml-explore/mlx-lm"
+branch = "main"
+source_path = "mlx_lm/utils.py"
+schedule = "weekly"
+max_response_bytes = 4194304

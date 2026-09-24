@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<o:OAI-PMH xmlns:o="http://www.openarchives.org/OAI/2.0/"
+           xmlns:raw="http://arxiv.org/OAI/arXivRaw/">
+  <o:responseDate>2026-09-01T12:00:00Z</o:responseDate>
+  <o:request verb="ListRecords" metadataPrefix="arXivRaw"
+             from="2026-08-25" until="2026-08-31">https://oaipmh.arxiv.org/oai</o:request>
+  <o:ListRecords>
+    <o:record>
+      <o:header>
+        <o:identifier>oai:arXiv.org:1706.03762</o:identifier>
+        <o:datestamp>2026-08-30</o:datestamp>
+        <o:setSpec>cs:cs:CL</o:setSpec>
+        <o:setSpec>cs:cs:LG</o:setSpec>
+      </o:header>
+      <o:metadata>
+        <raw:arXivRaw>
+          <raw:id>1706.03762</raw:id>
+          <raw:submitter>Ashish Vaswani</raw:submitter>
+          <raw:version version="v1">
+            <raw:date>Mon, 12 Jun 2017 17:57:34 GMT</raw:date>
+            <raw:size>1200kb</raw:size>
+          </raw:version>
+          <raw:version version="v7">
+            <raw:date>Wed, 2 Aug 2023 00:41:18 GMT</raw:date>
+            <raw:size>2200kb</raw:size>
+            <raw:source_type>D</raw:source_type>
+          </raw:version>
+          <raw:title>
+            Attention Is All You Need
+          </raw:title>
+          <raw:authors>Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit</raw:authors>
+          <raw:categories>cs.CL cs.LG</raw:categories>
+          <raw:comments>15 pages, 5 figures</raw:comments>
+          <raw:journal-ref>Advances in Neural Information Processing Systems 30 (2017)</raw:journal-ref>
+          <raw:doi>10.48550/arXiv.1706.03762</raw:doi>
+          <raw:license>https://creativecommons.org/licenses/by/4.0/</raw:license>
+          <raw:abstract>
+            The dominant sequence transduction models are based on complex recurrent
+            or convolutional neural networks. We propose a new simple network architecture.
+          </raw:abstract>
+        </raw:arXivRaw>
+      </o:metadata>
+    </o:record>
+    <o:record>
+      <o:header>
+        <o:identifier>oai:arXiv.org:math.GT/0309136</o:identifier>
+        <o:datestamp>2026-08-31</o:datestamp>
+        <o:setSpec>math:math:GT</o:setSpec>
+      </o:header>
+      <o:metadata>
+        <raw:arXivRaw>
+          <raw:id>math.GT/0309136</raw:id>
+          <raw:submitter>Example Submitter</raw:submitter>
+          <raw:version version="v1">
+            <raw:date>Mon, 15 Sep 2003 12:00:00 +0200</raw:date>
+          </raw:version>
+          <raw:title>An older identifier format</raw:title>
+          <raw:authors>Example Author and Another Author</raw:authors>
+          <raw:categories>math.GT</raw:categories>
+          <raw:abstract>An example abstract.</raw:abstract>
+        </raw:arXivRaw>
+      </o:metadata>
+    </o:record>
+    <o:resumptionToken completeListSize="3" cursor="0"
+                       expirationDate="2026-09-02T12:00:00Z">opaque-token-page-2==</o:resumptionToken>
+  </o:ListRecords>
+</o:OAI-PMH>

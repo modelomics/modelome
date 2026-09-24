@@ -1,0 +1,25 @@
+{
+  "meta": {
+    "count": 2,
+    "next_cursor": null
+  },
+  "results": [
+    {
+      "id": "https://openalex.org/W9876543210",
+      "title": "Learning Dynamics in Physical Systems",
+      "publication_date": "2026-08-30",
+      "updated_date": "2026-09-01T01:00:00Z",
+      "abstract_inverted_index": null,
+      "ids": {
+        "openalex": "https://openalex.org/W9876543210",
+        "arxiv": "https://arxiv.org/abs/2608.54321"
+      },
+      "primary_location": {
+        "landing_page_url": "https://arxiv.org/abs/2608.54321",
+        "pdf_url": "https://arxiv.org/pdf/2608.54321"
+      },
+      "best_oa_location": null,
+      "locations": []
+    }
+  ]
+}

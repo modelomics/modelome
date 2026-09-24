@@ -1,0 +1,8 @@
+{
+  "name": "abstracts",
+  "description": "Paper abstract text, where available.",
+  "README": "Abstracts license: ODC-BY.",
+  "files": [
+    "https://ai2-s2ag.s3.amazonaws.com/staging/2026-08-25/abstracts/part-000.jsonl.gz?X-Amz-Signature=abstract-signature"
+  ]
+}

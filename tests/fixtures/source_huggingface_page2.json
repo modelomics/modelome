@@ -1,0 +1,11 @@
+[
+  {
+    "id": "archive/example-model",
+    "sha": "987xyz",
+    "createdAt": "2025-01-01T00:00:00Z",
+    "lastModified": "2026-08-28T12:00:00Z",
+    "tags": [],
+    "cardData": {},
+    "siblings": [{"rfilename": "README.md"}]
+  }
+]

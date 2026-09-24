@@ -1,0 +1,15 @@
+# OpenCV's first-party DNN sample index declares checkpoint URLs for model
+# aliases, including Caffe, TensorFlow, Darknet, and ONNX formats. This source
+# complements the archived ONNX Model Zoo and OpenCV-owned Hugging Face org by
+# preserving the exact URLs and archive-member metadata in samples/dnn/models.yml.
+[[source]]
+name = "opencv-dnn-model-index"
+adapter = "opencv_dnn_model_index"
+enabled = false
+entry_tags = ["field:computer-vision", "ecosystem:opencv-dnn", "kind:pretrained-checkpoint"]
+url = "https://raw.githubusercontent.com/opencv/opencv/4.x/samples/dnn/models.yml"
+repository_url = "https://github.com/opencv/opencv"
+provider_namespace = "opencv:dnn-sample-model"
+schedule = "weekly"
+max_response_bytes = 2097152
+max_entries = 1000

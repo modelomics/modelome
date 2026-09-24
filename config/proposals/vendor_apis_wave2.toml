@@ -1,0 +1,69 @@
+# First-party hosted-model lists. These authenticated endpoints report models
+# currently available through the API, so observations are credential-scoped
+# availability evidence rather than a public historical census. Credential
+# variables gate each source, and API-backed model pages are never crawled.
+
+[[source]]
+name = "together-models"
+adapter = "json_catalog"
+enabled = true
+activation_env = "TOGETHER_API_KEY"
+entry_tags = ["field:machine-learning", "ecosystem:together", "kind:hosted-model", "evidence:current-api-availability"]
+url = "https://api.together.ai/v1/models"
+provider_namespace = "together:model"
+model_card_url_template = "https://www.together.ai/models/{id_path}"
+model_page_crawl = false
+auth_env = "TOGETHER_API_KEY"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+schedule = "daily"
+max_response_bytes = 16777216
+
+[source.mapping]
+items_path = "$"
+id_path = "id"
+name_path = "display_name"
+created_path = "created"
+
+[[source]]
+name = "cerebras-models"
+adapter = "json_catalog"
+enabled = true
+activation_env = "CEREBRAS_API_KEY"
+entry_tags = ["field:machine-learning", "ecosystem:cerebras", "kind:hosted-model", "evidence:current-api-availability"]
+url = "https://api.cerebras.ai/v1/models"
+provider_namespace = "cerebras:model"
+model_card_url_template = "https://inference-docs.cerebras.ai/api-reference/models/retrieve-model/{id_path}"
+model_page_crawl = false
+auth_env = "CEREBRAS_API_KEY"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+schedule = "daily"
+max_response_bytes = 4194304
+
+[source.mapping]
+items_path = "data"
+id_path = "id"
+name_path = "id"
+created_path = "created"
+
+[[source]]
+name = "deepseek-models"
+adapter = "json_catalog"
+enabled = true
+activation_env = "DEEPSEEK_API_KEY"
+entry_tags = ["field:machine-learning", "ecosystem:deepseek", "kind:hosted-model", "evidence:current-api-availability"]
+url = "https://api.deepseek.com/models"
+provider_namespace = "deepseek:model"
+model_card_url_template = "https://api-docs.deepseek.com/models/{id_path}"
+model_page_crawl = false
+auth_env = "DEEPSEEK_API_KEY"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+schedule = "daily"
+max_response_bytes = 4194304
+
+[source.mapping]
+items_path = "data"
+id_path = "id"
+name_path = "id"

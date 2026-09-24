@@ -1,0 +1,8 @@
+{
+  "name": "paper-ids",
+  "description": "Mapping from SHA-based IDs to corpus IDs.",
+  "README": "Paper IDs license: ODC-BY.",
+  "files": [
+    "https://ai2-s2ag.s3.amazonaws.com/staging/2026-08-25/paper-ids/part-000.jsonl.gz?X-Amz-Signature=id-signature"
+  ]
+}

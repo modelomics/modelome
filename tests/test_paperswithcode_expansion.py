@@ -1,0 +1,219 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from typing import Any
+
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+from modelome.http import HttpResponse
+from modelome.models import ModelStatus
+from modelome.sources.paperswithcode import PapersWithCodeValidatedMethodsSourceAdapter
+
+_REVISION = "fd7c1cd6bb715116ec3c20e10651616da99ff1aa"
+_NOW = datetime(2026, 9, 19, 12, 0, tzinfo=UTC)
+
+
+class QueuedClient:
+    def __init__(self, *responses: HttpResponse) -> None:
+        self.responses = list(responses)
+
+    def get(
+        self,
+        url: str,
+        *,
+        params: Mapping[str, str] | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> HttpResponse:
+        if not self.responses:
+            raise AssertionError(f"unexpected GET {url}")
+        return self.responses.pop(0)
+
+
+def _response(body: bytes, url: str) -> HttpResponse:
+    return HttpResponse(status=200, headers={}, body=body, url=url)
+
+
+def _parquet(rows: list[dict[str, Any]]) -> bytes:
+    output = pa.BufferOutputStream()
+    pq.write_table(pa.Table.from_pylist(rows), output)
+    return output.getvalue().to_pybytes()
+
+
+def test_paper_only_method_rows_are_retained_at_lower_confidence() -> None:
+    metadata = (
+        b'{"id":"pwc-archive/methods","sha":"'
+        + _REVISION.encode()
+        + b'","siblings":[{"rfilename":"data/train-00000-of-00001.parquet"}]}'
+    )
+    rows = [
+        {
+            "url": "https://paperswithcode.com/method/paper-only-method",
+            "name": "Paper Only Method",
+            "full_name": "Paper Only Method",
+            "description": "A method with a linked paper but no source-paper metadata.",
+            "paper": {
+                "title": "Paper Only Method for Image Recognition",
+                "url": "https://paperswithcode.com/paper/paper-only-method",
+            },
+            "source_url": None,
+            "source_title": None,
+            "num_papers": 1,
+            "collections": [],
+        }
+    ]
+    client = QueuedClient(
+        _response(metadata, "https://huggingface.co/api/datasets/pwc-archive/methods"),
+        _response(_parquet(rows), "https://cas-bridge.xethub.hf.co/methods.parquet"),
+    )
+    source = PapersWithCodeValidatedMethodsSourceAdapter(
+        name="paper-only-method-candidates",
+        client=client,
+        clock=lambda: _NOW,
+        admission="paper_candidate",
+    )
+
+    page = source.fetch_page({})
+
+    assert len(page.records) == 1
+    record = page.records[0]
+    model = record.models[0]
+    assert model.status is ModelStatus.CANDIDATE
+    assert model.confidence == 0.2
+    assert record.raw["admission"] == "paper_candidate"
+    assert record.raw["source_url"] is None
+    assert [(link.relation, link.url) for link in record.links] == [
+        ("associated_paper", "https://paperswithcode.com/paper/paper-only-method")
+    ]
+
+
+def test_arxiv_identifiers_are_preserved_across_candidate_admissions() -> None:
+    from modelome.sources.paperswithcode import _method_candidates
+
+    row = {
+        "url": "https://paperswithcode.com/method/arxiv-backed-method",
+        "name": "Arxiv Backed Method",
+        "full_name": "Arxiv Backed Method",
+        "paper": {
+            "title": "Arxiv Backed Method Paper",
+            "url": "https://paperswithcode.com/paper/arxiv-backed-method",
+        },
+        "source_url": "https://arxiv.org/abs/2401.12345",
+        "source_title": "Arxiv Backed Method Paper",
+        "num_papers": 1,
+        "collections": [],
+    }
+
+    paper_only, _ = _method_candidates(
+        [row],
+        require_title_overlap=False,
+        require_arxiv_source=False,
+        allow_missing_source=True,
+    )
+    arxiv_linked, _ = _method_candidates(
+        [row],
+        require_title_overlap=False,
+        require_arxiv_source=True,
+    )
+
+    assert len(paper_only) == len(arxiv_linked) == 1
+    assert paper_only[0]["arxiv_id"] == arxiv_linked[0]["arxiv_id"] == "2401.12345"
+
+
+def test_evaluation_candidates_keep_distinct_dataset_identity() -> None:
+    from modelome.sources.paperswithcode import _evaluation_records
+
+    row = {
+        "model_name": "Shared Model",
+        "paper_url": "https://arxiv.org/abs/2401.12345",
+        "paper_title": "Shared Model paper",
+    }
+    rows = [
+        {
+            "task": "Classification",
+            "subtasks": [],
+            "datasets": [
+                {"name": "Dataset One", "sota": {"rows": [row]}},
+                {"name": "Dataset Two", "sota": {"rows": [row]}},
+            ],
+        }
+    ]
+
+    records, rejected, raw_model_rows = _evaluation_records(
+        rows,
+        revision="a" * 40,
+        data_path="data/train.parquet",
+        dataset_id="pwc-archive/evaluation-tables",
+        license="CC-BY-SA-4.0",
+        max_model_rows=10,
+    )
+
+    assert rejected == {}
+    assert raw_model_rows == 2
+    assert len(records) == 2
+    assert {record.raw["datasets"][0] for record in records} == {
+        "Dataset One",
+        "Dataset Two",
+    }
+    assert len({record.source_record_id for record in records}) == 2
+    assert all(record.models[0].confidence == 0.35 for record in records)
+    assert all(record.models[0].status is ModelStatus.CANDIDATE for record in records)
+
+
+def test_evaluation_candidates_include_recursive_task_and_subdataset_scope() -> None:
+    from modelome.sources.paperswithcode import _evaluation_records
+
+    model_row = {
+        "model_name": "Example Model",
+        "paper_url": "https://arxiv.org/abs/2401.12345",
+        "paper_title": "Example Model paper",
+    }
+
+    def subtask(name: str) -> dict[str, Any]:
+        return {
+            "task": name,
+            "subtasks": [],
+            "datasets": [
+                {
+                    "dataset": "ImageNet",
+                    "subdatasets": [
+                        {
+                            "dataset": "ImageNet-1K",
+                            "subdatasets": [],
+                            "sota": {"rows": [model_row]},
+                        }
+                    ],
+                }
+            ],
+        }
+
+    rows = [
+        {
+            "task": "Classification",
+            "subtasks": [
+                subtask("Fine-grained classification"),
+                subtask("Coarse classification"),
+            ],
+            "datasets": [],
+        }
+    ]
+
+    records, rejected, raw_model_rows = _evaluation_records(
+        rows,
+        revision="b" * 40,
+        data_path="data/train.parquet",
+        dataset_id="pwc-archive/evaluation-tables",
+        license="CC-BY-SA-4.0",
+        max_model_rows=10,
+    )
+
+    assert rejected == {}
+    assert raw_model_rows == 2
+    assert len(records) == 2
+    assert {tuple(record.raw["tasks"]) for record in records} == {
+        ("Classification", "Fine-grained classification"),
+        ("Classification", "Coarse classification"),
+    }
+    assert all(record.raw["datasets"] == ["ImageNet", "ImageNet-1K"] for record in records)
+    assert len({record.source_record_id for record in records}) == 2

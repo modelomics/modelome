@@ -1,0 +1,18 @@
+# Fixed, bounded adapter proposal for the author-published nnU-Net v1 release.
+# nnU-Net's current documentation states that pretrained v2 models are not yet
+# available and links legacy users to this Zenodo collection.
+[[source]]
+name = "nnunet-v1-pretrained-models"
+adapter = "nnunet_v1_pretrained_registry"
+enabled = false
+record_id = "3734294"
+max_record_bytes = 4194304
+max_files = 500
+schedule = "monthly"
+
+# Official nnU-Net v1 inference instructions:
+# https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/
+# run_inference_with_pretrained_models.md
+# Author-published checkpoint record: https://zenodo.org/records/3734294
+# Reads task-named archive metadata, direct download links, and checksums only.
+# Does not cover v2 or third-party mirrors and does not download checkpoint bytes.

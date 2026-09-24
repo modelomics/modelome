@@ -1,0 +1,21 @@
+# Gensim Downloader's first-party pretrained model inventory. Disabled until
+# the dedicated adapter is wired into the source catalog.
+[[source]]
+name = "gensim-downloader-models"
+adapter = "gensim_downloader_model_registry"
+enabled = false
+repository = "RaRe-Technologies/gensim-data"
+branch = "master"
+manifest_path = "list.json"
+provider_namespace = "gensim:model"
+entry_tags = ["field:natural-language-processing", "ecosystem:gensim", "kind:pretrained-weights"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_entries = 10000
+
+# The official manifest nests the native model handles under `models`, apart
+# from corpora. Each accepted single-part row names its gzip file and checksum;
+# the official downloader code defines the matching immutable release asset
+# path as /<handle>/<handle>.gz. Corpus rows and multipart models are excluded.
+# Evidence: https://github.com/RaRe-Technologies/gensim-data/blob/master/list.json
+# Downloader URL contract: https://github.com/piskvorky/gensim/blob/develop/gensim/downloader.py

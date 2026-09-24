@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
+  <responseDate>2026-09-01T12:00:05Z</responseDate>
+  <request verb="ListRecords" resumptionToken="opaque-token-page-2==">https://oaipmh.arxiv.org/oai</request>
+  <ListRecords>
+    <record>
+      <header status="deleted">
+        <identifier>oai:arXiv.org:2608.00003</identifier>
+        <datestamp>2026-08-31</datestamp>
+        <setSpec>physics:physics.bio-ph</setSpec>
+      </header>
+    </record>
+    <resumptionToken completeListSize="3" cursor="2"></resumptionToken>
+  </ListRecords>
+</OAI-PMH>

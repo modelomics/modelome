@@ -1,0 +1,58 @@
+# Audit proposal: validated first-party catalogs that are not active in
+# config/sources.toml. These entries are proposals only; this file is not loaded
+# by ordinary syncs.
+
+# TensorFlow Model Garden publishes first-party vision checkpoint rows in this
+# Markdown catalog. The generic Markdown table adapter is already wired into
+# the catalog loader. Rows are catalog evidence; linked checkpoint bytes are
+# references and are never fetched by this source.
+[[source]]
+name = "tensorflow-model-garden-vision-audit"
+adapter = "markdown_model_table"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:tensorflow-model-garden", "kind:pretrained-model"]
+repository = "tensorflow/models"
+branch = "master"
+document_path = "official/vision/MODEL_GARDEN.md"
+provider_namespace = "tensorflow:model-garden-vision"
+model_column = 0
+model_header_pattern = '^Model$'
+schedule = "weekly"
+max_response_bytes = 8388608
+max_rows = 10000
+
+# T5X maintains a first-party table pairing released pretrained models with
+# Gin configs and Google Cloud checkpoint paths. A dedicated adapter exists,
+# but the catalog loader does not register it yet. Keep disabled until that
+# adapter is registered; reading the table does not fetch GCS objects.
+[[source]]
+name = "t5x-model-registry-audit"
+adapter = "jax_registry"
+enabled = false
+entry_tags = ["field:language-modeling", "ecosystem:t5x", "kind:pretrained-model"]
+repository = "google-research/t5x"
+branch = "main"
+source_path = "docs/models.md"
+provider_namespace = "t5x:model"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 10000
+
+# Primary-source evidence checked for these proposals:
+# TensorFlow vision catalog: https://github.com/tensorflow/models/blob/master/official/vision/MODEL_GARDEN.md
+# T5X pretrained catalog: https://github.com/google-research/t5x/blob/main/docs/models.md
+
+# Coverage audit:
+# - Existing source configuration already has broad hub/provider catalogs,
+#   framework registries (including TorchVision, timm, ONNX, OpenVINO,
+#   OpenMMLab, Paddle, Keras, audio, and NLP), and research-index feeds.
+# - TensorFlow Model Garden vision is a substantial first-party checkpoint
+#   catalog gap. Existing TensorFlow detection/DeepLab/Slim pages are narrower.
+# - T5X is a substantial JAX-family checkpoint gap. Its adapter is present but
+#   dormant because src/modelome/sources/catalog.py has no jax_registry branch.
+# - src/modelome/sources/mlx_registry.py is also dormant and has no catalog
+#   loader branch, but it enumerates architecture type aliases rather than
+#   model releases or checkpoints; it is not proposed as a model catalog.
+# - No mass enumeration or ingestion was performed. Integration for T5X is to
+#   import/register JaxRegistrySourceAdapter and pass repository, branch,
+#   source_path, and limits through create_source before enabling the entry.

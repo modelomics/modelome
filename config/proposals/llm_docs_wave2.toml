@@ -1,0 +1,46 @@
+# Cerebras' public model catalog declares exact public-endpoint model IDs in a
+# dedicated column. It excludes the broader dedicated-endpoint inventory.
+[[source]]
+name = "cerebras-public-model-documentation"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:cerebras", "kind:hosted-model"]
+url = "https://inference-docs.cerebras.ai/models/overview"
+provider_namespace = "cerebras:public-model"
+artifact_kind = "model_card"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model Name \| Model ID \| Parameters'
+name_column = 1
+identity_source = "name"
+require_url = false
+
+# Perplexity documents IDs for the models it hosts separately from third-party
+# Router offerings. The Router is currently described as private preview, so
+# this selector records only its explicitly labeled Perplexity-hosted table.
+[[source]]
+name = "perplexity-hosted-model-documentation"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:perplexity", "kind:hosted-model"]
+url = "https://docs.perplexity.ai/docs/router/models"
+provider_namespace = "perplexity:hosted-model"
+artifact_kind = "model_card"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model \| Input \(\$/1M\) \| Output \(\$/1M\) \| Cache read'
+name_column = 0
+identity_source = "name"
+name_pattern = '^(?P<name>perplexity/[a-z0-9][a-z0-9._-]*)$'
+skip_nonmatching_names = true
+require_url = false
