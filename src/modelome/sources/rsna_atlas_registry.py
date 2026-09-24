@@ -152,11 +152,27 @@ class RsnaAtlasRegistrySourceAdapter:
 
 
 def _is_published_model(item: Any) -> bool:
-    return (
-        isinstance(item, Mapping)
-        and item.get("publishingStatus") == "published"
-        and isinstance(item.get("schemaVersion"), str)
-        and item["schemaVersion"].endswith("/model.json")
+    if (
+        not isinstance(item, Mapping)
+        or item.get("publishingStatus") != "published"
+        or not isinstance(item.get("schemaVersion"), str)
+        or not item["schemaVersion"].endswith("/model.json")
+    ):
+        return False
+    roadmap = item.get("roadmapObject")
+    if isinstance(roadmap, str):
+        try:
+            roadmap = json.loads(roadmap)
+        except json.JSONDecodeError:
+            # Keep malformed model rows in scope so _record quarantines them.
+            return True
+    # ATLAS currently has cards with a model schemaVersion but a legitimate
+    # Dataset payload. They are provider schema mislabels, not malformed model
+    # records, so exclude them from this model-only source.
+    return not (
+        isinstance(roadmap, Mapping)
+        and "Dataset" in roadmap
+        and "Model" not in roadmap
     )
 
 

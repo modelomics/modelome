@@ -1,4 +1,4 @@
-# This archived first-party Slim page contains 21 direct MobileNet V2 float
+# This archived first-party Slim page contains 22 direct MobileNet V2 float
 # checkpoint links (one per model-variant row). Quantized MobileNet V2 and
 # MobileNet V3 links use Markdown reference definitions; this generic table
 # source deliberately admits only directly linked row artifacts.

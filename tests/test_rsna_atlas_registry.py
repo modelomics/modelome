@@ -83,7 +83,7 @@ def test_fetch_page_paginates_and_only_emits_published_model_cards() -> None:
     assert client.calls[0][2]["x-api-key"]
 
 
-def test_schema_mislabeled_model_row_is_quarantined_while_cursor_advances() -> None:
+def test_schema_mislabeled_dataset_row_is_excluded_from_model_cards() -> None:
     malformed = _card(card_id="bad-schema-row")
     malformed["roadmapObject"] = json.dumps({"Dataset": {"Name": "not a model"}})
     client = _Client([_page([_card(), malformed])])
@@ -92,9 +92,8 @@ def test_schema_mislabeled_model_row_is_quarantined_while_cursor_advances() -> N
     page = adapter.fetch_page({})
 
     assert len(page.records) == 1
-    assert len(page.issues) == 1
-    assert page.issues[0].source_record_id == "rsna-atlas:model-card:bad-schema-row"
-    assert page.advance_on_source_issues
+    assert not page.issues
+    assert not page.advance_on_source_issues
 
 
 def test_record_preserves_card_identity_and_untyped_availability_links() -> None:

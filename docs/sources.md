@@ -747,7 +747,7 @@ recorded as links, not asserted to be weight files.
 
 Additional direct checkpoint inventories cover PaddleNLP Funnel (10), GeoLink (2),
 Keras EfficientNet B0–B7 (16 weight assets), PANNs AudioSet (43 versioned attachments),
-StarVLA VLAct (11 pinned policy files), archived TF-Slim MobileNet V2 (21 float
+StarVLA VLAct (11 pinned policy files), archived TF-Slim MobileNet V2 (22 float
 checkpoints), and timm v0.6.13 ViT (32 historical direct URLs). These counts are
 source observations and can overlap other catalogs; no model binaries are fetched.
 

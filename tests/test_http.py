@@ -4,7 +4,19 @@ from urllib.request import Request
 
 import pytest
 
-from modelome.http import HttpClient, HttpFailure, _redacted_url, _SafeRedirectHandler
+from modelome.http import (
+    HttpClient,
+    HttpFailure,
+    HttpResponse,
+    _redacted_url,
+    _SafeRedirectHandler,
+)
+from modelome.sources.lerobot_molmoact2_relation import (
+    LeRobotMolmoAct2RelationSourceAdapter,
+)
+from modelome.sources.lerobot_vlajepa_checkpoints import (
+    LeRobotVLAJEPACheckpointSourceAdapter,
+)
 
 
 class _Response:
@@ -124,6 +136,47 @@ def test_github_commit_cache_requires_exact_path_and_same_origin_response() -> N
     assert client.get(commit_url).body == b"redirected"
     assert client.get(commit_url).body == b"same-origin"
     assert opener.calls == 2
+
+
+def test_shared_http_client_two_source_load_reuses_public_commit(monkeypatch) -> None:
+    client = HttpClient()
+    sha = "f" * 40
+    commit_url = "https://api.github.com/repos/huggingface/lerobot/commits/main"
+    vla_url = f"https://raw.githubusercontent.com/huggingface/lerobot/{sha}/docs/source/vla_jepa.mdx"
+    molmo_url = f"https://raw.githubusercontent.com/huggingface/lerobot/{sha}/docs/source/molmoact2.mdx"
+    vla_doc = (
+        "## Pretrained Checkpoints\nCheckpoint | Dataset | Cameras | World model | Action dim\n"
+        "--- | --- | --- | --- | ---\n"
+        "`lerobot/VLA-JEPA-LIBERO` | LIBERO-10 | 2 cameras | Enabled | 7\n"
+    )
+    molmo_doc = (
+        "## Performance Results\n### LIBERO Benchmark Results\n"
+        "The fine-tuned checkpoint reported here is available at "
+        "[model](https://huggingface.co/allenai/MolmoAct2-LIBERO-LeRobot) "
+        "and was trained on "
+        "[dataset](https://huggingface.co/allenai/MolmoAct2-LIBERO-Dataset).\n"
+    )
+    calls: list[str] = []
+
+    def get_uncached(url, headers, redirect_validator):
+        del headers, redirect_validator
+        calls.append(url)
+        body = (
+            f'{{"sha":"{sha}"}}'.encode()
+            if url == commit_url
+            else vla_doc.encode()
+            if url == vla_url
+            else molmo_doc.encode()
+        )
+        return HttpResponse(200, {}, body, url)
+
+    monkeypatch.setattr(client, "_get_uncached", get_uncached)
+    LeRobotVLAJEPACheckpointSourceAdapter(client=client).fetch_page({})
+    LeRobotMolmoAct2RelationSourceAdapter(client=client).fetch_page({})
+
+    assert calls.count(commit_url) == 1
+    assert calls.count(vla_url) == 1
+    assert calls.count(molmo_url) == 1
 
 
 def test_sensitive_query_values_are_redacted_from_diagnostic_urls() -> None:

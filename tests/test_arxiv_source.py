@@ -180,6 +180,32 @@ def test_extracts_huggingface_checkpoint_url_from_arxiv_abstract() -> None:
     assert checkpoint_link.locator.startswith("metadata.abstract:")
 
 
+def test_abstract_release_relation_handles_pretrained_weights_phrase() -> None:
+    repo = "https://github.com/baudm/parseq"
+    abstract = f"Code, pretrained weights, and data are available at: {repo}."
+    root = ET.fromstring(oai_response(raw_record(abstract=abstract)))
+    element = root.find(f"{{{OAI_NAMESPACE}}}record")
+    assert element is not None
+
+    record = ArxivSourceAdapter()._record(element)
+    release_link = next(link for link in record.links if link.url == repo)
+    assert release_link.relation == "weights"
+    assert release_link.locator is not None
+    assert release_link.locator.startswith("metadata.abstract:")
+
+
+def test_abstract_code_relation_requires_direct_release_wording() -> None:
+    repo = "https://github.com/OscarXZQ/weight-selection"
+    abstract = f"Code is available at {repo}. The paper studies model weight selection."
+    root = ET.fromstring(oai_response(raw_record(abstract=abstract)))
+    element = root.find(f"{{{OAI_NAMESPACE}}}record")
+    assert element is not None
+
+    record = ArxivSourceAdapter()._record(element)
+    code_link = next(link for link in record.links if link.url == repo)
+    assert code_link.relation == "implementation"
+
+
 def deleted_record(arxiv_id: str, datestamp: str) -> str:
     return f"""
 <record>

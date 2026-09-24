@@ -25,6 +25,18 @@ _ARXIV_RAW_NAMESPACE = "http://arxiv.org/OAI/arXivRaw/"
 _VERSION_RE = re.compile(r"v[1-9]\d*")
 _DOI_RE = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
 _OAI_IDENTIFIER_PREFIX = "oai:arxiv.org:"
+_ABSTRACT_WEIGHTS_URL_RE = re.compile(
+    r"\b(?:pre[- ]?trained|trained|model)\s+weights?\b[^.!?\n]{0,160}"
+    r"\b(?:available|released|hosted|provided|published)\b"
+    r"(?:\s+(?:at|on|from|via|here))?\s*:?\s*$",
+    re.IGNORECASE,
+)
+_ABSTRACT_CODE_URL_RE = re.compile(
+    r"\b(?:source\s+code|code|implementation)\b[^.!?\n]{0,100}"
+    r"\b(?:available|released|hosted|provided|published)\b"
+    r"(?:\s+(?:at|on|from|via|here))?\s*:?\s*$",
+    re.IGNORECASE,
+)
 
 
 def _utcnow() -> datetime:
@@ -682,10 +694,11 @@ class ArxivSourceAdapter:
                 )
         for url, span in extract_url_mentions(abstract):
             if _optional_web_url(url):
+                relation = _arxiv_abstract_url_relation(abstract, span)
                 links.append(
                     Link(
                         url=url,
-                        relation=infer_url_relation(abstract, span),
+                        relation=relation,
                         locator=f"metadata.abstract:{span}",
                     )
                 )
@@ -1014,6 +1027,22 @@ def _unique_links(values: Sequence[Link]) -> tuple[Link, ...]:
             seen.add(key)
             result.append(value)
     return tuple(result)
+
+
+def _arxiv_abstract_url_relation(abstract: str, span: str) -> str:
+    """Infer only direct abstract statements that a URL releases model assets."""
+
+    relation = infer_url_relation(abstract, span)
+    match = re.fullmatch(r"text:(\d+)-(\d+)", span)
+    if match is None:
+        return relation
+    start = int(match.group(1))
+    clause = abstract[max(0, start - 240) : start]
+    if _ABSTRACT_WEIGHTS_URL_RE.search(clause):
+        return "weights"
+    if relation == "embedded" and _ABSTRACT_CODE_URL_RE.search(clause):
+        return "implementation"
+    return relation
 
 
 def _collapse_space(value: str) -> str:
