@@ -1,0 +1,15 @@
+# Disabled proposal for the four literal Cellpose v4 built-in files. The
+# adapter verifies these names in MouseLand's public Hub repo and pins each
+# direct weight link to its current repository commit.
+[[source]]
+name = "cellpose-hub-checkpoints"
+adapter = "cellpose_hub_checkpoints"
+enabled = false
+entry_tags = ["field:computer-vision", "subfield:bioimage-analysis", "ecosystem:cellpose", "kind:checkpoint"]
+max_response_bytes = 4194304
+schedule = "weekly"
+
+[evidence]
+checkpoint_names_and_download_template = "https://github.com/MouseLand/cellpose/blob/main/cellpose/models.py"
+model_documentation = "https://cellpose.readthedocs.io/en/latest/models.html"
+checkpoint_repository = "https://huggingface.co/mouseland/cellpose-sam"

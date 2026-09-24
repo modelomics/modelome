@@ -153,11 +153,15 @@ def test_fixture_model_names_are_not_runtime_seed_constants() -> None:
             "src/modelome/sources/catalog.py",
             "src/modelome/sources/pyg_dimenet_checkpoints.py",
         },
-        "SchNet": {
-            "src/modelome/sources/catalog.py",
-            "src/modelome/sources/pyg_schnet_qm9_registry.py",
-            "src/modelome/sources/cgschnet_pretrained_bundle.py",
-        },
+            "SchNet": {
+                "src/modelome/sources/catalog.py",
+                "src/modelome/sources/pyg_schnet_qm9_registry.py",
+                "src/modelome/sources/cgschnet_pretrained_bundle.py",
+            },
+            "GenCast": {
+                "src/modelome/sources/catalog.py",
+                "src/modelome/sources/google_gencast_checkpoint_inventory.py",
+            },
     }
     violations: dict[str, list[str]] = {}
 

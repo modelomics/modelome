@@ -428,6 +428,22 @@ def _links(
                 locator=f"$.attributes.contentUrl[{index}]",
             )
 
+    for field, identifier_key, type_key in (
+        ("identifiers", "identifier", "identifierType"),
+        ("alternateIdentifiers", "alternateIdentifier", "alternateIdentifierType"),
+    ):
+        for index, raw in enumerate(_sequence(attributes.get(field))):
+            if not isinstance(raw, Mapping):
+                continue
+            url = _related_url(raw.get(identifier_key), raw.get(type_key))
+            if not url:
+                continue
+            yield Link(
+                url,
+                relation="alternate_identifier",
+                locator=f"$.attributes.{field}[{index}].{identifier_key}",
+            )
+
     for index, raw in enumerate(_sequence(attributes.get("relatedIdentifiers"))):
         if not isinstance(raw, Mapping):
             continue

@@ -7223,3 +7223,140 @@ max_archive_bytes = 134217728
 max_document_bytes = 2097152
 max_documents = 20000
 max_records = 20000
+
+# Graphcore's exact GPS++ release table names four checkpoint archives.
+[[source]]
+name = "graphcore-ogblsc-gpspp-checkpoints"
+adapter = "graphcore_gpspp_checkpoints"
+enabled = true
+entry_tags = ["field:graph-machine-learning", "field:computational-chemistry", "ecosystem:graphcore", "model-family:gps-plus-plus", "kind:checkpoint"]
+repository = "graphcore/ogb-lsc-pcqm4mv2"
+branch = "main"
+document_path = "README.md"
+provider_namespace = "graphcore-gpspp:checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 10000
+
+# GenCast's public GCS checkpoint objects match four README model names.
+[[source]]
+name = "google-gencast-checkpoint-inventory"
+adapter = "google_gencast_checkpoint_inventory"
+enabled = true
+entry_tags = ["field:weather-machine-learning", "ecosystem:google-deepmind-gencast", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+page_size = 1000
+max_response_bytes = 4194304
+
+# ESMFold source loaders declare eleven structure-module ablation checkpoints.
+[[source]]
+name = "esmfold-ablation-checkpoints"
+adapter = "esmfold_ablation_registry"
+enabled = true
+repository = "facebookresearch/esm"
+branch = "main"
+max_source_bytes = 524288
+max_entries = 32
+schedule = "monthly"
+
+# Cellpose v4 source names four built-in files in its official Hub repo.
+[[source]]
+name = "cellpose-hub-checkpoints"
+adapter = "cellpose_hub_checkpoints"
+enabled = true
+entry_tags = ["field:computer-vision", "subfield:bioimage-analysis", "ecosystem:cellpose", "kind:checkpoint"]
+max_response_bytes = 4194304
+schedule = "weekly"
+
+# Cloudflare's October 2025 notice preserves nineteen retired model IDs.
+[[source]]
+name = "cloudflare-workers-ai-deprecations-2025-10"
+adapter = "cloudflare_workers_ai_legacy_deprecations"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:cloudflare-workers-ai", "kind:model-lifecycle-documentation"]
+url = "https://developers.cloudflare.com/workers-ai/changelog"
+max_response_bytes = 4194304
+max_entries = 200
+schedule = "monthly"
+
+# TorchMD-Net's official AceFF collection names three exact checkpoint files.
+[[source]]
+name = "torchmdnet-aceff-checkpoints"
+adapter = "torchmdnet_aceff_checkpoints"
+enabled = true
+collection_url = "https://huggingface.co/collections/Acellera/aceff-machine-learning-potentials"
+entry_tags = ["field:computational-chemistry", "ecosystem:torchmd-net", "model-family:aceff", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# LeRobot declares π₀-FAST's base and LIBERO fine-tuned policy lineage.
+[[source]]
+name = "lerobot-pi0fast-libero-lineage"
+adapter = "lerobot_pi0fast_libero_lineage"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:lerobot", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# SSL4EO-S12 authors list eleven exact Drive-hosted full checkpoints.
+[[source]]
+name = "ssl4eo-s12-drive-checkpoints"
+adapter = "ssl4eo_s12_drive_checkpoints"
+enabled = true
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:ssl4eo-s12", "kind:pretrained-checkpoint"]
+url = "https://raw.githubusercontent.com/zhu-xlab/SSL4EO-S12/main/README.md"
+max_response_bytes = 2097152
+schedule = "weekly"
+
+# Stability's SDXL manifest lists four base/refiner checkpoint variants.
+[[source]]
+name = "stability-sdxl-checkpoints"
+adapter = "stability_sdxl_checkpoints"
+enabled = true
+entry_tags = ["field:generative-image-modeling", "ecosystem:stability-ai", "model-family:sdxl", "kind:checkpoint", "evidence:first-party-checkpoint-manifest", "source:huggingface-model-repository"]
+repository = "Stability-AI/generative-models"
+branch = "main"
+readme_path = "README.md"
+manifest_path = "scripts/demo/sampling.py"
+max_response_bytes = 4194304
+max_checkpoints = 10
+schedule = "weekly"
+
+# ESPnet's archived CSJ Conformer release has one exact Zenodo file.
+[[source]]
+name = "espnet-archived-csj-conformer"
+adapter = "espnet_archived_zenodo_checkpoint"
+enabled = true
+entry_tags = ["field:speech", "task:automatic-speech-recognition", "ecosystem:espnet", "kind:historical-checkpoint"]
+schedule = "monthly"
+max_response_bytes = 4194304
+
+# Mistral's versioned Google Vertex publisher inventory, credential-gated.
+[[source]]
+name = "vertex-model-garden-mistral-publisher"
+adapter = "json_catalog"
+enabled = true
+activation_env = "VERTEX_AI_ACCESS_TOKEN"
+entry_tags = ["field:machine-learning", "ecosystem:mistral", "ecosystem:google-vertex-ai", "kind:hosted-model-offering", "evidence:provider-catalog"]
+url = "https://us-central1-aiplatform.googleapis.com/v1beta1/publishers/mistral-ai/models?listAllVersions=true"
+provider_namespace = "google:vertex-model-garden"
+model_card_url_template = "https://us-central1-aiplatform.googleapis.com/v1beta1/{id_path}"
+model_page_crawl = false
+model_status = "documented"
+auth_env = "VERTEX_AI_ACCESS_TOKEN"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+headers = { "x-goog-user-project" = "${GOOGLE_CLOUD_PROJECT}" }
+cursor_param = "pageToken"
+page_size = 100
+page_size_param = "pageSize"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "publisherModels"
+id_path = "name"
+name_path = "name"
+version_path = "versionId"
+release_id_template = "{id}@{version}"
+next_cursor_path = "nextPageToken"

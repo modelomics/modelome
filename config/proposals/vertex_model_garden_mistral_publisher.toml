@@ -1,0 +1,39 @@
+# Opt-in, caller-authenticated inventory of Mistral publisher offerings in
+# Vertex AI Model Garden. The source scopes the list request to the public
+# `publishers/mistral-ai` publisher, not project-owned tuned models or deployed
+# endpoints. `listAllVersions` returns PublisherModel rows with immutable
+# versionId values; the adapter keeps each release distinct as name@versionId.
+# This records Google-hosted availability only, not Mistral's full catalog.
+# Primary references:
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models/list
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/machine-learning/predictions/get-batch-model-garden
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/mistral/mistral-medium-3
+[[source]]
+name = "vertex-model-garden-mistral-publisher"
+adapter = "json_catalog"
+enabled = false
+activation_env = "VERTEX_AI_ACCESS_TOKEN"
+entry_tags = ["field:machine-learning", "ecosystem:mistral", "ecosystem:google-vertex-ai", "kind:hosted-model-offering", "evidence:provider-catalog"]
+url = "https://us-central1-aiplatform.googleapis.com/v1beta1/publishers/mistral-ai/models?listAllVersions=true"
+provider_namespace = "google:vertex-model-garden"
+model_card_url_template = "https://us-central1-aiplatform.googleapis.com/v1beta1/{id_path}"
+model_page_crawl = false
+model_status = "documented"
+auth_env = "VERTEX_AI_ACCESS_TOKEN"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+headers = { "x-goog-user-project" = "${GOOGLE_CLOUD_PROJECT}" }
+cursor_param = "pageToken"
+page_size = 100
+page_size_param = "pageSize"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "publisherModels"
+id_path = "name"
+name_path = "name"
+version_path = "versionId"
+release_id_template = "{id}@{version}"
+next_cursor_path = "nextPageToken"

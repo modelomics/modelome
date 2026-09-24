@@ -1,0 +1,13 @@
+# Exact Drive-hosted full-checkpoint links from the SSL4EO-S12 authors' README.
+# Hugging Face checkpoint rows, backbones, and logs are outside this proposal.
+[[source]]
+name = "ssl4eo-s12-drive-checkpoints"
+adapter = "ssl4eo_s12_drive_checkpoints"
+enabled = false
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:ssl4eo-s12", "kind:pretrained-checkpoint"]
+url = "https://raw.githubusercontent.com/zhu-xlab/SSL4EO-S12/main/README.md"
+max_response_bytes = 2097152
+
+[evidence]
+documentation = "https://github.com/zhu-xlab/SSL4EO-S12"
+coverage = "11 exact Google Drive full-checkpoint references listed by the first-party README; records point to Drive view pages and do not fetch file bytes."

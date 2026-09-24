@@ -1,0 +1,16 @@
+# LeRobot's first-party π₀-FAST guide names an exact base and LIBERO fine-tune.
+[[source]]
+name = "lerobot-pi0fast-libero-lineage"
+adapter = "lerobot_pi0fast_libero_lineage"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:lerobot", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# Official lineage description and refs:
+# https://github.com/huggingface/lerobot/blob/main/docs/source/pi0fast.mdx
+# https://huggingface.co/lerobot/pi0fast-base
+# https://huggingface.co/lerobot/pi0fast-libero
+# The guide's narrative names a HuggingFace LIBERO dataset, while its sample
+# command uses another repo ID. The adapter records only the clear base-to-tune
+# lineage and does not assert a dataset relation.

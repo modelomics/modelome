@@ -1,0 +1,14 @@
+# TorchMD-Net's official inference docs show AceFF; Acellera's official
+# collection enumerates releases 1.0, 1.1, and 2.0 with one checkpoint each.
+[[source]]
+name = "torchmdnet-aceff-checkpoints"
+adapter = "torchmdnet_aceff_checkpoints"
+enabled = false
+collection_url = "https://huggingface.co/collections/Acellera/aceff-machine-learning-potentials"
+entry_tags = ["field:computational-chemistry", "ecosystem:torchmd-net", "model-family:aceff", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# Exact repository-to-file map: Acellera/AceFF-1.0 / aceff_v1.0.ckpt;
+# Acellera/AceFF-1.1 / aceff_v1.1.ckpt; Acellera/AceFF-2.0 / aceff_v2.0.ckpt.
+# The adapter does not download model bytes.

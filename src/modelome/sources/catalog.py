@@ -35,6 +35,7 @@ from modelome.sources.biorxiv_jats_supplementary import (
     BioRxivJatsSupplementSourceAdapter,
 )
 from modelome.sources.bpemb_registry import BPEmbPretrainedVectorRegistrySourceAdapter
+from modelome.sources.cellpose_hf_checkpoints import CellposeHubCheckpointSourceAdapter
 from modelome.sources.cellpose_registry import CellposeRegistrySourceAdapter
 from modelome.sources.cgschnet_pretrained_bundle import CGSchNetPretrainedBundleSourceAdapter
 from modelome.sources.chai1_components import Chai1ComponentRegistryAdapter
@@ -45,6 +46,9 @@ from modelome.sources.chem_ml_extra import (
 from modelome.sources.civitai import CivitaiModelsSourceAdapter
 from modelome.sources.cloud_extra import OciGenerativeAIModelCatalog
 from modelome.sources.cloudflare_workers_ai_deprecations import CloudflareWorkersAIDeprecations
+from modelome.sources.cloudflare_workers_ai_legacy_deprecations import (
+    CloudflareWorkersAILegacyDeprecations,
+)
 from modelome.sources.commoncrawl import CommonCrawlWetSourceAdapter
 from modelome.sources.conceptnet_numberbatch import ConceptNetNumberbatchSourceAdapter
 from modelome.sources.crossref import CrossrefSourceAdapter
@@ -58,6 +62,8 @@ from modelome.sources.dipy_registry import DipyPretrainedRegistrySourceAdapter
 from modelome.sources.dopamine_checkpoint_bundles import DopamineCheckpointBundleAdapter
 from modelome.sources.eartharxiv import EarthArxivSourceAdapter
 from modelome.sources.esa_fm4cs import EsaFm4csSourceAdapter
+from modelome.sources.esmfold_ablation_registry import ESMFoldAblationRegistryAdapter
+from modelome.sources.espnet_archived_zenodo import EspnetArchivedZenodoCheckpointAdapter
 from modelome.sources.espnet_model_zoo import EspnetModelZooSourceAdapter
 from modelome.sources.europe_pmc import EuropePmcSourceAdapter
 from modelome.sources.fairchem_omat24_checkpoints import FairChemOMat24CheckpointSourceAdapter
@@ -84,11 +90,17 @@ from modelome.sources.github_repositories import GitHubPublicRepositoriesSourceA
 from modelome.sources.gitlab_release_assets import GitLabPublicReleaseAssetsSourceAdapter
 from modelome.sources.google_bert_checkpoints import GoogleResearchBertCheckpointSourceAdapter
 from modelome.sources.google_football_checkpoints import GoogleFootballCheckpointAdapter
+from modelome.sources.google_gencast_checkpoint_inventory import (
+    GoogleGenCastCheckpointInventorySourceAdapter,
+)
 from modelome.sources.google_graphcast_checkpoint_inventory import (
     GoogleGraphCastCheckpointInventorySourceAdapter,
 )
 from modelome.sources.gpt4all_model_catalog import Gpt4AllModelCatalogSourceAdapter
 from modelome.sources.graph_ml_registry import GraphMLRegistrySourceAdapter
+from modelome.sources.graphcore_gpspp_checkpoints import (
+    GraphcoreGPSPlusPlusCheckpointSourceAdapter,
+)
 from modelome.sources.graphgps_release_asset import GraphGPSReleaseAssetSourceAdapter
 from modelome.sources.graphormer_checkpoint_registry import (
     GraphormerCheckpointRegistrySourceAdapter,
@@ -106,6 +118,9 @@ from modelome.sources.kaldi_model_index import KaldiModelIndexSourceAdapter
 from modelome.sources.keras_hub_preset_registry import KerasHubPresetRegistrySourceAdapter
 from modelome.sources.lerobot_molmoact2_relation import (
     LeRobotMolmoAct2RelationSourceAdapter,
+)
+from modelome.sources.lerobot_pi0fast_libero_lineage import (
+    LeRobotPi0FastLiberoLineageSourceAdapter,
 )
 from modelome.sources.lerobot_pi05_libero_relation import LeRobotPi05LiberoRelationSourceAdapter
 from modelome.sources.line_checkpoint_card_catalog import (
@@ -218,6 +233,10 @@ from modelome.sources.sherpa_audio_tagging import SherpaAudioTaggingSourceAdapte
 from modelome.sources.sherpa_source_separation import SherpaSourceSeparationSourceAdapter
 from modelome.sources.software_heritage import SoftwareHeritageOriginSourceAdapter
 from modelome.sources.spacy_models import SpacyModelsSourceAdapter
+from modelome.sources.ssl4eo_s12_drive_checkpoints import (
+    SSL4EOS12DriveCheckpointSourceAdapter,
+)
+from modelome.sources.stability_sdxl_checkpoints import StabilitySDXLCheckpointSourceAdapter
 from modelome.sources.stanza_resources import StanzaResourcesSourceAdapter
 from modelome.sources.static_json_checkpoint_registry import (
     StaticJsonCheckpointRegistrySourceAdapter,
@@ -237,6 +256,9 @@ from modelome.sources.torchaudio_pipeline_registry import (
     TorchaudioPipelineRegistrySourceAdapter,
 )
 from modelome.sources.torchgeo_weight_registry import TorchGeoWeightRegistrySourceAdapter
+from modelome.sources.torchmdnet_aceff_checkpoints import (
+    TorchMDNetAceFFCheckpointSourceAdapter,
+)
 from modelome.sources.torchvision_weight_registry import (
     TorchvisionWeightRegistrySourceAdapter,
 )
@@ -893,6 +915,94 @@ def create_source(
             max_document_bytes=_integer(expanded.get("max_document_bytes"), 2 * 1024 * 1024),
             max_documents=_integer(expanded.get("max_documents"), 20_000),
             max_records=_integer(expanded.get("max_records"), 20_000),
+            client=injected["client"],
+        )
+
+    if adapter == "graphcore_gpspp_checkpoints":
+        return GraphcoreGPSPlusPlusCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            document_path=_required_text(expanded, "document_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 10_000),
+            **injected,
+        )
+
+    if adapter == "google_gencast_checkpoint_inventory":
+        return GoogleGenCastCheckpointInventorySourceAdapter(
+            name=name,
+            page_size=_integer(expanded.get("page_size"), 1_000),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "esmfold_ablation_registry":
+        return ESMFoldAblationRegistryAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            max_source_bytes=_integer(expanded.get("max_source_bytes"), 512 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 32),
+            client=injected["client"],
+        )
+
+    if adapter == "cellpose_hub_checkpoints":
+        return CellposeHubCheckpointSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "cloudflare_workers_ai_legacy_deprecations":
+        return CloudflareWorkersAILegacyDeprecations(
+            name=name,
+            url=_required_text(expanded, "url"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 200),
+            client=injected["client"],
+        )
+
+    if adapter == "torchmdnet_aceff_checkpoints":
+        return TorchMDNetAceFFCheckpointSourceAdapter(
+            name=name,
+            collection_url=_required_text(expanded, "collection_url"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "lerobot_pi0fast_libero_lineage":
+        return LeRobotPi0FastLiberoLineageSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "ssl4eo_s12_drive_checkpoints":
+        return SSL4EOS12DriveCheckpointSourceAdapter(
+            name=name,
+            url=_required_text(expanded, "url"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "stability_sdxl_checkpoints":
+        return StabilitySDXLCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            readme_path=_required_text(expanded, "readme_path"),
+            manifest_path=_required_text(expanded, "manifest_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_checkpoints=_integer(expanded.get("max_checkpoints"), 10),
+            client=injected["client"],
+        )
+
+    if adapter == "espnet_archived_zenodo_checkpoint":
+        return EspnetArchivedZenodoCheckpointAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
             client=injected["client"],
         )
 

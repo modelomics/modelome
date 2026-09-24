@@ -1,0 +1,15 @@
+# Exact ESMFold structure-module-only checkpoint names from first-party loaders.
+[[source]]
+name = "esmfold-ablation-checkpoints"
+adapter = "esmfold_ablation_registry"
+enabled = false
+repository = "facebookresearch/esm"
+branch = "main"
+max_source_bytes = 524288
+max_entries = 32
+schedule = "monthly"
+
+# Source registry: https://github.com/facebookresearch/esm/blob/main/esm/esmfold/v1/pretrained.py
+# The README exposes this ablation family with a wildcard. Literal loader names
+# map through upstream _load_model to https://dl.fbaipublicfiles.com/fair-esm/models/{name}.pt.
+# This proposed source is additive for exact ablation identities; it does not fetch weights.

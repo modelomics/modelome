@@ -1,0 +1,16 @@
+# Google's first-party GenCast mini demo anonymously lists only this checkpoint
+# prefix. The adapter emits exact GCS object names for four README-declared models.
+[[source]]
+name = "google-gencast-checkpoint-inventory"
+adapter = "google_gencast_checkpoint_inventory"
+enabled = false
+entry_tags = ["field:weather-machine-learning", "ecosystem:google-deepmind-gencast", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+page_size = 1000
+max_response_bytes = 4194304
+
+[evidence]
+model_inventory = "https://github.com/google-deepmind/weathernext/blob/main/docs/weathernext1_gen/README.md"
+anonymous_prefix_listing = "https://github.com/google-deepmind/weathernext/blob/main/docs/weathernext1_gen/gencast_mini_demo.ipynb"
+bucket_prefix = "gs://dm_graphcast/gencast/params/"
+checkpoint_scope = "Four README-declared GenCast model names, .npz objects only; no object bytes fetched"

@@ -32,6 +32,7 @@ _METHOD_URL = re.compile(r"^https://paperswithcode\.com/method/[a-z0-9][a-z0-9-]
 _PHONE_NUMBER = re.compile(r"(?<!\d)(?:\+?\d[\s().-]*){7,}\d")
 _CONTROL_CHARACTER = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _TOKEN = re.compile(r"[a-z][a-z0-9+-]*", re.IGNORECASE)
+_KAGGLE_VERSION = re.compile(r"^[1-9][0-9]*$")
 _TITLE_STOPWORDS = frozenset(
     {
         "a",
@@ -940,8 +941,7 @@ def _evaluation_records(
                 crawl=False,
                 model_local_ids=(
                     ("pwc-linked-model:" + content_hash(model_identifier.value)[:32],)
-                    if (model_identifier := identifier_from_url(model_url))
-                    and model_identifier.namespace == "huggingface:model"
+                    if (model_identifier := _evaluation_model_identifier_from_url(model_url))
                     else ()
                 ),
             )
@@ -950,8 +950,8 @@ def _evaluation_records(
         local_id = f"pwc-evaluation:{identity}"
         linked_model_hints: dict[str, ModelHint] = {}
         for model_url in sorted(entry["model_links"]):
-            model_identifier = identifier_from_url(model_url)
-            if not model_identifier or model_identifier.namespace != "huggingface:model":
+            model_identifier = _evaluation_model_identifier_from_url(model_url)
+            if not model_identifier:
                 continue
             linked_local_id = "pwc-linked-model:" + content_hash(model_identifier.value)[:32]
             linked_model_hints.setdefault(
@@ -1012,6 +1012,31 @@ def _evaluation_records(
             )
         )
     return records, dict(sorted(rejected.items())), raw_model_rows
+
+
+def _evaluation_model_identifier_from_url(value: str) -> Identifier | None:
+    """Extract exact model identities from declared SOTA pretrained-model links."""
+    identifier = identifier_from_url(value)
+    if identifier is not None and identifier.namespace == "huggingface:model":
+        return identifier
+
+    parts = urlsplit(canonicalize_url(value))
+    if (parts.hostname or "").casefold() not in {"kaggle.com", "www.kaggle.com"}:
+        return None
+    segments = [segment for segment in parts.path.split("/") if segment]
+    if segments[:3] == ["api", "v1", "models"]:
+        segments = segments[3:]
+    elif segments[:1] == ["models"]:
+        segments = segments[1:]
+    else:
+        return None
+    if len(segments) < 2:
+        return None
+    model_ref = "/".join(segments[:2])
+    # Kaggle documents this five-part suffix as a versioned model handle.
+    if len(segments) >= 5 and _KAGGLE_VERSION.fullmatch(segments[4]):
+        return Identifier("kaggle:model-instance-version", "/".join(segments[:5]))
+    return Identifier("kaggle:model", model_ref)
 
 
 def _dataset_items(value: Any) -> tuple[Any, ...]:

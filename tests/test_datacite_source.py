@@ -430,6 +430,49 @@ def test_related_item_software_url_is_preserved_as_an_exact_relation_link() -> N
     assert record.models == ()
 
 
+def test_related_item_doi_and_alternate_identifiers_preserve_explicit_identity() -> None:
+    item = resource()
+    item["attributes"]["relatedItems"] = [
+        {
+            "relatedItemType": "Model",
+            "relatedItemIdentifier": "10.9999/weights.v1",
+            "relatedItemIdentifierType": "DOI",
+            "relationType": "IsVersionOf",
+            "relationTypeInformation": "weights release",
+        }
+    ]
+    item["attributes"]["identifiers"] = [
+        {
+            "identifier": "https://host.example/model/weights.bin",
+            "identifierType": "URL",
+        },
+        {"identifier": "javascript:alert(1)", "identifierType": "URL"},
+    ]
+    item["attributes"]["alternateIdentifiers"] = [
+        {
+            "alternateIdentifier": "https://host.example/model/weights.bin",
+            "alternateIdentifierType": "URL",
+        }
+    ]
+
+    page = adapter(QueuedClient(response([item], total=1))).fetch_page({})
+
+    record = page.records[0]
+    doi_relation = next(link for link in record.links if link.url == "https://doi.org/10.9999/weights.v1")
+    assert doi_relation.relation == "is_version_of"
+    assert doi_relation.locator == "$.attributes.relatedItems[0].relatedItemIdentifier"
+    alternate_links = [
+        link for link in record.links if link.relation == "alternate_identifier"
+    ]
+    assert len(alternate_links) == 1
+    assert alternate_links[0].url == "https://host.example/model/weights.bin"
+    assert alternate_links[0].locator == "$.attributes.identifiers[0].identifier"
+    assert record.models == ()
+    assert record.raw["attributes"]["relatedItems"][0]["relationTypeInformation"] == (
+        "weights release"
+    )
+
+
 def test_datacite_bridges_only_related_dois_marked_identical() -> None:
     item = resource()
     item["attributes"]["relatedIdentifiers"] = [

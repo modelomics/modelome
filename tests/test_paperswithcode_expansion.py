@@ -8,7 +8,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from modelome.http import HttpResponse
-from modelome.models import ModelStatus
+from modelome.models import Identifier, ModelStatus
 from modelome.sources.paperswithcode import PapersWithCodeValidatedMethodsSourceAdapter
 
 _REVISION = "fd7c1cd6bb715116ec3c20e10651616da99ff1aa"
@@ -305,3 +305,52 @@ def test_evaluation_model_links_project_exact_huggingface_model_identity() -> No
     assert linked_model.confidence == 0.65
     model_link = next(link for link in records[0].links if link.relation == "model_artifact")
     assert model_link.model_local_ids == (linked_model.local_id,)
+
+
+def test_evaluation_model_links_project_exact_kaggle_model_version() -> None:
+    from modelome.sources.paperswithcode import _evaluation_records
+
+    row = {
+        "model_name": "Kaggle Published Model",
+        "paper_url": "https://arxiv.org/abs/2401.12345",
+        "paper_title": "Kaggle Published Model paper",
+        "model_links": [
+            {
+                "url": "https://www.kaggle.com/api/v1/models/example/published-model/pyTorch/weights/3/download",
+                "title": "Published Model version 3",
+            }
+        ],
+    }
+    records, rejected, _ = _evaluation_records(
+        [{"task": "Classification", "datasets": [{"dataset": "Example", "sota": {"rows": [row]}}]}],
+        revision="c" * 40,
+        data_path="data/train.parquet",
+        dataset_id="pwc-archive/evaluation-tables",
+        license="CC-BY-SA-4.0",
+        max_model_rows=10,
+    )
+
+    assert rejected == {}
+    linked_model = next(
+        model for model in records[0].models if model.name == "Published Model version 3"
+    )
+    assert linked_model.identifiers == (
+        Identifier("kaggle:model-instance-version", "example/published-model/pyTorch/weights/3"),
+    )
+    assert linked_model.status is ModelStatus.CANDIDATE
+    assert linked_model.confidence == 0.65
+    model_link = next(link for link in records[0].links if link.relation == "model_artifact")
+    assert model_link.model_local_ids == (linked_model.local_id,)
+
+
+def test_evaluation_model_links_do_not_treat_github_or_dataset_urls_as_model_ids() -> None:
+    from modelome.sources.paperswithcode import _evaluation_model_identifier_from_url
+
+    assert (
+        _evaluation_model_identifier_from_url("https://github.com/example/model/releases/tag/v1")
+        is None
+    )
+    assert (
+        _evaluation_model_identifier_from_url("https://www.kaggle.com/datasets/example/models")
+        is None
+    )

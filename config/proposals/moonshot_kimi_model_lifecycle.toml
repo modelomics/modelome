@@ -1,11 +1,12 @@
-# Kimi's first-party model list documents exact current API IDs in one table,
-# deprecated IDs in a second table, and two discontinued aliases in text. Keep
-# this metadata-only source disabled until adopted into the active registry.
+# Kimi's official model list groups exact IDs by lifecycle and states the
+# discontinuation date for each group. Keep each date cohort as a source shard
+# so provenance remains attached to its exact model IDs.
+
 [[source]]
-name = "moonshot-kimi-model-lifecycle-documentation"
+name = "moonshot-kimi-current-model-documentation"
 adapter = "html_catalog"
 enabled = false
-entry_tags = ["field:machine-learning", "ecosystem:moonshot", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history"]
+entry_tags = ["field:machine-learning", "ecosystem:moonshot", "kind:model-lifecycle-documentation", "lifecycle:current"]
 url = "https://platform.kimi.ai/docs/models"
 provider_namespace = "moonshot:model"
 artifact_kind = "catalog_record"
@@ -16,15 +17,91 @@ max_entries = 1000
 
 [[source.rules]]
 kind = "table"
-header_pattern = '^Model Name \| Description$'
+header_pattern = '^Model Name [|] Description$'
 name_column = 0
 identity_source = "name"
-name_pattern = '^(?P<name>kimi-[a-z0-9.-]+|moonshot-v1-[a-z0-9.-]+)$'
+name_pattern = '^(?P<name>kimi-k3|kimi-k2[.]7-code(?:-highspeed)?|kimi-k2[.]6)$'
 skip_nonmatching_names = true
 require_url = false
 
+[[source]]
+name = "moonshot-kimi-retired-2026-08-31"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:moonshot", "kind:model-lifecycle-documentation", "lifecycle:retired", "retired-on:2026-08-31"]
+url = "https://platform.kimi.ai/docs/models"
+provider_namespace = "moonshot:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model Name [|] Description$'
+name_column = 0
+identity_source = "name"
+name_pattern = '^(?P<name>kimi-k2[.]5|moonshot-v1-[a-z0-9.-]+)$'
+skip_nonmatching_names = true
+require_url = false
+
+[[source]]
+name = "moonshot-kimi-retired-2026-05-25"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:moonshot", "kind:model-lifecycle-documentation", "lifecycle:retired", "retired-on:2026-05-25"]
+url = "https://platform.kimi.ai/docs/models"
+provider_namespace = "moonshot:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model Name [|] Description$'
+name_column = 0
+identity_source = "name"
+name_pattern = '^(?P<name>kimi-k2-(?:0905-preview|0711-preview|turbo-preview|thinking(?:-turbo)?))$'
+skip_nonmatching_names = true
+require_url = false
+
+[[source]]
+name = "moonshot-kimi-retired-2026-01-28"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:moonshot", "kind:model-lifecycle-documentation", "lifecycle:retired", "retired-on:2026-01-28"]
+url = "https://platform.kimi.ai/docs/models"
+provider_namespace = "moonshot:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 1000
+
 [[source.rules]]
 kind = "text"
-entry_pattern = '<code>(?P<name>kimi-latest|kimi-thinking-preview)</code>'
+entry_pattern = '<code>(?P<name>kimi-latest)</code>'
+identity_source = "name"
+require_url = false
+
+[[source]]
+name = "moonshot-kimi-retired-2025-11-11"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:moonshot", "kind:model-lifecycle-documentation", "lifecycle:retired", "retired-on:2025-11-11"]
+url = "https://platform.kimi.ai/docs/models"
+provider_namespace = "moonshot:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '<code>(?P<name>kimi-thinking-preview)</code>'
 identity_source = "name"
 require_url = false

@@ -1,0 +1,12 @@
+# This 2020 ESPnet2 CSJ Conformer release is absent from the maintained
+# ESPnet Model Zoo table. ESPnet directs users to this record in issue #55.
+# The adapter reads one Zenodo metadata record and never downloads its archive.
+# Evidence: https://github.com/espnet/espnet_model_zoo/issues/55
+# Checkpoint record: https://zenodo.org/records/4065140
+[[source]]
+name = "espnet-archived-csj-conformer"
+adapter = "espnet_archived_zenodo_checkpoint"
+enabled = false
+entry_tags = ["field:speech", "task:automatic-speech-recognition", "ecosystem:espnet", "kind:historical-checkpoint"]
+schedule = "monthly"
+max_response_bytes = 4194304

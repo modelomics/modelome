@@ -1,0 +1,14 @@
+# The official SDXL demo maps four checkpoint names to model variants; its
+# README supplies exact Stability-owned Hugging Face repositories. SDXL 0.9
+# remains research gated and is retained with explicit access status metadata.
+[[source]]
+name = "stability-sdxl-checkpoints"
+adapter = "stability_sdxl_checkpoints"
+enabled = false
+entry_tags = ["field:generative-image-modeling", "ecosystem:stability-ai", "model-family:sdxl", "kind:checkpoint", "evidence:first-party-checkpoint-manifest", "source:huggingface-model-repository"]
+repository = "Stability-AI/generative-models"
+branch = "main"
+readme_path = "README.md"
+manifest_path = "scripts/demo/sampling.py"
+max_response_bytes = 4194304
+max_checkpoints = 10
