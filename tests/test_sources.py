@@ -1107,7 +1107,7 @@ def test_catalog_loads_current_config_and_environment_tokens() -> None:
     assert isinstance(sources["zenodo-model-records"], ZenodoModelRecordsSourceAdapter)
     assert sources["zenodo-model-records"].query == "resource_type.type:model"
     assert sources["zenodo-model-records"].sort == "oldest"
-    assert sources["zenodo-model-records"].page_size == 100
+    assert sources["zenodo-model-records"].page_size == 25
     assert isinstance(sources["openrouter-models"], OpenRouterModelsSourceAdapter)
     assert sources["openrouter-models"].url == "https://openrouter.ai/api/v1/models"
     assert sources["openrouter-models"].max_response_bytes == 16 * 1024 * 1024

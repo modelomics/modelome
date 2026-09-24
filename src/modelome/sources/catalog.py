@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from modelome.config import default_source_catalog
 from modelome.http import HttpClient
 from modelome.sources.acl_anthology import AclAnthologySourceAdapter
 from modelome.sources.aggregator_registry import OpenMLFlowRegistrySourceAdapter
@@ -124,14 +125,14 @@ Clock = Callable[[], datetime]
 _ENV_REFERENCE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)}")
 
 
-def load_source_configs(path: str | Path = "config/sources.toml") -> tuple[dict[str, Any], ...]:
+def load_source_configs(path: str | Path | None = None) -> tuple[dict[str, Any], ...]:
     """Load and minimally validate source tables without constructing clients."""
 
     return _load_catalog_configs(path, section="source")
 
 
 def load_benchmark_configs(
-    path: str | Path = "config/sources.toml",
+    path: str | Path | None = None,
 ) -> tuple[dict[str, Any], ...]:
     """Load benchmark tables without exposing them as ingestion sources."""
 
@@ -139,11 +140,11 @@ def load_benchmark_configs(
 
 
 def _load_catalog_configs(
-    path: str | Path,
+    path: str | Path | None,
     *,
     section: str,
 ) -> tuple[dict[str, Any], ...]:
-    config_path = Path(path)
+    config_path = default_source_catalog() if path is None else Path(path).expanduser()
     with config_path.open("rb") as handle:
         document = tomllib.load(handle)
     raw_entries = document.get(section, [])
@@ -1552,7 +1553,7 @@ def create_source(
 
 
 def load_sources(
-    path: str | Path = "config/sources.toml",
+    path: str | Path | None = None,
     *,
     client: HttpClient | Any | None = None,
     clock: Clock | None = None,

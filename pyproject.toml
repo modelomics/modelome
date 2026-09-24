@@ -13,6 +13,10 @@ dependencies = [
   "pyarrow>=20.0",
 ]
 
+[project.urls]
+Repository = "https://github.com/modelomics/modelome"
+Issues = "https://github.com/modelomics/modelome/issues"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=8.3",
@@ -25,6 +29,9 @@ modelome = "modelome.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/modelome"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"config/sources.toml" = "modelome/resources/sources.toml"
 
 [tool.pytest.ini_options]
 addopts = "-q"

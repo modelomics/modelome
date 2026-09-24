@@ -5,6 +5,17 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def default_source_catalog() -> Path:
+    """Resolve an explicit override, installed catalog, or development catalog."""
+
+    if override := os.environ.get("MODELOME_SOURCES"):
+        return Path(override).expanduser()
+    bundled = Path(__file__).parent / "resources" / "sources.toml"
+    if bundled.is_file():
+        return bundled
+    return Path(__file__).resolve().parents[2] / "config" / "sources.toml"
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     store: Path
@@ -18,7 +29,7 @@ class Settings:
         return cls(
             store=Path(os.environ.get("MODELOME_STORE", "data/store")),
             lake=Path(os.environ.get("MODELOME_LAKE", "data/lake")),
-            sources=Path(os.environ.get("MODELOME_SOURCES", "config/sources.toml")),
+            sources=default_source_catalog(),
             frontier_limit=_positive_int(os.environ.get("MODELOME_FRONTIER_LIMIT"), default=200),
             frontier_max_depth=_nonnegative_int(
                 os.environ.get("MODELOME_FRONTIER_MAX_DEPTH"), default=1
