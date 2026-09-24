@@ -1,0 +1,14 @@
+# FAIR Chemistry's first-party OMat24 docs enumerate legacy EquiformerV2 files.
+[[source]]
+name = "fairchem-omat24-legacy-checkpoints"
+adapter = "fairchem_omat24_checkpoints"
+enabled = false
+page_url = "https://facebookresearch.github.io/fairchem/models-2/"
+entry_tags = ["field:computational-chemistry", "ecosystem:fairchem", "model-family:omat24", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# Indexes nine rows with explicit Hugging Face checkpoint-file links. The
+# documentation requires access to be requested/accepted. The separately listed
+# 153M OMat-Alex-MP row points only to the general Hub page and is excluded.
+# UMA and model weight bytes are outside this source.

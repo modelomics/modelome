@@ -343,3 +343,48 @@ def test_lfs_metadata_stays_with_each_commit_across_queue_resume() -> None:
     assert second_commit.records[0].releases[0].metadata["weight_file_metadata"] == {
         "model.safetensors": {"size_bytes": 222, "lfs_sha256": "b" * 64}
     }
+
+
+def test_refs_with_same_exact_target_commit_share_one_history_scan() -> None:
+    repo = "lab/revision-model"
+    refs = f"https://huggingface.co/api/models/{repo}/refs"
+    commits = f"https://huggingface.co/api/models/{repo}/commits/refs%2Fheads%2Fmain"
+    tree = f"https://huggingface.co/api/models/{repo}/tree/commit-a?recursive=true&expand=false"
+    routes = _revision_routes(repo)
+    routes[refs] = (
+        200,
+        {
+            "branches": [
+                {"ref": "refs/heads/main", "target_commit": "commit-a"},
+            ],
+            "tags": [
+                {"ref": "refs/tags/v1", "target_commit": "commit-a"},
+            ],
+            "converts": [],
+        },
+        {},
+    )
+    routes[commits] = (200, [{"id": "commit-a"}], {})
+    routes[tree] = (
+        200,
+        [{"type": "file", "path": "model.safetensors"}],
+        {},
+    )
+    client = _RouteClient(routes)
+    adapter = HuggingFaceSourceAdapter(
+        client=client,
+        include_revisions=True,
+        include_revision_files=True,
+    )
+
+    catalog = adapter.fetch_page({})
+    ref_page = adapter.fetch_page(catalog.next_state)
+    commit_page = adapter.fetch_page(ref_page.next_state)
+    tree_page = adapter.fetch_page(commit_page.next_state)
+
+    assert [record.releases[0].revision for record in tree_page.records] == ["commit-a"]
+    assert tree_page.records[0].releases[0].metadata["weight_files"] == [
+        "model.safetensors"
+    ]
+    assert client.calls.count(commits) == 1
+    assert client.calls.count(tree) == 1

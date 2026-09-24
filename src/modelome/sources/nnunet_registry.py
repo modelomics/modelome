@@ -238,12 +238,17 @@ class NnUNetV1PretrainedRegistryAdapter:
             if not _MD5.fullmatch(checksum):
                 raise ValueError(f"{self.name}: invalid MD5 for {filename!r}")
             links = raw.get("links")
-            download_url = (
-                _text(links.get("download"))
-                if isinstance(links, Mapping)
-                else _text(raw.get("links"))
-            )
-            download_url = self._download_url(download_url, filename)
+            if isinstance(links, Mapping) and _text(links.get("self")):
+                download_url = self._download_url(
+                    _text(links.get("self")), filename, content_endpoint=True
+                )
+            else:
+                download_url = (
+                    _text(links.get("download"))
+                    if isinstance(links, Mapping)
+                    else _text(raw.get("links"))
+                )
+                download_url = self._download_url(download_url, filename)
             size = raw.get("size")
             if isinstance(size, bool) or not isinstance(size, int) or size < 0:
                 raise ValueError(f"{self.name}: invalid size for {filename!r}")
@@ -262,16 +267,24 @@ class NnUNetV1PretrainedRegistryAdapter:
             files, key=lambda item: item["filename"]
         )
 
-    def _download_url(self, value: str, filename: str) -> str:
+    def _download_url(
+        self, value: str, filename: str, *, content_endpoint: bool = False
+    ) -> str:
         url = canonicalize_url(value)
         parts = urlsplit(url)
+        path_parts = parts.path.split("/")
         if (
             parts.scheme != "https"
             or parts.hostname != "zenodo.org"
-            or self.record_id not in parts.path.split("/")
-            or filename not in parts.path.split("/")
+            or self.record_id not in path_parts
+            or filename not in path_parts
             or parts.query not in {"", "download=1"}
             or parts.fragment
+            or (
+                content_endpoint
+                and path_parts
+                != ["", "api", "records", self.record_id, "files", filename, "content"]
+            )
         ):
             raise ValueError(f"{self.name}: download URL for {filename!r} is not in its record")
         return url

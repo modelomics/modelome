@@ -84,6 +84,12 @@ class JsonCatalogSourceAdapter:
         self.items_path = _required_text(self.mapping.get("items_path"), "mapping.items_path")
         self.id_path = _required_text(self.mapping.get("id_path"), "mapping.id_path")
         self.name_path = _required_text(self.mapping.get("name_path"), "mapping.name_path")
+        self.version_path = _text(self.mapping.get("version_path"))
+        self.release_id_template = _text(self.mapping.get("release_id_template"))
+        if self.release_id_template and not self.version_path:
+            raise ValueError(
+                f"{self.name}: mapping.release_id_template requires mapping.version_path"
+            )
         self.created_path = _text(self.mapping.get("created_path"))
         self.updated_path = _text(self.mapping.get("updated_path"))
         self.base_model_path = _text(self.mapping.get("base_model_path"))
@@ -295,10 +301,32 @@ class JsonCatalogSourceAdapter:
             f"catalog item {index} ID",
         )
         self._assert_not_credential(model_id, f"catalog item {index} ID")
+        version = (
+            _required_scalar(
+                _path_value(item, self.version_path),
+                self.name,
+                f"catalog item {index} version",
+            )
+            if self.version_path
+            else None
+        )
+        if version:
+            self._assert_not_credential(version, f"catalog item {index} version")
+        release_id = model_id
+        if version:
+            template = self.release_id_template or "{id}@{version}"
+            try:
+                release_id = template.format_map({"id": model_id, "version": version})
+            except (KeyError, ValueError) as error:
+                raise ValueError(f"{self.name}: invalid release ID template") from error
+            if not release_id or "{" in release_id or "}" in release_id:
+                raise ValueError(f"{self.name}: invalid release ID template")
+            self._assert_not_credential(release_id, f"catalog item {index} release ID")
         name = _optional_scalar(_path_value(item, self.name_path)) or model_id
         self._assert_not_credential(name, f"catalog item {index} name")
         card_url = self._model_card_url(model_id, name)
         identifier = Identifier(self.provider_namespace, model_id)
+        record_identifier = Identifier(self.provider_namespace, release_id)
         local_id = f"{self.provider_namespace}:{model_id}#model"
         model = ModelHint(
             local_id=local_id,
@@ -314,28 +342,30 @@ class JsonCatalogSourceAdapter:
         releases = (
             (
                 ReleaseHint(
-                    local_id=f"{local_id}#release",
+                    local_id=(
+                        f"{local_id}#release:{version}" if version else f"{local_id}#release"
+                    ),
                     model_local_id=local_id,
-                    version=model_id,
-                    identifiers=(identifier,),
+                    version=version or model_id,
+                    identifiers=(record_identifier,),
                     released_at=created,
                     metadata={"source_kind": "provider_catalog"},
-                    locator=_locator(self.id_path),
+                    locator=_locator(self.version_path or self.id_path),
                 ),
             )
-            if self.provider_id_is_release
+            if self.provider_id_is_release or self.version_path
             else ()
         )
         raw = _redact_secret(dict(item), self._auth_token)
         return SourceRecord(
-            source_record_id=model_id,
+            source_record_id=release_id,
             kind=ArtifactKind.PROVIDER_PAGE,
             canonical_url=card_url,
             title=name,
             raw=raw,
             published_at=created,
             modified_at=updated,
-            identifiers=(identifier,),
+            identifiers=(record_identifier,),
             links=(
                 Link(
                     card_url,

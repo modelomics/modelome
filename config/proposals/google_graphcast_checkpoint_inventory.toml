@@ -1,0 +1,15 @@
+# Google's official WeatherNext GraphCast notebook lists checkpoint objects
+# under this exact public bucket prefix. The adapter reads only bounded object
+# metadata and emits links pinned to each object's generation.
+[[source]]
+name = "google-graphcast-checkpoint-inventory"
+adapter = "google_graphcast_checkpoint_inventory"
+enabled = false
+entry_tags = ["field:weather-machine-learning", "ecosystem:google-graphcast", "kind:pretrained-checkpoint"]
+page_size = 1000
+max_response_bytes = 4194304
+
+[evidence]
+model_inventory = "https://github.com/google-deepmind/weathernext/blob/main/docs/weathernext1_graph/README.md"
+official_listing_code = "https://github.com/google-deepmind/weathernext/blob/main/docs/weathernext1_graph/graphcast_demo.ipynb"
+bucket_prefix = "gs://dm_graphcast/graphcast/params/"

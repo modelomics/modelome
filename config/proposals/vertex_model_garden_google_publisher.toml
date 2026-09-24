@@ -1,0 +1,40 @@
+# Opt-in, caller-authenticated inventory of Google-published Vertex AI Model
+# Garden entries. The list endpoint is scoped to `publishers/google`, so it
+# returns public publisher models rather than project-private tuned models or
+# deployed endpoints. PublisherModel.name is the exact resource ID; the API
+# supports pageToken/nextPageToken pagination. Use a short-lived OAuth access
+# token with Vertex AI access and set GOOGLE_CLOUD_PROJECT for quota attribution.
+# listAllVersions=true requests every PublisherModel version; each returned
+# versionId is immutable, so the mapping emits a distinct name@versionId release.
+# This records Google publisher offerings only, not partner publishers.
+# Primary references:
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models/list
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models
+[[source]]
+name = "vertex-model-garden-google-publisher"
+adapter = "json_catalog"
+enabled = false
+activation_env = "VERTEX_AI_ACCESS_TOKEN"
+entry_tags = ["field:machine-learning", "ecosystem:google-vertex-ai", "kind:hosted-model-offering", "evidence:provider-catalog"]
+url = "https://us-central1-aiplatform.googleapis.com/v1beta1/publishers/google/models?listAllVersions=true"
+provider_namespace = "google:vertex-model-garden"
+model_card_url_template = "https://us-central1-aiplatform.googleapis.com/v1beta1/{id_path}"
+model_page_crawl = false
+model_status = "documented"
+auth_env = "VERTEX_AI_ACCESS_TOKEN"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+headers = { "x-goog-user-project" = "${GOOGLE_CLOUD_PROJECT}" }
+cursor_param = "pageToken"
+page_size = 100
+page_size_param = "pageSize"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "publisherModels"
+id_path = "name"
+name_path = "name"
+version_path = "versionId"
+release_id_template = "{id}@{version}"
+next_cursor_path = "nextPageToken"

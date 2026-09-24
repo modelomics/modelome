@@ -58,6 +58,7 @@ class GitHubRepositoryIdRangePlan:
             "max_assets_per_release": self.max_assets_per_release,
             "max_release_pages_per_repository": self.max_release_pages_per_repository,
             "max_asset_pages_per_release": self.max_asset_pages_per_release,
+            "http_attempts": self.max_http_attempts,
         }
 
 
@@ -191,6 +192,7 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
         max_assets_per_release: int = 100,
         max_release_pages_per_repository: int = 10,
         max_asset_pages_per_release: int = 10,
+        http_attempts: int = 4,
         token: str | None = None,
         client: HttpClient | Any | None = None,
     ) -> None:
@@ -232,7 +234,10 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
         if token is not None and (not isinstance(token, str) or not token.strip()):
             raise ValueError("token must be nonempty text when provided")
         self.token = token.strip() if token is not None else None
-        self.client = client or HttpClient()
+        configured_http_attempts = _integer(http_attempts, "http_attempts", minimum=1, maximum=10)
+        self.client = (
+            client if client is not None else HttpClient(attempts=configured_http_attempts)
+        )
         self.max_page_requests = math.ceil(self.max_repositories / self.page_size) + (
             self.max_repositories
             * (
@@ -244,7 +249,7 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
         # adapter state. Custom clients are assumed single-attempt unless they
         # expose their retry-attempt count.
         self.max_http_attempts = _integer(
-            getattr(self.client, "attempts", 1),
+            getattr(self.client, "attempts", configured_http_attempts),
             "HTTP client attempts",
             minimum=1,
             maximum=10,
@@ -262,6 +267,7 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
                 "max_assets_per_release": self.max_assets_per_release,
                 "max_release_pages_per_repository": self.max_release_pages_per_repository,
                 "max_asset_pages_per_release": self.max_asset_pages_per_release,
+                "max_http_attempts": self.max_http_attempts,
                 "max_api_requests": self.max_api_requests,
                 "authenticated": bool(self.token),
             }

@@ -361,3 +361,29 @@ def test_huggingface_created_at_sweep_recovers_old_modified_public_models() -> N
     adapter.fetch_page(second.next_state)
     assert client.params_calls[-1]["sort"] == "createdAt"
     assert client.params_calls[-1]["direction"] == 1
+
+
+def test_huggingface_catalog_count_drift_does_not_block_exhausted_cursor() -> None:
+    catalog_url = "https://huggingface.co/api/models?catalog=1"
+    next_url = "https://huggingface.co/api/models?cursor=after-deletion"
+    client = _RouteClient(
+        {
+            catalog_url: (
+                [{"id": "lab/first"}, {"id": "lab/second"}],
+                {
+                    "Link": f'<{next_url}>; rel="next"',
+                    "X-Total-Count": "4",
+                },
+            ),
+            next_url: ([], {"X-Total-Count": "2"}),
+        }
+    )
+    adapter = HuggingFaceSourceAdapter(client=client)
+
+    first = adapter.fetch_page({})
+    final = adapter.fetch_page(first.next_state)
+
+    assert first.complete is False
+    assert first.next_state["scan_total"] == 4
+    assert final.complete is True
+    assert final.records == ()

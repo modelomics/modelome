@@ -6949,3 +6949,107 @@ enabled = true
 entry_tags = ["field:robotics", "ecosystem:lerobot", "kind:checkpoint-lineage"]
 schedule = "weekly"
 max_response_bytes = 4194304
+
+# Official RoseTTAFold READMEs identify two weight bundles and three named models.
+[[source]]
+name = "rosettafold-checkpoint-bundles"
+adapter = "rosettafold_checkpoint_bundles"
+enabled = true
+entry_tags = ["field:protein-structure-modeling", "ecosystem:rosettafold", "kind:checkpoint-bundle"]
+schedule = "monthly"
+max_source_bytes = 262144
+
+# Google DeepMind's public GraphCast GCS prefix has exact generation-pinned checkpoints.
+[[source]]
+name = "google-graphcast-checkpoint-inventory"
+adapter = "google_graphcast_checkpoint_inventory"
+enabled = true
+entry_tags = ["field:weather-machine-learning", "ecosystem:google-graphcast", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+page_size = 1000
+max_response_bytes = 4194304
+
+# OpenPI's official checkpoint table names ten base and tuned policy releases.
+[[source]]
+name = "openpi-checkpoint-manifest"
+adapter = "openpi_checkpoint_manifest"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:openpi", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 12
+
+# Two later first-party nnU-Net Zenodo records add v1 task bundles and AutoPET II v2.
+[[source]]
+name = "nnunet-v1-zenodo-version-2-bundles"
+adapter = "nnunet_zenodo_bundle_registry"
+enabled = true
+entry_tags = ["field:medical-imaging", "ecosystem:nnunet", "model-generation:v1", "kind:checkpoint-bundle"]
+record_id = "4003545"
+max_record_bytes = 4194304
+max_files = 500
+schedule = "monthly"
+
+[[source]]
+name = "nnunet-v2-autopet-ii-zenodo-bundles"
+adapter = "nnunet_zenodo_bundle_registry"
+enabled = true
+entry_tags = ["field:medical-imaging", "ecosystem:nnunet", "model-generation:v2", "task:autopet-ii", "kind:checkpoint-bundle"]
+record_id = "8362371"
+max_record_bytes = 4194304
+max_files = 500
+schedule = "monthly"
+
+# Meta's model builder maps SAM 3 and 3.1 to exact, access-gated Hub files.
+[[source]]
+name = "meta-sam3-checkpoints"
+adapter = "meta_sam3_checkpoints"
+enabled = true
+entry_tags = ["field:computer-vision", "task:promptable-segmentation", "task:video-object-segmentation", "model-family:segment-anything", "kind:checkpoint"]
+repository = "facebookresearch/sam3"
+branch = "main"
+source_path = "sam3/model_builder.py"
+provider_namespace = "meta:sam3-checkpoint"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 100
+
+# FAIR Chemistry lists nine exact OMat24 and MPTrj file links; access is gated.
+[[source]]
+name = "fairchem-omat24-legacy-checkpoints"
+adapter = "fairchem_omat24_checkpoints"
+enabled = true
+page_url = "https://facebookresearch.github.io/fairchem/models-2/"
+entry_tags = ["field:computational-chemistry", "ecosystem:fairchem", "model-family:omat24", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# Google publisher models and every immutable version in Vertex Model Garden.
+[[source]]
+name = "vertex-model-garden-google-publisher"
+adapter = "json_catalog"
+enabled = true
+activation_env = "VERTEX_AI_ACCESS_TOKEN"
+entry_tags = ["field:machine-learning", "ecosystem:google-vertex-ai", "kind:hosted-model-offering", "evidence:provider-catalog"]
+url = "https://us-central1-aiplatform.googleapis.com/v1beta1/publishers/google/models?listAllVersions=true"
+provider_namespace = "google:vertex-model-garden"
+model_card_url_template = "https://us-central1-aiplatform.googleapis.com/v1beta1/{id_path}"
+model_page_crawl = false
+model_status = "documented"
+auth_env = "VERTEX_AI_ACCESS_TOKEN"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+headers = { "x-goog-user-project" = "${GOOGLE_CLOUD_PROJECT}" }
+cursor_param = "pageToken"
+page_size = 100
+page_size_param = "pageSize"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "publisherModels"
+id_path = "name"
+name_path = "name"
+version_path = "versionId"
+release_id_template = "{id}@{version}"
+next_cursor_path = "nextPageToken"

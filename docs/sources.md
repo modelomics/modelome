@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **381 enabled
-source entries** (366 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **389 enabled
+source entries** (373 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -52,6 +52,18 @@ the checkpoint filenames named in its documentation. Fireworks contributes
 current serverless model cards, while NeMo's separate all-checkpoints page adds
 older ASR rows. These sources record metadata and links; enabling them does not
 download checkpoint files.
+Additional first-party inventories capture RoseTTAFold weight bundles,
+generation-pinned GraphCast GCS objects, OpenPI's named policy checkpoint
+directories, and the later nnU-Net v1 and AutoPET II v2 Zenodo bundles. OpenPI
+records the source-declared `gs://` directory references as identifiers and
+metadata because they are not individual HTTP download files.
+SAM 3 and SAM 3.1 add Meta's exact, access-gated Hub checkpoint pointers from
+the official model builder. FAIR Chemistry adds nine exact legacy OMat24 and
+MPTrj checkpoint-file links; it records their access requirement and does not
+download weights.
+An opt-in Vertex Model Garden source lists Google-published models and their
+immutable versions through the documented v1beta1 API. It requires
+`VERTEX_AI_ACCESS_TOKEN` and `GOOGLE_CLOUD_PROJECT`.
 The GitLab adapter scans public project release metadata one request per page and emits
 low-confidence model-file candidates. The Cohere and Mistral Models API proposals
 remain opt-in because their authenticated lists can include caller-owned models.

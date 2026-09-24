@@ -119,19 +119,6 @@ def test_bounded_historical_scan_pages_repository_release_and_assets() -> None:
         pytest.fail("bounded scan did not complete")
 
     candidates = [record for page in pages for record in page.records]
-    print(
-        "scan debug",
-        client.calls,
-        [
-            (
-                p.complete,
-                p.next_state.get("current_release"),
-                p.next_state.get("asset_next_url"),
-                p.next_state.get("release_queue"),
-            )
-            for p in pages
-        ],
-    )
     assert [record.source_record_id for record in candidates] == [
         "github-release-asset:101:501:602"
     ]
@@ -281,6 +268,29 @@ def test_range_planner_makes_disjoint_bounded_slices_with_cost_estimates() -> No
     assert adapter.initial_since == plans[0].initial_since
     assert adapter.max_repository_id == plans[0].max_repository_id
     assert adapter.max_repositories == plans[0].max_repositories
+    assert adapter.max_http_attempts == plans[0].max_http_attempts == 2
+    assert adapter.max_api_requests == plans[0].max_api_requests
+
+
+def test_range_planner_supports_documented_page_and_item_caps() -> None:
+    plan = plan_github_repository_id_ranges(
+        initial_since=10,
+        max_repository_id=11,
+        shard_count=1,
+        max_releases_per_repository=1_000,
+        max_assets_per_release=1_000,
+        max_release_pages_per_repository=100,
+        max_asset_pages_per_release=100,
+        max_http_attempts=3,
+    )[0]
+    adapter = GitHubHistoricalReleaseAssetsSourceAdapter(**plan.adapter_kwargs())
+
+    assert adapter.max_releases_per_repository == 1_000
+    assert adapter.max_assets_per_release == 1_000
+    assert adapter.max_release_pages_per_repository == 100
+    assert adapter.max_asset_pages_per_release == 100
+    assert adapter.max_http_attempts == 3
+    assert adapter.max_api_requests == plan.max_api_requests
 
 
 @pytest.mark.parametrize(

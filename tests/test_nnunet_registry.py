@@ -35,16 +35,16 @@ def response(value: Any, *, headers: dict[str, str] | None = None) -> HttpRespon
     )
 
 
-def file_entry(name: str, md5: str, *, size: int = 1234) -> dict[str, Any]:
+def file_entry(
+    name: str, md5: str, *, size: int = 1234, link_kind: str = "download"
+) -> dict[str, Any]:
     return {
         "key": name,
         "checksum": f"md5:{md5}",
         "size": size,
-        "links": {
-            "download": (
-                f"https://zenodo.org/api/records/{RECORD_ID}/files/{name}/content"
-            )
-        },
+        "links": {link_kind: (
+            f"https://zenodo.org/api/records/{RECORD_ID}/files/{name}/content"
+        )},
     }
 
 
@@ -56,7 +56,10 @@ def test_nnunet_v1_release_enumerates_exact_task_bundles_without_downloading() -
             "version": "1",
         },
         "files": [
-            file_entry("Task001_BrainTumour.zip", "a" * 32, size=1_900_000_000),
+            file_entry(
+                "Task001_BrainTumour.zip", "a" * 32, size=1_900_000_000,
+                link_kind="self",
+            ),
             file_entry("Task029_LITS.zip", "b" * 32, size=5_100_000_000),
             file_entry("README.txt", "c" * 32),
         ],
@@ -98,6 +101,21 @@ def test_nnunet_v1_release_enumerates_exact_task_bundles_without_downloading() -
     assert source.client.calls == [f"https://zenodo.org/api/records/{RECORD_ID}"]
 
 
+def test_nnunet_v1_adapter_keeps_legacy_download_links() -> None:
+    payload = {
+        "metadata": {"doi": DOI, "title": "nnU-Net", "version": "1"},
+        "files": [file_entry("Task001_BrainTumour.zip", "a" * 32)],
+    }
+    source = NnUNetV1PretrainedRegistryAdapter(client=QueuedClient(response(payload)))
+
+    _, files = source._record(payload)
+
+    assert files[0]["url"] == (
+        f"https://zenodo.org/api/records/{RECORD_ID}/files/"
+        "Task001_BrainTumour.zip/content"
+    )
+
+
 def test_nnunet_registry_rejects_unexpected_record_and_archive_urls() -> None:
     source = NnUNetV1PretrainedRegistryAdapter(client=QueuedClient())
     with pytest.raises(ValueError, match="only official nnU-Net v1 record"):
@@ -114,5 +132,19 @@ def test_nnunet_registry_rejects_unexpected_record_and_archive_urls() -> None:
             }
         ],
     }
+    with pytest.raises(ValueError, match="not in its record"):
+        source._record(payload)
+
+    payload["files"] = [
+        {
+            **file_entry("Task001_BrainTumour.zip", "a" * 32),
+            "links": {
+                "self": (
+                    f"https://zenodo.org/api/records/{RECORD_ID}/files/"
+                    "Task001_BrainTumour.zip"
+                )
+            },
+        }
+    ]
     with pytest.raises(ValueError, match="not in its record"):
         source._record(payload)

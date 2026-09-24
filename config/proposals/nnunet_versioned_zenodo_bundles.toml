@@ -1,0 +1,22 @@
+# Follow-up inventories omitted by the original v1 adapter: Zenodo record
+# 4003545 is the later v1 record; 8362371 is the two-bundle AutoPET II v2 release.
+# The adapter reads bounded metadata only and never downloads archives.
+# Evidence: https://zenodo.org/records/4003545
+# v2 instructions: https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/competitions/AutoPETII.md
+[[source]]
+name = "nnunet-v1-zenodo-version-2-bundles"
+adapter = "nnunet_zenodo_bundle_registry"
+enabled = false
+record_id = "4003545"
+max_record_bytes = 4194304
+max_files = 500
+schedule = "monthly"
+
+[[source]]
+name = "nnunet-v2-autopet-ii-zenodo-bundles"
+adapter = "nnunet_zenodo_bundle_registry"
+enabled = false
+record_id = "8362371"
+max_record_bytes = 4194304
+max_files = 500
+schedule = "monthly"

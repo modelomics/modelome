@@ -289,6 +289,7 @@ class HuggingFaceSourceAdapter:
         )
         raw_items_seen = _state_count(state, "raw_items_seen") if resuming_scan else 0
         scan_total = _state_count(state, "scan_total") if resuming_scan else None
+        scan_count_drifted = state.get("scan_count_drifted") is True if resuming_scan else False
         count_is_complete = not resuming_scan or (
             "raw_items_seen" in state and state.get("raw_count_incomplete") is not True
         )
@@ -340,6 +341,11 @@ class HuggingFaceSourceAdapter:
         raw_items_seen = (raw_items_seen or 0) + len(items)
         response_total = _integer_header(response.headers, "x-total-count")
         if response_total is not None and count_is_complete:
+            if scan_total is not None and response_total != scan_total:
+                # Counts can change while cursor pages are being fetched. Keep
+                # the largest observed value as a useful truncation guard, but
+                # don't let a stale count block an exhausted cursor forever.
+                scan_count_drifted = True
             scan_total = max(scan_total or 0, response_total)
 
         records: list[SourceRecord] = []
@@ -392,6 +398,7 @@ class HuggingFaceSourceAdapter:
         if (
             not reached_cutoff
             and not link_next
+            and not scan_count_drifted
             and scan_total is not None
             and raw_items_seen < scan_total
         ):
@@ -424,6 +431,8 @@ class HuggingFaceSourceAdapter:
             }
             if scan_total is not None:
                 next_state["scan_total"] = scan_total
+            if scan_count_drifted:
+                next_state["scan_count_drifted"] = True
             if not count_is_complete:
                 next_state["raw_count_incomplete"] = True
             if prior_watermark is not None:
@@ -600,12 +609,20 @@ class HuggingFaceSourceAdapter:
             response = self.client.get(url, headers=headers)
             payload = self._revision_json(response)
             refs: list[str] = []
+            seen_ref_targets: set[str] = set()
             if isinstance(payload, Mapping):
                 for group in ("branches", "tags", "converts"):
                     for ref in _sequence(payload.get(group)):
                         if isinstance(ref, Mapping):
                             value = _text(ref.get("ref")) or _text(ref.get("name"))
-                            if value and value not in refs:
+                            target_commit = _text(
+                                ref.get("target_commit") or ref.get("targetCommit")
+                            )
+                            deduplication_key = (
+                                f"target:{target_commit}" if target_commit else f"ref:{value}"
+                            )
+                            if value and deduplication_key not in seen_ref_targets:
+                                seen_ref_targets.add(deduplication_key)
                                 refs.append(value)
             item["refs"] = refs
             item["ref_index"] = 0

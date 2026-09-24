@@ -1,0 +1,14 @@
+# Meta's official model builder maps SAM 3 and SAM 3.1 to gated Hub checkpoint
+# files. Disabled pending catalog review; this source emits metadata only.
+[[source]]
+name = "meta-sam3-checkpoints"
+adapter = "meta_sam3_checkpoints"
+enabled = false
+entry_tags = ["field:computer-vision", "task:promptable-segmentation", "task:video-object-segmentation", "model-family:segment-anything", "kind:checkpoint"]
+repository = "facebookresearch/sam3"
+branch = "main"
+source_path = "sam3/model_builder.py"
+provider_namespace = "meta:sam3-checkpoint"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 100

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urljoin, urlsplit, urlunsplit
 
@@ -58,6 +59,70 @@ _LINK_RE = re.compile(r"<([^>]+)>\s*((?:;\s*[^,]+)*)")
 _REL_RE = re.compile(r'\brel\s*=\s*(?:"([^"]+)"|([^;\s,]+))', re.I)
 
 
+@dataclass(frozen=True, slots=True)
+class GitLabProjectIdRange:
+    """One bounded slice of public GitLab project IDs: ``(after, through]``."""
+
+    name: str
+    initial_project_id: int
+    max_project_id: int
+    max_projects: int
+
+    def adapter_kwargs(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "initial_project_id": self.initial_project_id,
+            "max_project_id": self.max_project_id,
+            "max_projects": self.max_projects,
+        }
+
+
+def plan_gitlab_project_id_ranges(
+    *,
+    initial_project_id: int,
+    max_project_id: int,
+    shard_count: int,
+    source_name_prefix: str = "gitlab-public-release-assets",
+) -> tuple[GitLabProjectIdRange, ...]:
+    """Partition a numeric project-ID interval into disjoint bounded slices.
+
+    Sparse project IDs do not consume the project cap. Every slice is at most
+    10,000 IDs wide; use additional shards for larger ranges.
+    """
+
+    lower = _positive_or_zero_integer(initial_project_id, "initial_project_id")
+    upper = _positive_or_zero_integer(max_project_id, "max_project_id")
+    if upper <= lower:
+        raise ValueError("max_project_id must be greater than initial_project_id")
+    if isinstance(shard_count, bool) or not isinstance(shard_count, int) or shard_count < 1:
+        raise ValueError("shard_count must be a positive integer")
+    span = upper - lower
+    if shard_count > span:
+        raise ValueError("shard_count cannot exceed the number of IDs in the range")
+    if not isinstance(source_name_prefix, str) or not re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._-]*", source_name_prefix.strip()
+    ):
+        raise ValueError("source_name_prefix must be a simple source-name token")
+    base, remainder = divmod(span, shard_count)
+    cursor = lower
+    result: list[GitLabProjectIdRange] = []
+    for index in range(shard_count):
+        width = base + (index < remainder)
+        end = cursor + width
+        if width > 10_000:
+            raise ValueError("each range must cover at most 10000 IDs; increase shard_count")
+        result.append(
+            GitLabProjectIdRange(
+                name=f"{source_name_prefix.strip()}-{cursor + 1}-{end}",
+                initial_project_id=cursor,
+                max_project_id=end,
+                max_projects=width,
+            )
+        )
+        cursor = end
+    return tuple(result)
+
+
 class GitLabPublicReleaseAssetsSourceAdapter:
     """Scan public projects and their explicit release asset links.
 
@@ -79,6 +144,10 @@ class GitLabPublicReleaseAssetsSourceAdapter:
     def __init__(
         self,
         *,
+        name: str = "gitlab-public-release-assets",
+        initial_project_id: int | None = None,
+        max_project_id: int | None = None,
+        max_projects: int | None = None,
         client: HttpClient | Any | None = None,
         page_size: int = _PAGE_SIZE,
         max_projects_per_page: int = _PAGE_SIZE,
@@ -98,15 +167,45 @@ class GitLabPublicReleaseAssetsSourceAdapter:
             or not 1 <= max_assets_per_release <= 10_000
         ):
             raise ValueError("max_assets_per_release must be an integer from 1 to 10000")
-        self.client = client or HttpClient()
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("name must be nonempty text")
+        if initial_project_id is not None:
+            initial_project_id = _positive_or_zero_integer(initial_project_id, "initial_project_id")
+        if max_project_id is not None:
+            max_project_id = _positive_or_zero_integer(max_project_id, "max_project_id")
+        if (initial_project_id is None) != (max_project_id is None):
+            raise ValueError("initial_project_id and max_project_id must be set together")
+        if max_project_id is not None and max_project_id <= initial_project_id:
+            raise ValueError("max_project_id must be greater than initial_project_id")
+        if max_projects is not None:
+            max_projects = _positive_or_zero_integer(max_projects, "max_projects")
+            if max_projects < 1:
+                raise ValueError("max_projects must be positive")
+        if initial_project_id is not None:
+            width = max_project_id - initial_project_id
+            if width > 10_000:
+                raise ValueError("bounded project ranges must cover at most 10000 IDs")
+            if max_projects is None:
+                max_projects = width
+            elif max_projects > width:
+                raise ValueError("max_projects cannot exceed the numeric project-ID range")
+        self.name = name.strip()
+        self.initial_project_id = initial_project_id
+        self.max_project_id = max_project_id
+        self.max_projects = max_projects
+        self.client = client if client is not None else HttpClient()
         self.page_size = min(page_size, max_projects_per_page)
         self.max_projects_per_page = max_projects_per_page
         self.max_releases_per_page = max_releases_per_page
         self.max_assets_per_release = max_assets_per_release
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "gitlab-public-release-assets-v1",
+                "adapter": "gitlab-public-release-assets-v2",
                 "api": _API,
+                "name": self.name,
+                "initial_project_id": initial_project_id,
+                "max_project_id": max_project_id,
+                "max_projects": max_projects,
                 "page_size": self.page_size,
                 "max_projects_per_page": max_projects_per_page,
                 "max_releases_per_page": max_releases_per_page,
@@ -122,6 +221,7 @@ class GitLabPublicReleaseAssetsSourceAdapter:
         queue = _project_queue(state.get("project_queue", []))
         projects_url = _optional_text(state.get("projects_next_url"))
         last_project_id = _optional_positive_int(state.get("last_project_id"))
+        projects_seen = _positive_or_zero_integer(state.get("projects_seen", 0), "projects_seen")
         projects_started = state.get("projects_started", False)
         if not isinstance(projects_started, bool):
             raise ValueError("projects_started must be boolean")
@@ -146,6 +246,7 @@ class GitLabPublicReleaseAssetsSourceAdapter:
                     "current_project": None,
                     "projects_next_url": projects_url,
                     "last_project_id": last_project_id,
+                    "projects_seen": projects_seen,
                 }
                 complete = not queue and not projects_url and projects_started
                 return SourcePage(
@@ -175,6 +276,7 @@ class GitLabPublicReleaseAssetsSourceAdapter:
                 "current_project": current if next_release else None,
                 "projects_next_url": projects_url,
                 "last_project_id": last_project_id,
+                "projects_seen": projects_seen,
             }
             if next_release:
                 next_state["release_next_url"] = next_release
@@ -193,6 +295,11 @@ class GitLabPublicReleaseAssetsSourceAdapter:
         request_url = projects_url or (
             f"{_API}/projects?visibility=public&order_by=id&sort=asc"
             f"&pagination=keyset&per_page={self.page_size}"
+            + (
+                f"&id_after={self.initial_project_id}"
+                if self.initial_project_id is not None
+                else ""
+            )
         )
         response = self._get(request_url, "project")
         payload = response.json()
@@ -209,13 +316,33 @@ class GitLabPublicReleaseAssetsSourceAdapter:
             project_ids[index] <= project_ids[index - 1] for index in range(1, len(project_ids))
         ):
             raise ValueError("GitLab project IDs did not advance past the previous keyset page")
+        if (
+            last_project_id is None
+            and self.initial_project_id is not None
+            and project_ids
+            and project_ids[0] <= self.initial_project_id
+        ):
+            raise ValueError("GitLab project IDs did not advance past the initial cursor")
         next_projects = _next_link(response.headers, response.url or request_url)
         if next_projects and _same_url(next_projects, request_url):
             raise ValueError("GitLab project pagination cursor did not advance")
         if next_projects and not project_ids:
             raise ValueError("GitLab project pagination supplied a cursor for an empty page")
-        if not next_projects and len(projects) == self.page_size and project_ids:
+        range_done = False
+        if self.max_project_id is not None:
+            bounded_projects = [item for item in projects if item["id"] <= self.max_project_id]
+            range_done = len(bounded_projects) < len(projects)
+            projects = bounded_projects
+            project_ids = [item["id"] for item in projects]
+        if self.max_projects is not None:
+            remaining = self.max_projects - projects_seen
+            projects = projects[: max(remaining, 0)]
+            project_ids = [item["id"] for item in projects]
+            range_done = range_done or projects_seen + len(projects) >= self.max_projects
+        if not next_projects and len(payload) == self.page_size and project_ids:
             next_projects = _set_query_parameter(request_url, "id_after", str(project_ids[-1]))
+        if range_done:
+            next_projects = None
         if len(projects) > self.max_projects_per_page:
             raise ValueError("GitLab project page exceeded max_projects_per_page")
         next_state = {
@@ -224,8 +351,9 @@ class GitLabPublicReleaseAssetsSourceAdapter:
             "current_project": None,
             "projects_next_url": next_projects,
             "last_project_id": project_ids[-1] if project_ids else last_project_id,
+            "projects_seen": projects_seen + len(projects),
         }
-        complete = not projects and not next_projects
+        complete = range_done or (not projects and not next_projects)
         return SourcePage(
             records=(),
             next_state=next_state,
@@ -467,6 +595,12 @@ def _optional_positive_int(value: Any) -> int | None:
         return None
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError("pagination state values must be positive integers")
+    return value
+
+
+def _positive_or_zero_integer(value: Any, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{label} must be a nonnegative integer")
     return value
 
 

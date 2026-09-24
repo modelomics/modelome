@@ -7,7 +7,10 @@ import pytest
 
 from modelome.http import HttpResponse
 from modelome.models import ArtifactKind, ModelStatus
-from modelome.sources.gitlab_release_assets import GitLabPublicReleaseAssetsSourceAdapter
+from modelome.sources.gitlab_release_assets import (
+    GitLabPublicReleaseAssetsSourceAdapter,
+    plan_gitlab_project_id_ranges,
+)
 
 
 class QueuedClient:
@@ -410,3 +413,78 @@ def test_release_asset_limit_fails_instead_of_silently_omitting_links() -> None:
     project_page = adapter.fetch_page({})
     with pytest.raises(ValueError, match="max_assets_per_release"):
         adapter.fetch_page(project_page.next_state)
+
+
+def test_project_id_range_planner_creates_named_disjoint_slices() -> None:
+    plans = plan_gitlab_project_id_ranges(
+        initial_project_id=10,
+        max_project_id=26,
+        shard_count=3,
+        source_name_prefix="gitlab-range",
+    )
+
+    assert [(plan.initial_project_id, plan.max_project_id) for plan in plans] == [
+        (10, 16),
+        (16, 21),
+        (21, 26),
+    ]
+    assert [plan.name for plan in plans] == [
+        "gitlab-range-11-16",
+        "gitlab-range-17-21",
+        "gitlab-range-22-26",
+    ]
+    assert [plan.max_projects for plan in plans] == [6, 5, 5]
+    first = GitLabPublicReleaseAssetsSourceAdapter(**plans[0].adapter_kwargs())
+    second = GitLabPublicReleaseAssetsSourceAdapter(**plans[1].adapter_kwargs())
+    assert first.name != second.name
+    assert first.checkpoint_signature != second.checkpoint_signature
+
+
+def test_bounded_project_range_skips_id_gaps_and_stops_at_upper_bound() -> None:
+    listing_url = (
+        "https://gitlab.com/api/v4/projects?visibility=public&order_by=id&sort=asc"
+        "&pagination=keyset&per_page=2&id_after=100"
+    )
+    release_url = (
+        "https://gitlab.com/api/v4/projects/107/releases?order_by=created_at&sort=asc"
+        "&per_page=100&page=1"
+    )
+    client = QueuedClient(
+        response(
+            [project(107, "lab/in-range"), project(150, "lab/out-of-range")],
+            url=listing_url,
+        ),
+        response([], url=release_url),
+    )
+    adapter = GitLabPublicReleaseAssetsSourceAdapter(
+        name="gitlab-range-101-120",
+        initial_project_id=100,
+        max_project_id=120,
+        client=client,
+        page_size=2,
+    )
+
+    projects_page = adapter.fetch_page({})
+    assert projects_page.next_state["project_queue"] == [
+        {"id": 107, "path": "lab/in-range", "web_url": "https://gitlab.com/lab/in-range"}
+    ]
+    assert projects_page.next_state["projects_seen"] == 1
+    release_page = adapter.fetch_page(projects_page.next_state)
+
+    assert release_page.complete is True
+    assert client.calls == [listing_url, release_url]
+
+
+@pytest.mark.parametrize(
+    ("initial_project_id", "max_project_id", "shard_count"),
+    [(4, 4, 1), (0, 10, 11), (0, 10_001, 1)],
+)
+def test_project_id_range_planner_rejects_empty_or_oversized_slices(
+    initial_project_id: int, max_project_id: int, shard_count: int
+) -> None:
+    with pytest.raises(ValueError):
+        plan_gitlab_project_id_ranges(
+            initial_project_id=initial_project_id,
+            max_project_id=max_project_id,
+            shard_count=shard_count,
+        )

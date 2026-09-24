@@ -58,6 +58,7 @@ from modelome.sources.eartharxiv import EarthArxivSourceAdapter
 from modelome.sources.esa_fm4cs import EsaFm4csSourceAdapter
 from modelome.sources.espnet_model_zoo import EspnetModelZooSourceAdapter
 from modelome.sources.europe_pmc import EuropePmcSourceAdapter
+from modelome.sources.fairchem_omat24_checkpoints import FairChemOMat24CheckpointSourceAdapter
 from modelome.sources.fairseq_language_models import FairseqPretrainedLanguageModelSourceAdapter
 from modelome.sources.fengwu_checkpoint_registry import FengWuCheckpointRegistrySourceAdapter
 from modelome.sources.fourcastnet_checkpoint_registry import (
@@ -80,6 +81,9 @@ from modelome.sources.github_repositories import GitHubPublicRepositoriesSourceA
 from modelome.sources.gitlab_release_assets import GitLabPublicReleaseAssetsSourceAdapter
 from modelome.sources.google_bert_checkpoints import GoogleResearchBertCheckpointSourceAdapter
 from modelome.sources.google_football_checkpoints import GoogleFootballCheckpointAdapter
+from modelome.sources.google_graphcast_checkpoint_inventory import (
+    GoogleGraphCastCheckpointInventorySourceAdapter,
+)
 from modelome.sources.gpt4all_model_catalog import Gpt4AllModelCatalogSourceAdapter
 from modelome.sources.graph_ml_registry import GraphMLRegistrySourceAdapter
 from modelome.sources.graphgps_release_asset import GraphGPSReleaseAssetSourceAdapter
@@ -113,6 +117,7 @@ from modelome.sources.markdown_checkpoint_list import MarkdownCheckpointListSour
 from modelome.sources.markdown_model_card_list import MarkdownModelCardListSourceAdapter
 from modelome.sources.markdown_model_table import MarkdownModelTableSourceAdapter
 from modelome.sources.mediapipe_model_catalog import MediaPipeModelCatalogSourceAdapter
+from modelome.sources.meta_sam3_checkpoints import MetaSAM3CheckpointSourceAdapter
 from modelome.sources.microsoft_aurora_checkpoints import MicrosoftAuroraCheckpointSourceAdapter
 from modelome.sources.mindspore_registry import MindSporeModelZooSourceAdapter
 from modelome.sources.modelscope import ModelScopeModelsSourceAdapter
@@ -128,6 +133,7 @@ from modelome.sources.ngc import NgcModelsSourceAdapter
 from modelome.sources.ngc_cli_versions import NgcCliModelVersionsSourceAdapter
 from modelome.sources.nltk_data_models import NltkDataModelIndexSourceAdapter
 from modelome.sources.nnunet_registry import NnUNetV1PretrainedRegistryAdapter
+from modelome.sources.nnunet_zenodo_bundles import NnUNetZenodoBundleRegistryAdapter
 from modelome.sources.nvidia_earth2 import NvidiaEarth2SourceAdapter
 from modelome.sources.nvidia_groot_n17_checkpoints import NvidiaGR00TN17CheckpointSourceAdapter
 from modelome.sources.ocp_model_registry import OCPModelRegistrySourceAdapter
@@ -144,6 +150,7 @@ from modelome.sources.opencsg import OpenCsgModelsSourceAdapter
 from modelome.sources.opencv_dnn_model_index import OpenCVDnnModelIndexSourceAdapter
 from modelome.sources.openfold3_registry import OpenFold3ParameterRegistryAdapter
 from modelome.sources.openmmlab import OpenMMLabModelIndexSourceAdapter
+from modelome.sources.openpi_checkpoint_manifest import OpenPiCheckpointManifestAdapter
 from modelome.sources.openreview import OpenReviewSourceAdapter
 from modelome.sources.openrouter import OpenRouterModelsSourceAdapter
 from modelome.sources.openvino_model_zoo import OpenVinoModelZooSourceAdapter
@@ -199,6 +206,7 @@ from modelome.sources.rl_checkpoint_indexes import RlClarityCheckpointIndexAdapt
 from modelome.sources.rl_checkpoints_extra import DiffusionPolicyCheckpointIndexAdapter
 from modelome.sources.robotics_extra import ArgusCheckpointInventorySourceAdapter
 from modelome.sources.robotics_registry_v3 import RoboticsTransformerCheckpointSourceAdapter
+from modelome.sources.rosettafold_checkpoints import RoseTTAFoldCheckpointAdapter
 from modelome.sources.satmae_checkpoint_registry import SatMAECheckpointRegistrySourceAdapter
 from modelome.sources.sdss_ssl_checkpoints import SdssSslCheckpointsSourceAdapter
 from modelome.sources.semantic_scholar import SemanticScholarDatasetSourceAdapter
@@ -744,6 +752,58 @@ def create_source(
     if adapter == "lerobot_pi05_libero_relation":
         return LeRobotPi05LiberoRelationSourceAdapter(
             name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "rosettafold_checkpoint_bundles":
+        return RoseTTAFoldCheckpointAdapter(
+            name=name,
+            max_source_bytes=_integer(expanded.get("max_source_bytes"), 256 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "nnunet_zenodo_bundle_registry":
+        return NnUNetZenodoBundleRegistryAdapter(
+            name=name,
+            record_id=_required_text(expanded, "record_id"),
+            max_record_bytes=_integer(expanded.get("max_record_bytes"), 4 * 1024 * 1024),
+            max_files=_integer(expanded.get("max_files"), 500),
+            **injected,
+        )
+
+    if adapter == "google_graphcast_checkpoint_inventory":
+        return GoogleGraphCastCheckpointInventorySourceAdapter(
+            name=name,
+            page_size=_integer(expanded.get("page_size"), 1_000),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "openpi_checkpoint_manifest":
+        return OpenPiCheckpointManifestAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 12),
+            **injected,
+        )
+
+    if adapter == "meta_sam3_checkpoints":
+        return MetaSAM3CheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "fairchem_omat24_checkpoints":
+        return FairChemOMat24CheckpointSourceAdapter(
+            name=name,
+            page_url=_required_text(expanded, "page_url"),
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
             **injected,
         )

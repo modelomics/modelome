@@ -1,0 +1,10 @@
+# First-party model-weight bundles explicitly named in the RoseTTAFold README files.
+[[source]]
+name = "rosettafold-checkpoint-bundles"
+adapter = "rosettafold_checkpoint_bundles"
+enabled = false
+max_source_bytes = 262144
+schedule = "monthly"
+
+# This indexes only the exact archive URLs documented in the official repositories.
+# It does not inspect archives or infer individual checkpoint filenames.

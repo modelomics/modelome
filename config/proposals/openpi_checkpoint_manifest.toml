@@ -1,0 +1,17 @@
+# Physical Intelligence's official checkpoint table gives exact public GCS
+# directory refs for π0 and π0.5 base and fine-tuned releases.
+[[source]]
+name = "openpi-checkpoint-manifest"
+adapter = "openpi_checkpoint_manifest"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:openpi", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 12
+
+# Primary source table: https://github.com/Physical-Intelligence/openpi/blob/main/README.md
+# Listed exact refs include gs://openpi-assets/checkpoints/pi0_base,
+# pi0_fast_base, pi05_base, pi0_fast_droid, pi0_droid, pi0_aloha_towel,
+# pi0_aloha_tupperware, pi0_aloha_pen_uncap, pi05_libero, and pi05_droid.
+# This adapter records source-declared GCS paths as metadata and does not
+# download checkpoint contents.
