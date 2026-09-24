@@ -1,0 +1,1 @@
+{"source":"example","source_record_id":"paper-1","kind":"paper","canonical_url":"https://example.org/papers/1","title":"Example technique","models":[{"local_id":"technique","name":"Example technique","status":"documented"}],"links":[{"url":"https://example.org/code/1","relation":"implementation","crawl":false}]}

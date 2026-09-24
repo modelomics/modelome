@@ -31,6 +31,7 @@ from modelome.bulk_runtime import run_bulk_source, select_bulk_sources
 from modelome.config import Settings
 from modelome.coverage import evaluate_manifest
 from modelome.daily import run_daily
+from modelome.dataset import build_dataset
 from modelome.entries import (
     build_entries,
     plan_entry_seed,
@@ -103,6 +104,21 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser("init", help="initialize the registry store")
     commands.add_parser("sources", help="list configured discovery sources")
     commands.add_parser("benchmarks", help="list configured external benchmarks")
+    dataset = commands.add_parser(
+        "build-dataset", help="ingest bounded work and export a complete dataset bundle"
+    )
+    inputs = dataset.add_mutually_exclusive_group(required=True)
+    inputs.add_argument("--input", type=Path, help="normalized paper observations in JSON/JSONL")
+    inputs.add_argument(
+        "--source", action="append", help="explicit source names; repeat or comma-separate"
+    )
+    inputs.add_argument(
+        "--from-store", action="store_true", help="export the current store offline"
+    )
+    dataset.add_argument("--output", type=Path, required=True, help="new dataset bundle directory")
+    dataset.add_argument(
+        "--max-pages", type=_positive_int, default=1, help="pages per source (default: 1)"
+    )
     lake_status = commands.add_parser(
         "lake-status",
         help="show sealed bulk releases and physical Parquet row counts",
@@ -507,6 +523,30 @@ def main(argv: list[str] | None = None) -> None:
 
 
 def _dispatch(args: argparse.Namespace) -> int:
+    if args.command == "build-dataset":
+        selected = _source_names(args.source or [])
+        adapters = None
+        if args.source is not None:
+            if not selected:
+                raise ValueError("at least one source name is required")
+            available = load_sources(args.sources_file)
+            unknown = sorted(set(selected) - available.keys())
+            if unknown:
+                raise ValueError(
+                    "unknown, disabled, or credential-gated sources: " + ", ".join(unknown)
+                )
+            adapters = {name: available[name] for name in selected}
+        receipt = build_dataset(
+            args.store,
+            args.output,
+            papers=read_entry_seeds(args.input) if args.input else None,
+            sources=adapters,
+            source_configs=load_source_configs(args.sources_file),
+            max_pages=args.max_pages,
+        )
+        _emit(asdict(receipt), as_json=args.json)
+        return 0 if receipt.status == "complete" else 1
+
     if args.command == "sources":
         configs = load_source_configs(args.sources_file)
         rows = [

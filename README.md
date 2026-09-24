@@ -7,6 +7,69 @@ datasets, benchmarks, docs, and other evidence-backed links in one place. The cu
 implementation supplies the ingestion, provenance, identity, and bounded-link-enrichment
 primitives for that registry.
 
+## Install and build a dataset
+
+Python 3.12 or newer is required. Install from this repository:
+
+```bash
+git clone https://github.com/modelomics/modelome.git
+cd modelome
+python -m pip install .
+modelome --version
+```
+
+The installed `modelome` command and `python -m modelome` work from any directory.
+The source catalog is bundled in the wheel; use `--sources-file` or
+`MODELOME_SOURCES` to supply a custom catalog. Credentials are read from environment
+variables; `.env.example` documents them and `.env` is not loaded automatically.
+
+Run an offline example with a synthetic paper observation:
+
+```bash
+modelome --store data/example-store build-dataset \
+  --input examples/papers.jsonl --output data/example-dataset
+```
+
+Build from real normalized paper observations using the same JSON/JSONL contract,
+or export the current evidence store without network access:
+
+```bash
+modelome --store data/store build-dataset \
+  --from-store --output data/exports/modelome-v1
+```
+
+To ingest a bounded source batch and build the cumulative dataset:
+
+```bash
+modelome --store data/store build-dataset \
+  --source huggingface --max-pages 1 --output data/exports/modelome-batch-1
+```
+
+Repeat with the same store and a **new output directory** to resume its source
+checkpoint. A partial source scan writes a bundle marked `partial` and exits with
+code 1. Ingestion errors preserve completed checkpoints and publish no bundle.
+These source batches are opt-in; the runner does not launch bulk loaders or a
+frontier crawl. Each export includes all current admitted entries in the store.
+
+The bundle contains `entries/entries.jsonl`, metadata Parquet tables under
+`metadata/`, reusable `seeds.jsonl`, and `manifest.json` with the source commit,
+counts, run outcomes, and SHA-256 checksums. Outputs are published atomically and
+existing output paths are refused. A `complete` build means the requested work
+finished; it does not claim exhaustive coverage of the modelome.
+
+The same workflow is available as a Python library:
+
+```python
+from modelome.dataset import build_dataset
+
+receipt = build_dataset("data/store", "data/exports/modelome-v2")
+print(receipt.entry_count, receipt.source_commit)
+```
+
+See [Dataset builds](docs/dataset.md) for the library API, worklist schema, and
+operating limits. For development, run `uv sync --locked --extra dev`,
+`uv run pytest`, and `uv build`.
+
 ## Current operating phase
 
 The immediate goal is **entry-first paper ingestion**, not a giant downloaded paper
