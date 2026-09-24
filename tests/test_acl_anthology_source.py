@@ -111,6 +111,47 @@ def test_extracts_first_party_dataset_and_software_attachment_files() -> None:
     ]
 
 
+def test_extracts_model_weight_url_explicitly_declared_in_official_abstract() -> None:
+    xml = b'''<collection id="2025.acl">
+      <volume id="2025.acl-long">
+        <meta><booktitle>Proceedings of ACL 2025</booktitle><year>2025</year></meta>
+        <paper id="100"><title>Second Language Acquisition of LLMs</title>
+          <url>2025.acl-long.100</url>
+          <abstract>Our model weights are available at: https://github.com/FreedomIntelligence/AraLLaMa.</abstract>
+        </paper>
+      </volume>
+    </collection>'''
+    record = AclAnthologySourceAdapter(
+        url="https://aclanthology.org/2025.acl.xml",
+        client=QueueClient(xml),
+        clock=lambda: NOW,
+    ).fetch_page({}).records[0]
+
+    link = next(link for link in record.links if link.relation == "weights")
+    assert link.url == "https://github.com/FreedomIntelligence/AraLLaMa"
+    assert link.locator == "xml:paper[0]/abstract.model-resource-url"
+    assert link.crawl is False
+
+
+def test_does_not_promote_unrelated_abstract_url_to_model_weights() -> None:
+    xml = b'''<collection id="2025.acl">
+      <volume id="2025.acl-long">
+        <meta><booktitle>Proceedings of ACL 2025</booktitle><year>2025</year></meta>
+        <paper id="101"><title>A language model study</title>
+          <url>2025.acl-long.101</url>
+          <abstract>Model weights are discussed; the dataset is https://example.org/data.</abstract>
+        </paper>
+      </volume>
+    </collection>'''
+    record = AclAnthologySourceAdapter(
+        url="https://aclanthology.org/2025.acl.xml",
+        client=QueueClient(xml),
+        clock=lambda: NOW,
+    ).fetch_page({}).records[0]
+
+    assert not any(link.relation == "weights" for link in record.links)
+
+
 def test_recovers_historical_paper_id_from_adjacent_official_xml_comment() -> None:
     # The official 1952.earlymt.xml historical collection includes a paper
     # whose canonical ACL URL is recorded in a comment, without a <url> node.

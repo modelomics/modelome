@@ -22,15 +22,23 @@ from modelome.models import (
 from modelome.normalize import canonicalize_url, content_hash
 
 _SCOPE = re.compile(
-    r"\b(?:deep learning|neural network|trained model|machine learning model)\b", re.I
+    r"\b(?:deep learning|neural network|machine learning) models?\b|\btrained models?\b",
+    re.I,
 )
 _WEIGHT_DESCRIPTION = re.compile(
-    r"\b(?:model weights|weights for (?:the |a )?(?:trained )?model|"
+    r"\b(?:model weights|weights for (?:the |a )?(?:trained )?models?|"
     r"trained (?:neural )?network weights|checkpoint weights)\b",
     re.I,
 )
+_MODEL_ARCHIVE_DESCRIPTION = re.compile(
+    r"\bcontains\s+(?:the\s+)?(?:current\s+)?(?:DL|deep learning)\s+models\b"
+    r"(?=.*(?:\.pth|PyTorch|weights))",
+    re.I | re.S,
+)
 _FILE_NAME = re.compile(
-    r"(?:weights?|checkpoint|model).{0,80}\.(?:pt|pth|h5|hdf5|ckpt|onnx|bin|safetensors)$", re.I
+    r"(?:weights?|checkpoint|model).{0,80}\.(?:tar\.gz|safetensors|hdf5|onnx|gguf|"
+    r"ckpt|pth|pt|bin|h5|tar|zip)$",
+    re.I,
 )
 _FILE_PAGE_SIZE = 100
 _MAX_FILE_PAGES = 100
@@ -63,9 +71,9 @@ class DryadModelCandidatesSourceAdapter:
     """
 
     coverage_limitation = (
-        "Searches Dryad's public API for a fixed set of model-weight and deep-learning "
-        "phrases. It does not cover records whose searchable metadata uses other wording. "
-        "Each fetch scans one search result and reads file metadata sequentially. Dryad "
+        "Search mode covers a fixed set of model-weight and deep-learning phrases and "
+        "misses records that use other searchable wording. When dataset_doi is configured, "
+        "the adapter reads only that one known record. Metadata requests are sequential. Dryad "
         "documents that API accounts receive eight times the anonymous request rate, but "
         "does not publish the anonymous numeric quota in the API guide. Files are never "
         "downloaded; provider file download links may require authentication."
@@ -77,6 +85,7 @@ class DryadModelCandidatesSourceAdapter:
         name: str = "dryad-model-weight-candidates",
         base_url: str = "https://datadryad.org/api/v2",
         page_size: int = 1,
+        dataset_doi: str | None = None,
         client: HttpClient | Any | None = None,
     ) -> None:
         if not name.strip() or not _is_https(base_url):
@@ -86,6 +95,7 @@ class DryadModelCandidatesSourceAdapter:
         self.name = name
         self.base_url = canonicalize_url(base_url).rstrip("/")
         self.page_size = int(page_size)
+        self.dataset_doi = _validate_doi(dataset_doi) if dataset_doi is not None else None
         self.client = client or HttpClient()
         self.checkpoint_signature = content_hash(
             {
@@ -93,12 +103,15 @@ class DryadModelCandidatesSourceAdapter:
                 "base_url": self.base_url,
                 "queries": _QUERIES,
                 "page_size": self.page_size,
+                "dataset_doi": self.dataset_doi,
                 "file_page_size": _FILE_PAGE_SIZE,
                 "max_file_pages": _MAX_FILE_PAGES,
             }
         )
 
     def fetch_page(self, state: Mapping[str, Any]) -> SourcePage:
+        if self.dataset_doi is not None:
+            return self._fetch_fixed_record()
         page = _positive_int(state.get("page", 1), "page")
         query_index = _nonnegative_int(state.get("query_index", 0), "query_index")
         if query_index >= len(_QUERIES):
@@ -151,13 +164,30 @@ class DryadModelCandidatesSourceAdapter:
             upstream_count=total,
         )
 
+    def _fetch_fixed_record(self) -> SourcePage:
+        assert self.dataset_doi is not None
+        identifier = f"doi:{self.dataset_doi}"
+        record_url = f"{self.base_url}/datasets/{quote(identifier, safe='')}"
+        response = self.client.get(record_url)
+        if response.status != 200:
+            raise ValueError(f"{self.name}: record API returned HTTP {response.status}")
+        dataset = _object(response.json(), "record response")
+        if dataset.get("identifier") != identifier:
+            raise ValueError(f"{self.name}: record response DOI does not match configured DOI")
+        record = self._dataset(dataset)
+        return SourcePage(
+            records=(record,) if record is not None else (),
+            next_state={"dataset_doi": self.dataset_doi},
+            complete=True,
+            upstream_count=1,
+        )
+
     def _dataset(self, dataset: Mapping[str, Any]) -> SourceRecord | None:
         identifier = _text(dataset.get("identifier"), "dataset.identifier")
         if not identifier.startswith("doi:"):
             raise ValueError(f"{self.name}: unsupported dataset identifier")
         doi = identifier[4:]
-        if not re.fullmatch(r"10\.\d{4,9}/\S+", doi, re.I):
-            raise ValueError(f"{self.name}: invalid dataset DOI")
+        doi = _validate_doi(doi)
         title = _text(dataset.get("title"), "dataset.title")
         description = _plain_text(
             "\n".join(
@@ -176,7 +206,10 @@ class DryadModelCandidatesSourceAdapter:
         version_url = _same_origin_url(version_link.get("href"), self.base_url)
         files = self._version_files(version_url)
         weighted_files = [
-            item for item in files if isinstance(item, Mapping) and _is_weight_file(item)
+            (item, evidence)
+            for item in files
+            if isinstance(item, Mapping)
+            and (evidence := _weight_file_evidence(item, description)) is not None
         ]
         if not weighted_files:
             return None
@@ -191,7 +224,7 @@ class DryadModelCandidatesSourceAdapter:
         )
         file_links: list[Link] = _related_work_links(dataset.get("relatedWorks"))
         releases: list[ReleaseHint] = []
-        for file in weighted_files:
+        for file, weight_evidence in weighted_files:
             filename = _text(file.get("path"), "file.path")
             file_desc = _plain_text(_optional_text(file.get("description")) or "")
             file_links_block = _object(file.get("_links"), "file._links")
@@ -202,7 +235,7 @@ class DryadModelCandidatesSourceAdapter:
                 raise ValueError(f"{self.name}: matching file has no download link")
             download_url = _same_origin_url(download_block.get("href"), self.base_url)
             file_id = urlsplit(metadata_url).path.rsplit("/", 1)[-1]
-            locator = f"Dryad file {filename}: {file_desc}"[:2_000]
+            locator = f"Dryad file {filename}: {file_desc or weight_evidence}"[:2_000]
             file_links.append(Link(metadata_url, "file_metadata", locator=locator, crawl=False))
             file_links.append(Link(download_url, "weights", locator=locator, crawl=False))
             release_identifiers = [Identifier("dryad-file", file_id)]
@@ -232,7 +265,7 @@ class DryadModelCandidatesSourceAdapter:
             kind=ArtifactKind.CATALOG_RECORD,
             canonical_url=canonical_url,
             title=title,
-            raw={"dataset": dict(dataset), "files": [dict(file) for file in weighted_files]},
+            raw={"dataset": dict(dataset), "files": [dict(file) for file, _ in weighted_files]},
             text=description,
             identifiers=(Identifier("doi", doi),),
             links=tuple(file_links),
@@ -286,13 +319,38 @@ class DryadModelCandidatesSourceAdapter:
         raise ValueError(f"{self.name}: file listing exceeded {_MAX_FILE_PAGES} pages")
 
 
-def _is_weight_file(file: Mapping[str, Any]) -> bool:
+def _weight_file_evidence(file: Mapping[str, Any], dataset_description: str) -> str | None:
     name = _optional_text(file.get("path")) or ""
     desc = _plain_text(_optional_text(file.get("description")) or "")
-    return bool(
-        _WEIGHT_DESCRIPTION.search(desc)
-        or (_WEIGHT_DESCRIPTION.search(name) and _FILE_NAME.search(name))
+    if _WEIGHT_DESCRIPTION.search(desc):
+        return "file_description"
+    if not desc and _FILE_NAME.search(name):
+        return "file_name: explicit weight/checkpoint/model token and model artifact suffix"
+    if _basename(name).casefold() == "_models.zip":
+        note = _model_archive_note(dataset_description, _basename(name))
+        if note:
+            return f"dataset_usageNotes_file_section: {note}"
+    if _basename(name).casefold() == "_models.zip" and _MODEL_ARCHIVE_DESCRIPTION.search(desc):
+        return "file_description_contains_model_archive"
+    return None
+
+
+def _model_archive_note(description: str, filename: str) -> str | None:
+    pattern = re.compile(
+        rf"\bFile:\s*{re.escape(filename)}\s*Description:\s*(.*?)(?=\bFile:\s*|\Z)",
+        re.I | re.S,
     )
+    match = pattern.search(description)
+    if match is None:
+        return None
+    detail = match.group(1).strip()
+    if _MODEL_ARCHIVE_DESCRIPTION.search(detail):
+        return detail[:1_000]
+    return None
+
+
+def _basename(path: str) -> str:
+    return path.rstrip("/").rsplit("/", 1)[-1]
 
 
 def _related_work_links(value: Any) -> list[Link]:
@@ -379,6 +437,12 @@ def _positive_int(value: Any, field: str) -> int:
     if number < 1:
         raise ValueError(f"{field} must be positive")
     return number
+
+
+def _validate_doi(value: str) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"10\.\d{4,9}/\S+", value, re.I):
+        raise ValueError("dataset_doi must be a valid DOI")
+    return value
 
 
 def _plain_text(value: str) -> str:

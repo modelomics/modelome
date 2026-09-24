@@ -1,0 +1,20 @@
+# PaddleMaterials publishes a literal MODEL_REGISTRY mapping of model handles
+# to Paddle cloud package URLs in its first-party Python implementation. Each
+# archive is a package bundle, not a single raw checkpoint file. The adapter
+# records the exact package URL and does not fetch archive bytes.
+[[source]]
+name = "paddlematerials-model-registry"
+adapter = "paddlematerials_registry"
+enabled = false
+repository = "PaddlePaddle/PaddleMaterials"
+branch = "develop"
+source_path = "ppmat/models/__init__.py"
+entry_tags = ["field:materials-science", "ecosystem:paddlematerials", "kind:checkpoint-package"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# The adapter enforces at least 20 literal unique entries and exact first-party
+# Paddle cloud ZIP URLs. It excludes the CHGNet and MatterSim aliases already
+# indexed by dedicated sources; bundle contents and binary reachability remain
+# unverified. The currently inspected mapping has 74 rows, of which 71 remain
+# after excluding those three alias entries.

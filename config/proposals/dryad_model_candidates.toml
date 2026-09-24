@@ -5,16 +5,15 @@ name = "dryad-model-weight-candidates"
 adapter = "dryad_model_candidates"
 enabled = false
 base_url = "https://datadryad.org/api/v2"
+dataset_doi = "10.5061/dryad.ns1rn8ptd"
 page_size = 1
 entry_tags = ["provider:dryad", "kind:model-artifact-candidate"]
 schedule = "manual"
 max_response_bytes = 8388608
 
-# Search is restricted to fixed model-weight and deep-learning phrases. A dataset
-# is emitted only when its metadata describes a learned model and its paginated file metadata
-# explicitly describes a checkpoint or model weights. This misses records that
-# uses different searchable wording. The API returns file metadata only; no files are fetched.
-# Dryad documents API accounts as receiving eight times the anonymous request rate,
-# but does not publish the anonymous numeric quota in its API guide. Keep this manual
-# and serial: each search page contains one dataset result, followed by sequential
-# metadata-only calls. On HTTP 429, retain the checkpoint and resume later.
+# This proposal uses the exact record DOI rather than broad phrase search. It emits a
+# candidate only when the record metadata describes trained machine-learning models and
+# file metadata has an explicit weight/checkpoint filename or model-weight description.
+# File pages are followed sequentially and bounded; no file bytes are fetched. Dryad documents API accounts as
+# receiving eight times the anonymous request rate, but does not publish the anonymous
+# numeric quota in its API guide. Keep this source manual and stop/resume later on HTTP 429.

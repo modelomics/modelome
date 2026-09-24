@@ -23,7 +23,7 @@ from modelome.normalize import canonicalize_url, content_hash
 
 Clock = Callable[[], datetime]
 _COMMIT = re.compile(r"^[0-9a-f]{40}$")
-_MODEL_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
+_MODEL_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*(?:/[a-z0-9][a-z0-9._-]*)*$")
 _REPOSITORY = "PaddlePaddle/PaddleNLP"
 _SOURCE_PATH = "paddlenlp/transformers/ernie/configuration.py"
 _SOURCE_PATH_PATTERN = re.compile(
@@ -93,6 +93,7 @@ def _parse_registry(
         if (
             model_id not in model_ids
             or not isinstance(model_id, str)
+            or len(model_id) > 256
             or not _MODEL_ID.fullmatch(model_id)
         ):
             continue

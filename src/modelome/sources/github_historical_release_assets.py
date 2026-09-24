@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 from urllib.parse import parse_qsl, quote, urljoin, urlsplit
 
@@ -169,6 +169,80 @@ def plan_github_repository_id_ranges(
         )
         cursor = end
     return tuple(plans)
+
+
+def plan_github_repository_id_ranges_with_budget(
+    *,
+    initial_since: int,
+    max_repository_id: int,
+    shard_count: int,
+    max_api_requests_per_range: int,
+    source_name_prefix: str = "github-historical-release-assets",
+    page_size: int = _PAGE_SIZE,
+    max_releases_per_repository: int = 1_000,
+    max_assets_per_release: int = 1_000,
+    max_release_pages_per_repository: int = 10,
+    max_asset_pages_per_release: int = 10,
+    max_http_attempts: int = 4,
+) -> tuple[GitHubRepositoryIdRangePlan, ...]:
+    """Maximize releases scanned per ID range under a retry-inclusive API budget.
+
+    The requested release and asset counts are ceilings. For each numeric
+    repository shard, this chooses the largest release cap that fits the
+    conservative request estimate while retaining the configured release and
+    asset page limits. It raises if the budget cannot cover even one release
+    per repository in the shard. `adapter_kwargs()` on each result carries the
+    selected cap and retry count.
+    """
+
+    budget = _integer(
+        max_api_requests_per_range,
+        "max_api_requests_per_range",
+        minimum=1,
+    )
+    plans = plan_github_repository_id_ranges(
+        initial_since=initial_since,
+        max_repository_id=max_repository_id,
+        shard_count=shard_count,
+        source_name_prefix=source_name_prefix,
+        page_size=page_size,
+        max_releases_per_repository=max_releases_per_repository,
+        max_assets_per_release=max_assets_per_release,
+        max_release_pages_per_repository=max_release_pages_per_repository,
+        max_asset_pages_per_release=max_asset_pages_per_release,
+        max_http_attempts=max_http_attempts,
+    )
+    result: list[GitHubRepositoryIdRangePlan] = []
+    for plan in plans:
+        page_budget = budget // plan.max_http_attempts
+        repository_pages = math.ceil(plan.max_repositories / plan.page_size)
+        fixed_pages = repository_pages + (
+            plan.max_repositories * plan.max_release_pages_per_repository
+        )
+        pages_per_release = plan.max_repositories * plan.max_asset_pages_per_release
+        available_releases = (page_budget - fixed_pages) // pages_per_release
+        if available_releases < 1:
+            minimum_api_requests = (fixed_pages + pages_per_release) * plan.max_http_attempts
+            raise ValueError(
+                f"API request budget {budget} cannot cover one release per repository; "
+                f"minimum is {minimum_api_requests} requests for this range"
+            )
+        release_page_capacity = plan.page_size * plan.max_release_pages_per_repository
+        selected_releases = min(
+            plan.max_releases_per_repository,
+            release_page_capacity,
+            available_releases,
+        )
+        page_requests = fixed_pages + pages_per_release * selected_releases
+        result.append(
+            replace(
+                plan,
+                max_releases_per_repository=selected_releases,
+                max_page_requests=page_requests,
+                max_api_requests=page_requests * plan.max_http_attempts,
+            )
+        )
+    return tuple(result)
 
 
 class GitHubHistoricalReleaseAssetsSourceAdapter:
@@ -933,4 +1007,5 @@ __all__ = [
     "GitHubHistoricalReleaseAssetsSourceAdapter",
     "GitHubRepositoryIdRangePlan",
     "plan_github_repository_id_ranges",
+    "plan_github_repository_id_ranges_with_budget",
 ]

@@ -1,0 +1,17 @@
+# PFRL's official utility defines a fixed public object layout and exact best/final
+# model types. Its reproducibility benchmarks enumerate 59 Atari games and
+# algorithm-specific MuJoCo tasks. The adapter emits metadata for 530 finite model
+# archives and does not fetch archive bytes. Keep disabled pending root catalog review.
+[[source]]
+name = "pfrl-pretrained-model-zoo"
+adapter = "pfrl_pretrained_model_zoo"
+enabled = false
+entry_tags = ["field:reinforcement-learning", "ecosystem:pfrl", "kind:pretrained-policy"]
+schedule = "weekly"
+max_entries = 600
+
+[evidence]
+official_repository = "https://github.com/pfnet/pfrl"
+official_download_contract = "https://github.com/pfnet/pfrl/blob/master/pfrl/utils/pretrained_models.py"
+official_benchmark_inventory = "https://jmlr.org/papers/volume22/20-376/20-376.pdf"
+public_checkpoint_example = "https://pfrl-assets.preferred.jp/DQN/Breakout/best.zip"

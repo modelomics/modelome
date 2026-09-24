@@ -37,6 +37,7 @@ _MAX_TOKEN_LENGTH = 8192
 _TOKEN_TTL = timedelta(minutes=60)
 _TOKEN_SAFETY = timedelta(minutes=5)
 _MAX_RECORDS_PER_PAGE = 50
+_MAX_ARTICLE_VERSIONS = 50
 
 
 def _utcnow() -> datetime:
@@ -57,19 +58,23 @@ class _TextParser(HTMLParser):
 class FigshareModelCandidatesSourceAdapter:
     """Traverse one half-open Figshare OAI date window, emitting cautious candidates.
 
-    Figshare has no Model article type. Admission therefore requires a neural or
-    deep-learning description, a named file clause that says the file contains
-    weights/checkpoints, and an exact filename and URL match in both the public
-    article API and the OAI METS file list. The candidate status preserves the
-    uncertainty of cross-domain Figshare deposits.
+    Figshare has no Model article type. The current OAI record must first signal
+    neural/deep-learning work and explicitly name a weight/checkpoint file. The
+    adapter then reads the bounded REST version list and checks each version's own
+    description and file list. For the current version, OAI and REST URLs must
+    match; for historical versions, the version-specific REST response establishes
+    the exact article/version/file relation. Candidate status preserves uncertainty.
     """
 
     coverage_limitation = (
         "Covers public Figshare records with publication datestamps in the configured "
         "half-open date window [from_date, until_date). OAI exposes each article's "
-        "latest version only. Candidate files must be named as model weights or "
-        "checkpoints in the description and match the exact public API file list. "
-        "Files are never downloaded."
+        "latest version only; records whose latest metadata signals a model candidate "
+        "are expanded through Figshare's public version-list and version-detail API "
+        "(bounded to 50 versions per article). Historical-only model signals remain "
+        "out of scope. Candidate files must be named as model weights or checkpoints "
+        "in that version's description and match its exact public file list. Files "
+        "are never downloaded."
     )
 
     def __init__(
@@ -81,6 +86,7 @@ class FigshareModelCandidatesSourceAdapter:
         from_date: str,
         until_date: str,
         max_response_bytes: int = 8 * 1024 * 1024,
+        max_versions_per_article: int = _MAX_ARTICLE_VERSIONS,
         client: HttpClient | Any | None = None,
         clock: Clock = _utcnow,
     ) -> None:
@@ -92,10 +98,19 @@ class FigshareModelCandidatesSourceAdapter:
             raise ValueError("until_date must be later than from_date")
         if max_response_bytes <= 0:
             raise ValueError("max_response_bytes must be positive")
+        if (
+            isinstance(max_versions_per_article, bool)
+            or not isinstance(max_versions_per_article, int)
+            or not 1 <= max_versions_per_article <= _MAX_ARTICLE_VERSIONS
+        ):
+            raise ValueError(
+                f"max_versions_per_article must be between 1 and {_MAX_ARTICLE_VERSIONS}"
+            )
         self.name = name
         self.oai_url = canonicalize_url(oai_url)
         self.api_url = canonicalize_url(api_url).rstrip("/")
         self.max_response_bytes = max_response_bytes
+        self.max_versions_per_article = max_versions_per_article
         self.client = client or HttpClient(max_response_bytes=max_response_bytes)
         self.clock = clock
         self.checkpoint_signature = content_hash(
@@ -107,6 +122,7 @@ class FigshareModelCandidatesSourceAdapter:
                 "from": self.from_date,
                 "until": self.until_date,
                 "max_response_bytes": max_response_bytes,
+                "max_versions_per_article": max_versions_per_article,
                 "admission": "neural metadata plus explicitly named weight/checkpoint file",
             }
         )
@@ -163,25 +179,38 @@ class FigshareModelCandidatesSourceAdapter:
             if evidence is None:
                 continue
             record_id, title, description, page_url, file_urls, version = evidence
-            if _MODEL_SCOPE.search(f"{title}\n{description}") is None:
+            if not _MODEL_SCOPE.search(f"{title}\n{description}") or not _named_weight_files(
+                description
+            ):
                 continue
-            named_files = _named_weight_files(description)
-            if not named_files:
-                continue
-            article = self._article(record_id)
-            candidate = _candidate_record(
-                article,
-                record_id=record_id,
-                oai_title=title,
-                oai_description=description,
-                page_url=page_url,
-                oai_file_urls=file_urls,
-                oai_version=version,
-                named_files=named_files,
-                source=self.name,
-            )
-            if candidate is not None:
-                candidates.append(candidate)
+            versions = self._versions(record_id)
+            if version and version not in {str(item) for item in versions}:
+                raise ValueError(
+                    f"{self.name}: OAI version {version} is missing from article "
+                    f"{record_id} version list"
+                )
+            for article_version in versions:
+                article = self._article_version(record_id, article_version)
+                version_title = _text(article.get("title")) or title
+                version_description = _plain_text(_text(article.get("description")) or description)
+                named_files = _named_weight_files(version_description)
+                version_urls = (
+                    file_urls if str(article_version) == version else _rest_file_urls(article)
+                )
+                candidate = _candidate_record(
+                    article,
+                    record_id=record_id,
+                    oai_title=version_title,
+                    oai_description=version_description,
+                    page_url=page_url,
+                    oai_file_urls=version_urls,
+                    oai_version=str(article_version),
+                    named_files=named_files,
+                    source=self.name,
+                    api_url=self.api_url,
+                )
+                if candidate is not None:
+                    candidates.append(candidate)
         token_node = next((node for node in listing if _local(node.tag) == "resumptionToken"), None)
         next_token = (token_node.text or "").strip() if token_node is not None else ""
         return self._page(
@@ -235,14 +264,48 @@ class FigshareModelCandidatesSourceAdapter:
             authoritative_snapshot=False,
         )
 
-    def _article(self, record_id: str) -> Mapping[str, Any]:
+    def _versions(self, record_id: str) -> tuple[int, ...]:
         response: HttpResponse = self.client.get(
-            f"{self.api_url}/{record_id}", headers={"Accept": "application/json"}
+            f"{self.api_url}/{record_id}/versions",
+            headers={"Accept": "application/json"},
         )
-        self._check_response(response, "article detail")
+        self._check_response(response, "article versions")
         payload = response.json()
-        if not isinstance(payload, Mapping) or str(payload.get("id", "")) != record_id:
-            raise ValueError(f"{self.name}: article detail id does not match OAI identifier")
+        if not isinstance(payload, list) or not payload:
+            raise ValueError(f"{self.name}: article {record_id} has no version list")
+        if len(payload) > self.max_versions_per_article:
+            raise ValueError(
+                f"{self.name}: article {record_id} exceeds the configured version limit"
+            )
+        versions: list[int] = []
+        for item in payload:
+            if not isinstance(item, Mapping):
+                raise ValueError(f"{self.name}: malformed version entry for article {record_id}")
+            version = item.get("version")
+            if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+                raise ValueError(f"{self.name}: invalid version number for article {record_id}")
+            url = item.get("url")
+            expected = f"{self.api_url}/{record_id}/versions/{version}"
+            if url is not None and canonicalize_url(_text(url)) != canonicalize_url(expected):
+                raise ValueError(f"{self.name}: unexpected version URL for article {record_id}")
+            versions.append(version)
+        if len(set(versions)) != len(versions):
+            raise ValueError(f"{self.name}: repeated version number for article {record_id}")
+        return tuple(sorted(versions))
+
+    def _article_version(self, record_id: str, version: int) -> Mapping[str, Any]:
+        response: HttpResponse = self.client.get(
+            f"{self.api_url}/{record_id}/versions/{version}",
+            headers={"Accept": "application/json"},
+        )
+        self._check_response(response, "article version detail")
+        payload = response.json()
+        if (
+            not isinstance(payload, Mapping)
+            or str(payload.get("id", "")) != record_id
+            or _text(payload.get("version")) != str(version)
+        ):
+            raise ValueError(f"{self.name}: article version identity does not match OAI record")
         return payload
 
     def _check_response(self, response: HttpResponse, endpoint: str) -> None:
@@ -263,6 +326,7 @@ def _candidate_record(
     oai_version: str | None,
     named_files: set[str],
     source: str,
+    api_url: str,
 ) -> SourceRecord | None:
     title = _text(article.get("title")) or oai_title
     description = _plain_text(_text(article.get("description")) or oai_description)
@@ -286,8 +350,11 @@ def _candidate_record(
             matches.append((index, item, file_url))
     if not matches:
         return None
-    article_url = _page_url(_text(article.get("figshare_url")) or page_url)
-    local_id = f"model:figshare:{record_id}"
+    version_page = _text(article.get("url_public_html")) or _text(article.get("figshare_url"))
+    if not version_page:
+        version_page = f"{page_url.rstrip('/')}/{version}"
+    article_url = _page_url(version_page)
+    local_id = f"model:figshare:{record_id}:v{version}"
     model = ModelHint(
         local_id=local_id,
         name=_model_name(title),
@@ -296,7 +363,10 @@ def _candidate_record(
         confidence=0.82,
         locator="OAI METS title/description and REST file-name match",
     )
-    identifiers = [Identifier("figshare:article", record_id)]
+    identifiers = [
+        Identifier("figshare:article", record_id),
+        Identifier("figshare:article-version", f"{record_id}:v{version}"),
+    ]
     doi = _text(article.get("doi"))
     if doi and _DOI.fullmatch(doi):
         identifiers.append(Identifier("doi", doi.casefold()))
@@ -316,7 +386,7 @@ def _candidate_record(
             )
         )
     return SourceRecord(
-        source_record_id=f"article:{record_id}",
+        source_record_id=f"article:{record_id}:version:{version}",
         kind=ArtifactKind.CATALOG_RECORD,
         canonical_url=article_url,
         title=title,
@@ -324,6 +394,7 @@ def _candidate_record(
             "provider": "Figshare",
             "article_id": record_id,
             "article_version": version or oai_version,
+            "version_detail_url": f"{api_url}/{record_id}/versions/{version}",
             "defined_type_name": _text(article.get("defined_type_name")),
             "candidate_signal": "model/deep-learning metadata names a weight/checkpoint file",
             "matched_files": matched_files,
@@ -393,6 +464,18 @@ def _named_weight_files(description: str) -> set[str]:
 def _filename_stem(filename: str) -> str:
     stem = re.sub(r"\.[^.]+$", "", filename.rsplit("/", 1)[-1])
     return normalize_name(stem).replace(" ", "")
+
+
+def _rest_file_urls(article: Mapping[str, Any]) -> set[str]:
+    files = article.get("files")
+    if not isinstance(files, list):
+        return set()
+    return {
+        url
+        for item in files
+        if isinstance(item, Mapping)
+        if (url := _file_url(item.get("download_url"))) is not None
+    }
 
 
 def _model_name(title: str) -> str:

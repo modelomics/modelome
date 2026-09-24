@@ -17,6 +17,14 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+_ABSTRACT_MODEL_RESOURCE_URL_RE = re.compile(
+    r"\b(?:model\s+(?:weights?|checkpoints?)|(?:pre[- ]?trained\s+)?"
+    r"(?:weights?|checkpoints?))\s+(?:are\s+)?(?:publicly\s+)?available\s+"
+    r"(?:at|from|via|on)\s*:?\s*(https?://[^\s<>{}\[\]\"']+)",
+    re.IGNORECASE,
+)
+
+
 class AclAnthologySourceAdapter:
     """Enumerate papers across bounded ACL Anthology XML collections.
 
@@ -407,6 +415,7 @@ class AclAnthologySourceAdapter:
             Link(landing, relation="landing_page", locator=f"xml:paper[{index}]", crawl=False),
             Link(pdf, relation="full_text", locator=f"xml:paper[{index}]/url", crawl=False),
         ]
+        links.extend(_abstract_model_resource_links(abstract, index))
         for attachment_index, node in enumerate(paper.findall("attachment")):
             filename = _element_text(node)
             if not re.fullmatch(r"[A-Za-z0-9._-]{1,255}", filename):
@@ -458,6 +467,32 @@ def _attachment_relation(attachment_type: str) -> str:
     if any(token in attachment_type for token in ("dataset", "data")):
         return "dataset"
     return "supplementary_material"
+
+
+def _abstract_model_resource_links(abstract: str, paper_index: int) -> list[Link]:
+    """Extract first-party abstract URLs only when explicitly tied to weights/checkpoints."""
+
+    links: list[Link] = []
+    seen: set[str] = set()
+    for match in _ABSTRACT_MODEL_RESOURCE_URL_RE.finditer(abstract):
+        candidate = match.group(1).rstrip(".,;:!?)\\]")
+        try:
+            url = canonicalize_url(candidate)
+        except ValueError:
+            continue
+        parts = urlsplit(url)
+        if parts.scheme not in {"http", "https"} or not parts.hostname or url in seen:
+            continue
+        seen.add(url)
+        links.append(
+            Link(
+                url,
+                relation="weights",
+                locator=f"xml:paper[{paper_index}]/abstract.model-resource-url",
+                crawl=False,
+            )
+        )
+    return links
 
 
 def _paper_id(paper: ElementTree.Element) -> str:

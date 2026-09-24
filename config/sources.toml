@@ -8639,3 +8639,160 @@ source_path = "keras/src/applications/convnext.py"
 schedule = "weekly"
 max_source_bytes = 2097152
 max_records = 20
+
+# First-party Keras Applications ResNet-family ImageNet weight manifest.
+[[source]]
+name = "keras-resnet-imagenet-weights"
+adapter = "keras_resnet_weights"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:keras-applications", "kind:pretrained-model"]
+repository = "keras-team/keras"
+branch = "master"
+source_path = "keras/src/applications/resnet.py"
+schedule = "weekly"
+max_source_bytes = 2097152
+max_records = 32
+
+# PaddleNLP declares exact BERT-family model IDs and their model_state URLs.
+[[source]]
+name = "paddlenlp-bert-pretrained-registry"
+adapter = "paddlenlp_bert_registry"
+enabled = true
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/transformers/bert/configuration.py"
+provider_namespace = "paddlenlp:transformer-model"
+max_response_bytes = 4194304
+schedule = "weekly"
+
+# PaddleMaterials publishes a literal, independently enumerable package map.
+[[source]]
+name = "paddlematerials-model-registry"
+adapter = "paddlematerials_registry"
+enabled = true
+repository = "PaddlePaddle/PaddleMaterials"
+branch = "develop"
+source_path = "ppmat/models/__init__.py"
+entry_tags = ["field:materials-science", "ecosystem:paddlematerials", "kind:checkpoint-package"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# Vosk's public tables list model archives for speech and related tasks.
+[[source]]
+name = "vosk-models"
+adapter = "vosk_models"
+enabled = true
+index_url = "https://alphacephei.com/vosk/models"
+repository_url = "https://github.com/alphacep/vosk-api"
+entry_tags = ["ecosystem:vosk", "modality:audio", "task:speech-recognition", "kind:checkpoint-archive"]
+schedule = "weekly"
+min_models = 20
+max_models = 500
+max_response_bytes = 2097152
+
+# Ai2's public MolmoBot collection exposes version-pinned primary policy weights.
+[[source]]
+name = "molmobot-policy-collection"
+adapter = "molmobot_policy_collection"
+enabled = true
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 32
+
+# PFRL's benchmark inventories and first-party loader define 530 exact archives.
+[[source]]
+name = "pfrl-pretrained-model-zoo"
+adapter = "pfrl_pretrained_model_zoo"
+enabled = true
+entry_tags = ["field:reinforcement-learning", "ecosystem:pfrl", "kind:pretrained-policy"]
+schedule = "weekly"
+max_entries = 600
+
+# Additional archived TF-Slim tables enumerate checkpoint archive URLs directly.
+[[source]]
+name = "tensorflow-slim-mobilenet-v1-checkpoints"
+adapter = "markdown_model_table"
+enabled = true
+entry_tags = ["field:computer-vision", "task:image-classification", "ecosystem:tensorflow-slim", "era:historical", "kind:pretrained-checkpoint"]
+repository = "tensorflow/models"
+branch = "master"
+document_path = "research/slim/nets/mobilenet_v1.md"
+provider_namespace = "tensorflow:slim-mobilenet-v1-checkpoint"
+model_column = 0
+model_header_pattern = "^Model$"
+identity_include_heading = false
+schedule = "weekly"
+max_response_bytes = 4194304
+max_rows = 1000
+
+[[source]]
+name = "tensorflow-slim-nasnet-a-checkpoints"
+adapter = "markdown_model_table"
+enabled = true
+entry_tags = ["field:computer-vision", "task:image-classification", "ecosystem:tensorflow-slim", "era:historical", "kind:pretrained-checkpoint"]
+repository = "tensorflow/models"
+branch = "master"
+document_path = "research/slim/nets/nasnet/README.md"
+provider_namespace = "tensorflow:slim-nasnet-a-checkpoint"
+model_column = 0
+model_header_pattern = "^Model Checkpoint$"
+identity_include_heading = false
+schedule = "weekly"
+max_response_bytes = 4194304
+max_rows = 1000
+
+# ACL's 2025 collection XML supplies paper and explicit model-weight links.
+[[source]]
+name = "acl-anthology-2025-acl"
+adapter = "acl_anthology"
+enabled = true
+url = "https://raw.githubusercontent.com/acl-org/acl-anthology/master/data/xml/2025.acl.xml"
+max_response_bytes = 16777216
+max_papers = 10000
+max_abstract_chars = 100000
+schedule = "weekly"
+
+# NVlabs declares three publicly reachable EDM2 checkpoint files in its README.
+[[source]]
+name = "nvlabs-edm2-checkpoints"
+adapter = "nvlabs_edm2_checkpoints"
+enabled = true
+entry_tags = ["field:generative-image-modeling", "ecosystem:nvidia", "model-family:edm2", "kind:checkpoint", "evidence:first-party-network-url"]
+repository = "NVlabs/edm2"
+branch = "main"
+document_path = "README.md"
+max_response_bytes = 4194304
+max_checkpoints = 20
+schedule = "weekly"
+
+# A fixed Dryad DOI exposes five explicitly named model-weight archives.
+[[source]]
+name = "dryad-model-weight-candidates"
+adapter = "dryad_model_candidates"
+enabled = true
+base_url = "https://datadryad.org/api/v2"
+dataset_doi = "10.5061/dryad.ns1rn8ptd"
+page_size = 1
+entry_tags = ["provider:dryad", "kind:model-artifact-candidate"]
+schedule = "manual"
+max_response_bytes = 8388608
+
+# The Workers AI changelog retains 19 exact 2025 deprecation cohort IDs.
+[[source]]
+name = "cloudflare-workers-ai-deprecated-2025-10-01"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:cloudflare-workers-ai", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history", "lifecycle:deprecated", "deprecated-on:2025-10-01"]
+url = "https://developers.cloudflare.com/workers-ai/changelog/"
+provider_namespace = "cloudflare:workers-ai-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 100
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '''(?P<name>@(?:hf/thebloke/(?:zephyr-7b-beta-awq|mistral-7b-instruct-v0[.]1-awq|llama-2-13b-chat-awq|openhermes-2[.]5-mistral-7b-awq|neural-chat-7b-v3-1-awq|llamaguard-7b-awq|deepseek-coder-6[.]7b-(?:base|instruct)-awq)|cf/(?:deepseek-ai/deepseek-math-7b-instruct|openchat/openchat-3[.]5-0106|tiiuae/falcon-7b-instruct|thebloke/discolm-german-7b-v1-awq|qwen/qwen1[.]5-(?:0[.]5b-chat|7b-chat-awq|14b-chat-awq|1[.]8b-chat)|tinyllama/tinyllama-1[.]1b-chat-v1[.]0|fblgit/una-cybertron-7b-v2-bf16)|hf/nexusflow/starling-lm-7b-beta))'''
+identity_source = "name"
+require_url = false

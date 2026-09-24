@@ -159,6 +159,12 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
     )
     rich_manifest = {
         "id": "10.5281/zenodo.1234567",
+        "attachments": [
+            {
+                "source": "zero_mean_unit_variance.ijm",
+                "sha256": "f" * 64,
+            }
+        ],
         "parent": {"id": "bioimage-io/parent-model", "version": "v2"},
         "inputs": [
             {"id": "normalized", "output_of": "bioimage-io/preprocessing-model"}
@@ -349,6 +355,11 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
     assert (
         "implementation",
         f"{ARTIFACT_BASE}/first-model/files/architecture.py?version=v0",
+        True,
+    ) in relation_urls
+    assert (
+        "implementation",
+        f"{ARTIFACT_BASE}/first-model/files/zero_mean_unit_variance.ijm?version=v0",
         True,
     ) in relation_urls
     assert (

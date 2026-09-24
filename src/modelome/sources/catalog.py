@@ -144,6 +144,7 @@ from modelome.sources.kaggle import KaggleModelsSourceAdapter
 from modelome.sources.kaldi_model_index import KaldiModelIndexSourceAdapter
 from modelome.sources.keras_convnext_weights import KerasConvNeXtWeightsSourceAdapter
 from modelome.sources.keras_hub_preset_registry import KerasHubPresetRegistrySourceAdapter
+from modelome.sources.keras_resnet_weights import KerasResNetWeightsSourceAdapter
 from modelome.sources.lerobot_molmoact2_relation import (
     LeRobotMolmoAct2RelationSourceAdapter,
 )
@@ -176,6 +177,7 @@ from modelome.sources.modelscope import ModelScopeModelsSourceAdapter
 from modelome.sources.molecular_registry import OpenFoldCheckpointRegistrySourceAdapter
 from modelome.sources.moler_checkpoint import MoLeRCheckpointSourceAdapter
 from modelome.sources.molmoact2_checkpoints import MolmoAct2CheckpointSourceAdapter
+from modelome.sources.molmobot_policy_collection import MolmoBotPolicyCollectionAdapter
 from modelome.sources.monai_model_zoo import MonaiModelZooSourceAdapter
 from modelome.sources.msst_mel_roformer_experiments import (
     MsstMelRoformerExperimentsSourceAdapter,
@@ -194,6 +196,7 @@ from modelome.sources.nvidia_cosmos3_checkpoints import NvidiaCosmos3CheckpointS
 from modelome.sources.nvidia_earth2 import NvidiaEarth2SourceAdapter
 from modelome.sources.nvidia_groot_n17_checkpoints import NvidiaGR00TN17CheckpointSourceAdapter
 from modelome.sources.nvidia_nim_lifecycle import NvidiaNimLifecycle
+from modelome.sources.nvlabs_edm2_checkpoints import NVlabsEDM2CheckpointSourceAdapter
 from modelome.sources.nvlabs_edm_checkpoints import NVlabsEDMCheckpointSourceAdapter
 from modelome.sources.ocp_model_registry import OCPModelRegistrySourceAdapter
 from modelome.sources.octo_checkpoints import OctoCheckpointSourceAdapter
@@ -238,7 +241,9 @@ from modelome.sources.paddlegan_tutorial_model_zoo import (
     PaddleGanTutorialModelZooSourceAdapter,
 )
 from modelome.sources.paddlehelix_gem_checkpoint import PaddleHelixGemCheckpointSourceAdapter
+from modelome.sources.paddlematerials_registry import PaddleMaterialsRegistryAdapter
 from modelome.sources.paddlenlp_albert_registry import PaddleNlpAlbertRegistrySourceAdapter
+from modelome.sources.paddlenlp_bert_registry import PaddleNlpBertRegistrySourceAdapter
 from modelome.sources.paddlenlp_ernie_registry import PaddleNlpErnieRegistrySourceAdapter
 from modelome.sources.paddlenlp_roformer_registry import PaddleNlpRoformerRegistrySourceAdapter
 from modelome.sources.paddlenlp_taskflow_knowledge_mining import (
@@ -273,6 +278,7 @@ from modelome.sources.paperswithcode import (
 from modelome.sources.pelican_vla_checkpoint_registry import (
     PelicanVLACheckpointRegistrySourceAdapter,
 )
+from modelome.sources.pfrl_pretrained_model_zoo import PfrlPretrainedModelZooAdapter
 from modelome.sources.piper_voice_catalog import PiperVoiceCatalogSourceAdapter
 from modelome.sources.plos import PlosSourceAdapter
 from modelome.sources.pmc import PmcSourceAdapter
@@ -291,6 +297,7 @@ from modelome.sources.rfdiffusion2_registry import RFDiffusion2CheckpointRegistr
 from modelome.sources.rfdiffusion_registry import RFDiffusionCheckpointSourceAdapter
 from modelome.sources.rl_checkpoint_indexes import RlClarityCheckpointIndexAdapter
 from modelome.sources.rl_checkpoints_extra import DiffusionPolicyCheckpointIndexAdapter
+from modelome.sources.roboflow_universe_candidates import RoboflowUniverseCandidatesAdapter
 from modelome.sources.robotics_extra import ArgusCheckpointInventorySourceAdapter
 from modelome.sources.robotics_registry_v3 import RoboticsTransformerCheckpointSourceAdapter
 from modelome.sources.rosettafold_checkpoints import RoseTTAFoldCheckpointAdapter
@@ -348,6 +355,7 @@ from modelome.sources.unimol_checkpoint import UniMolCheckpointSourceAdapter
 from modelome.sources.utile_checkpoint_registry import UTilizeCheckpointRegistrySourceAdapter
 from modelome.sources.vision_registry_extra import OnnxModelZooHubSourceAdapter
 from modelome.sources.vitae_rsp_checkpoint_registry import VitaeRSPCheckpointRegistrySourceAdapter
+from modelome.sources.vosk_models import VoskModelsSourceAdapter
 from modelome.sources.vq_diffusion import MicrosoftVqDiffusionCheckpointManifestSourceAdapter
 from modelome.sources.weathernext2_checkpoint_registry import (
     WeatherNext2CheckpointRegistrySourceAdapter,
@@ -1948,6 +1956,14 @@ def create_source(
             "deepinfra_model_catalog",
             "dryad_model_candidates",
             "keras_convnext_weights",
+            "paddlenlp_bert_registry",
+            "vosk_models",
+            "keras_resnet_weights",
+            "molmobot_policy_collection",
+            "pfrl_pretrained_model_zoo",
+            "paddlematerials_registry",
+            "roboflow_universe_candidates",
+            "nvlabs_edm2_checkpoints",
         }
         else _required_text(expanded, "url")
     )
@@ -3575,6 +3591,19 @@ def create_source(
             **injected,
         )
 
+    if adapter == "paddlenlp_bert_registry":
+        return PaddleNlpBertRegistrySourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "PaddlePaddle/PaddleNLP",
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_text(expanded.get("source_path"))
+            or "paddlenlp/transformers/bert/configuration.py",
+            provider_namespace=_text(expanded.get("provider_namespace"))
+            or "paddlenlp:transformer-model",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
     if adapter == "yandex_ddpm_ffhq_checkpoint":
         return YandexDDPMFFHQCheckpointSourceAdapter(
             name=name,
@@ -3645,6 +3674,7 @@ def create_source(
             name=name,
             base_url=_text(expanded.get("base_url")) or "https://datadryad.org/api/v2",
             page_size=_integer(expanded.get("page_size"), 10),
+            dataset_doi=_text(expanded.get("dataset_doi")) or None,
             client=injected["client"],
         )
 
@@ -3656,6 +3686,74 @@ def create_source(
             source_path=_text(expanded.get("source_path")) or "keras/src/applications/convnext.py",
             max_source_bytes=_integer(expanded.get("max_source_bytes"), 2 * 1024 * 1024),
             max_records=_integer(expanded.get("max_records"), 20),
+            client=injected["client"],
+        )
+
+    if adapter == "vosk_models":
+        return VoskModelsSourceAdapter(
+            name=name,
+            min_models=_integer(expanded.get("min_models"), 20),
+            max_models=_integer(expanded.get("max_models"), 500),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "keras_resnet_weights":
+        return KerasResNetWeightsSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "keras-team/keras",
+            branch=_text(expanded.get("branch")) or "master",
+            source_path=_text(expanded.get("source_path")) or "keras/src/applications/resnet.py",
+            max_source_bytes=_integer(expanded.get("max_source_bytes"), 2 * 1024 * 1024),
+            max_records=_integer(expanded.get("max_records"), 32),
+            client=injected["client"],
+        )
+
+    if adapter == "molmobot_policy_collection":
+        return MolmoBotPolicyCollectionAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 32),
+            **injected,
+        )
+
+    if adapter == "pfrl_pretrained_model_zoo":
+        arguments: dict[str, Any] = {
+            "name": name,
+            "max_entries": _integer(expanded.get("max_entries"), 600),
+        }
+        if clock is not None:
+            arguments["clock"] = clock
+        return PfrlPretrainedModelZooAdapter(**arguments)
+
+    if adapter == "paddlematerials_registry":
+        return PaddleMaterialsRegistryAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "roboflow_universe_candidates":
+        return RoboflowUniverseCandidatesAdapter(
+            name=name,
+            search_url=_text(expanded.get("search_url"))
+            or "https://universe.roboflow.com/search",
+            query=_required_text(expanded, "query"),
+            max_pages=_integer(expanded.get("max_pages"), 20),
+            max_projects_per_page=_integer(expanded.get("max_projects_per_page"), 50),
+            max_anchors=_integer(expanded.get("max_anchors"), 10_000),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "nvlabs_edm2_checkpoints":
+        return NVlabsEDM2CheckpointSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "NVlabs/edm2",
+            branch=_text(expanded.get("branch")) or "main",
+            document_path=_text(expanded.get("document_path")) or "README.md",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_checkpoints=_integer(expanded.get("max_checkpoints"), 20),
             client=injected["client"],
         )
 

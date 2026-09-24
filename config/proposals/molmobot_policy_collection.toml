@@ -1,0 +1,14 @@
+name = "molmobot-policy-collection"
+adapter = "molmobot_policy_collection"
+enabled = false
+max_response_bytes = 4194304
+max_entries = 32
+
+[discovery]
+source = "https://huggingface.co/collections/allenai/molmobot-models"
+api = "https://huggingface.co/api/collections/allenai/molmobot-models"
+organization = "https://huggingface.co/allenai"
+
+[coverage]
+kind = "robotics-policy-checkpoints"
+notes = "Indexes the public policy models in Ai2's first-party MolmoBot collection and verifies the exact primary model.pt or model.safetensors object in each pinned Hub revision. Excludes auxiliary metadata and does not download weights."

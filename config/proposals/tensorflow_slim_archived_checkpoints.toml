@@ -1,0 +1,35 @@
+# Additional first-party TF-Slim checkpoint tables linked from the root
+# README. These historical MobileNet V1 and NASNet-A tables pair each model
+# name directly with an archive that contains a trained checkpoint. Keep this
+# separate from the root Slim source so no table rows are inferred by name.
+[[source]]
+name = "tensorflow-slim-mobilenet-v1-checkpoints"
+adapter = "markdown_model_table"
+enabled = false
+entry_tags = ["field:computer-vision", "task:image-classification", "ecosystem:tensorflow-slim", "era:historical", "kind:pretrained-checkpoint"]
+repository = "tensorflow/models"
+branch = "master"
+document_path = "research/slim/nets/mobilenet_v1.md"
+provider_namespace = "tensorflow:slim-mobilenet-v1-checkpoint"
+model_column = 0
+model_header_pattern = "^Model$"
+identity_include_heading = false
+schedule = "weekly"
+max_response_bytes = 4194304
+max_rows = 1000
+
+[[source]]
+name = "tensorflow-slim-nasnet-a-checkpoints"
+adapter = "markdown_model_table"
+enabled = false
+entry_tags = ["field:computer-vision", "task:image-classification", "ecosystem:tensorflow-slim", "era:historical", "kind:pretrained-checkpoint"]
+repository = "tensorflow/models"
+branch = "master"
+document_path = "research/slim/nets/nasnet/README.md"
+provider_namespace = "tensorflow:slim-nasnet-a-checkpoint"
+model_column = 0
+model_header_pattern = "^Model Checkpoint$"
+identity_include_heading = false
+schedule = "weekly"
+max_response_bytes = 4194304
+max_rows = 1000

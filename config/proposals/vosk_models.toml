@@ -1,0 +1,17 @@
+# Vosk's first-party page contains a multilingual catalog of direct model ZIPs.
+# Current page includes ASR, speaker-identification, and punctuation models.
+[[source]]
+name = "vosk-models"
+adapter = "vosk_models"
+enabled = false
+index_url = "https://alphacephei.com/vosk/models"
+repository_url = "https://github.com/alphacep/vosk-api"
+entry_tags = ["ecosystem:vosk", "modality:audio", "task:speech-recognition", "kind:checkpoint-archive"]
+schedule = "weekly"
+min_models = 20
+max_models = 500
+max_response_bytes = 2097152
+
+# The adapter also indexes the separately labeled speaker-identification and
+# punctuation/case-restoration ZIP rows. It reads listing HTML only and never
+# fetches archive content.

@@ -233,9 +233,11 @@ def test_unsafe_checkpoint_filename_marks_inventory_incomplete() -> None:
     assert page.issues[0].summary["file_inventory_status"] == "incomplete"
 
 
-def test_sadtalker_pth_tar_checkpoint_files_are_recognized() -> None:
+def test_sadtalker_compound_and_named_model_files_are_recognized() -> None:
     # Hugging Face's public Space trees list `facevid2vid_00189-model.pth.tar`
     # and `mapping_00229-model.pth.tar` under KkLabs/SadTalker/checkpoints.
+    # The public vinthony/SadTalker Space also ships and loads a dlib shape
+    # predictor named `shape_predictor_68_face_landmarks.dat`.
     repo, sha = "KkLabs/SadTalker", "3" * 40
     listing = "https://huggingface.co/api/spaces?listing=1"
     detail = f"https://huggingface.co/api/spaces/{repo}?expand=siblings&expand=sha"
@@ -249,6 +251,7 @@ def test_sadtalker_pth_tar_checkpoint_files_are_recognized() -> None:
                     "siblings": [
                         {"rfilename": "checkpoints/facevid2vid_00189-model.pth.tar"},
                         {"rfilename": "checkpoints/mapping_00229-model.pth.tar"},
+                        {"rfilename": "checkpoints/shape_predictor_68_face_landmarks.dat"},
                         {"rfilename": "README.md"},
                     ],
                 },
@@ -261,6 +264,7 @@ def test_sadtalker_pth_tar_checkpoint_files_are_recognized() -> None:
     assert page.records[0].raw["weight_files"] == [
         "checkpoints/facevid2vid_00189-model.pth.tar",
         "checkpoints/mapping_00229-model.pth.tar",
+        "checkpoints/shape_predictor_68_face_landmarks.dat",
     ]
 
 

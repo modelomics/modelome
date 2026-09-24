@@ -362,6 +362,8 @@ def test_evaluation_model_links_do_not_treat_github_or_dataset_urls_as_model_ids
         "https://figshare.com/ndownloader/files/123456",
         "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/abc123.th",
         "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/download/v1/model.ckpt",
+        "https://tfhub.dev/google/collection/image",
+        "https://tfhub.dev/google/spice",
     ):
         assert _evaluation_model_identifier_from_url(unrelated_url) is None
     assert _evaluation_model_identifier_from_url(
@@ -479,6 +481,43 @@ def test_evaluation_demucs_official_checkpoint_url_projects_exact_model_signatur
     assert rejected == {}
     linked_model = next(model for model in records[0].models if model.name == "Demucs checkpoint")
     assert linked_model.identifiers == (Identifier("demucs:pretrained-signature", "0d19c1c6"),)
+    assert linked_model.status is ModelStatus.CANDIDATE
+    assert linked_model.confidence == 0.65
+    model_link = next(link for link in records[0].links if link.relation == "model_artifact")
+    assert model_link.model_local_ids == (linked_model.local_id,)
+
+
+def test_evaluation_tfhub_versioned_model_url_projects_exact_model_identity() -> None:
+    from modelome.sources.paperswithcode import _evaluation_records
+
+    row = {
+        "model_name": "Spice",
+        "paper_url": "https://arxiv.org/abs/2401.12345",
+        "paper_title": "Spice paper",
+        "model_links": [
+            {
+                "url": "https://tfhub.dev/google/spice/2?tf-hub-format=compressed",
+                "title": "Spice version 2",
+            }
+        ],
+    }
+    records, rejected, _ = _evaluation_records(
+        [
+            {
+                "task": "Audio classification",
+                "datasets": [{"dataset": "Example", "sota": {"rows": [row]}}],
+            }
+        ],
+        revision="c" * 40,
+        data_path="data/train.parquet",
+        dataset_id="pwc-archive/evaluation-tables",
+        license="CC-BY-SA-4.0",
+        max_model_rows=10,
+    )
+
+    assert rejected == {}
+    linked_model = next(model for model in records[0].models if model.name == "Spice version 2")
+    assert linked_model.identifiers == (Identifier("tensorflow-hub:model", "google/spice"),)
     assert linked_model.status is ModelStatus.CANDIDATE
     assert linked_model.confidence == 0.65
     model_link = next(link for link in records[0].links if link.relation == "model_artifact")

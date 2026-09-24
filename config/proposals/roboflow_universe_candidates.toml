@@ -1,0 +1,15 @@
+# Disabled, non-authoritative candidate crawl of Roboflow Universe's public UI.
+# Search visibility/ranking and the UI result cap prevent census claims. Each
+# public project page contributes only the selected deployment's explicit model_id.
+[[source]]
+name = "roboflow-universe-candidates"
+adapter = "roboflow_universe_candidates"
+enabled = false
+entry_tags = ["ecosystem:roboflow", "kind:hosted-model-endpoint", "coverage:search-candidates"]
+search_url = "https://universe.roboflow.com/search"
+query = "object detection"
+schedule = "weekly"
+max_pages = 20
+max_projects_per_page = 50
+max_anchors = 10000
+max_response_bytes = 8388608

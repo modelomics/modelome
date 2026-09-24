@@ -41,6 +41,7 @@ class FigshareModelCandidatesWorkflow:
         oai_url: str = "https://api.figshare.com/v2/oai",
         api_url: str = "https://api.figshare.com/v2/articles",
         max_response_bytes: int = 8 * 1024 * 1024,
+        max_versions_per_article: int = 50,
         client: HttpClient | Any | None = None,
         clock: Clock | None = None,
     ) -> None:
@@ -59,6 +60,7 @@ class FigshareModelCandidatesWorkflow:
         self.oai_url = oai_url
         self.api_url = api_url
         self.max_response_bytes = max_response_bytes
+        self.max_versions_per_article = max_versions_per_article
         self.client = client
         self.clock = clock
         self.checkpoint_signature = content_hash(
@@ -71,6 +73,7 @@ class FigshareModelCandidatesWorkflow:
                 "oai_url": oai_url,
                 "api_url": api_url,
                 "max_response_bytes": max_response_bytes,
+                "max_versions_per_article": max_versions_per_article,
             }
         )
 
@@ -112,6 +115,7 @@ class FigshareModelCandidatesWorkflow:
             from_date=cursor.isoformat(),
             until_date=window_end.isoformat(),
             max_response_bytes=self.max_response_bytes,
+            max_versions_per_article=self.max_versions_per_article,
             client=self.client,
             clock=self.clock or _utcnow,
         )

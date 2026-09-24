@@ -1,0 +1,19 @@
+# First-party Keras Applications ResNet-family ImageNet checkpoints.
+# Reads one literal source manifest and emits top/no-top links and MD5 values.
+[[source]]
+name = "keras-resnet-imagenet-weights"
+adapter = "keras_resnet_weights"
+enabled = false
+entry_tags = ["field:computer-vision", "ecosystem:keras-applications", "kind:pretrained-model"]
+repository = "keras-team/keras"
+branch = "master"
+source_path = "keras/src/applications/resnet.py"
+schedule = "weekly"
+max_source_bytes = 2097152
+max_records = 32
+
+[evidence]
+official_repository = "https://github.com/keras-team/keras"
+official_source = "https://github.com/keras-team/keras/blob/master/keras/src/applications/resnet.py"
+official_api = "https://keras.io/api/applications/resnet/"
+scope = "Eight ResNet, ResNetV2, and ResNeXt variants with top and no-top ImageNet assets; 16 exact checkpoint links declared by the Keras source manifest. Checksums are MD5, as indicated by the source's 32-character hex values."

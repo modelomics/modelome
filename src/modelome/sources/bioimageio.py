@@ -793,6 +793,19 @@ class BioImageIoSourceAdapter:
                             )
                         )
 
+        attachments = manifest.get("attachments")
+        if _is_sequence(attachments):
+            for attachment_index, attachment in enumerate(attachments):
+                attachment_locator = f"$.artifact.manifest.attachments[{attachment_index}].source"
+                if url := self._reference_url(attachment, alias, version):
+                    links.append(
+                        Link(
+                            url,
+                            relation="implementation",
+                            locator=attachment_locator,
+                        )
+                    )
+
         if documentation_url := self._reference_url(
             manifest.get("documentation"), alias, version
         ):

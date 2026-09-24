@@ -36,6 +36,7 @@ _KAGGLE_VERSION = re.compile(r"^[1-9][0-9]*$")
 _ZENODO_DOI = re.compile(r"^10\.5281/zenodo\.([1-9][0-9]*)$", re.IGNORECASE)
 _CIVITAI_ID = re.compile(r"^[1-9][0-9]*$")
 _DEMUCS_CHECKPOINT = re.compile(r"^(?P<signature>[0-9a-f]{8})-[0-9a-f]{8}\.th$")
+_TFHUB_VERSION = re.compile(r"^[1-9][0-9]*$")
 _TITLE_STOPWORDS = frozenset(
     {
         "a",
@@ -1049,6 +1050,12 @@ def _evaluation_model_identifier_from_url(value: str) -> Identifier | None:
         doi_match = _ZENODO_DOI.fullmatch("/".join(path_segments))
         if doi_match:
             return Identifier("zenodo:record", doi_match.group(1))
+    if (
+        host == "tfhub.dev"
+        and len(path_segments) >= 3
+        and _TFHUB_VERSION.fullmatch(path_segments[-1])
+    ):
+        return Identifier("tensorflow-hub:model", "/".join(path_segments[:-1]))
     if (
         host == "dl.fbaipublicfiles.com"
         and len(path_segments) == 3

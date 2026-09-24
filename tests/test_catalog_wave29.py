@@ -11,6 +11,7 @@ from modelome.sources.deepinfra_model_catalog import DeepInfraModelCatalogAdapte
 from modelome.sources.dryad_model_candidates import DryadModelCandidatesSourceAdapter
 from modelome.sources.keras_convnext_weights import KerasConvNeXtWeightsSourceAdapter
 from modelome.sources.mlx_registry import MlxRegistrySourceAdapter
+from modelome.sources.paddlenlp_bert_registry import PaddleNlpBertRegistrySourceAdapter
 from modelome.sources.paddlenlp_roformer_registry import (
     PaddleNlpRoformerRegistrySourceAdapter,
 )
@@ -250,6 +251,7 @@ def test_dryad_factory_accepts_client_without_clock() -> None:
             "adapter": "dryad_model_candidates",
             "base_url": "https://datadryad.org/api/v2",
             "page_size": 10,
+            "dataset_doi": "10.5061/dryad.b2rbnzsq4",
         },
         client=client,
         clock=lambda: datetime(2026, 1, 1, tzinfo=UTC),
@@ -258,6 +260,30 @@ def test_dryad_factory_accepts_client_without_clock() -> None:
     assert isinstance(source, DryadModelCandidatesSourceAdapter)
     assert source.base_url == "https://datadryad.org/api/v2"
     assert source.page_size == 10
+    assert source.dataset_doi == "10.5061/dryad.b2rbnzsq4"
+    assert source.client is client
+
+
+def test_paddlenlp_bert_factory_accepts_client_and_clock() -> None:
+    client = object()
+    source = create_source(
+        {
+            "name": "paddlenlp-bert-pretrained-registry",
+            "adapter": "paddlenlp_bert_registry",
+            "repository": "PaddlePaddle/PaddleNLP",
+            "branch": "develop",
+            "source_path": "paddlenlp/transformers/bert/configuration.py",
+            "provider_namespace": "paddlenlp:transformer-model",
+            "max_response_bytes": 4 * 1024 * 1024,
+        },
+        client=client,
+        clock=lambda: datetime(2026, 1, 1, tzinfo=UTC),
+    )
+
+    assert isinstance(source, PaddleNlpBertRegistrySourceAdapter)
+    assert source.repository == "PaddlePaddle/PaddleNLP"
+    assert source.branch == "develop"
+    assert source.source_path == "paddlenlp/transformers/bert/configuration.py"
     assert source.client is client
 
 

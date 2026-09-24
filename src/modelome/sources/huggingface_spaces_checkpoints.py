@@ -311,6 +311,11 @@ def _space_id(value: Any) -> str:
 
 
 def _space_checkpoint_file(filename: str, siblings: Sequence[str]) -> bool:
-    """Include documented PyTorch tar-wrapped checkpoints in Space trees."""
+    """Include documented compound and named serialized model files."""
 
-    return filename.casefold().endswith(".pth.tar") or _is_weight_file(filename, siblings)
+    basename = filename.rsplit("/", 1)[-1].casefold()
+    return (
+        basename.endswith(".pth.tar")
+        or re.fullmatch(r"shape_predictor_[a-z0-9_-]+\.dat", basename) is not None
+        or _is_weight_file(filename, siblings)
+    )

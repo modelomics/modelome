@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import quote
 
 from modelome.http import HttpResponse
 from modelome.models import Identifier
@@ -55,6 +56,9 @@ def test_huggingface_records_additional_checkpoint_formats_and_shard_indexes() -
         # ONNX external tensor data is stored separately from its graph file.
         "onnx/model.onnx_data",
         "model.keras",
+        "model.ptd",
+        "model.ptl",
+        "model.pte",
         "model.mlpackage",
         "bert_model.ckpt.index",
         "bert_model.ckpt.data-00000-of-00001",
@@ -96,6 +100,60 @@ def test_huggingface_records_additional_checkpoint_formats_and_shard_indexes() -
         "code_reference",
         "$.config",
     ) in {(link.url, link.relation, link.locator) for link in record.links}
+
+
+def test_live_executorch_and_mobile_lite_checkpoints_are_admitted() -> None:
+    executorch_repo = "meta-models/Muse-Glimmer-30B-ExecuTorch-PTE"
+    executorch_sha = "fc6fa93cdefeddc93abd7abf883e99279af7ea51"
+    pte = (
+        "muse-glimmer-k-quant-17G-128K-text-dflash-sm80+ptx/"
+        "muse-glimmer-k-quant-17G-128K-text-dflash-sm80+ptx.pte"
+    )
+    ptd = (
+        "muse-glimmer-k-quant-17G-128K-text-dflash-sm80+ptx/"
+        "muse-glimmer-k-quant-17G-128K-text-dflash-sm80+ptx.ptd"
+    )
+    lite_repo = "ameno-tech/mobile_models"
+    lite_sha = "294fed11a50a07da4f2c4ebad431a6e6e3e46cac"
+    lite_files = ["big-lama-mobile-optimized.ptl", "big-lama-mobile.ptl"]
+    client = _Client(
+        [
+            {
+                "id": executorch_repo,
+                "sha": executorch_sha,
+                "siblings": [{"rfilename": name} for name in (pte, ptd)],
+            },
+            {
+                "id": lite_repo,
+                "sha": lite_sha,
+                "siblings": [{"rfilename": name} for name in lite_files],
+            },
+        ]
+    )
+
+    records = HuggingFaceSourceAdapter(client=client).fetch_page({}).records
+    by_id = {record.source_record_id: record for record in records}
+
+    assert by_id[executorch_repo].releases[0].metadata["weight_files"] == [ptd, pte]
+    assert {
+        link.url
+        for link in by_id[executorch_repo].links
+        if link.relation == "weights"
+    } == {
+        f"https://huggingface.co/{executorch_repo}/resolve/{executorch_sha}/"
+        f"{quote(ptd, safe='/')}",
+        f"https://huggingface.co/{executorch_repo}/resolve/{executorch_sha}/"
+        f"{quote(pte, safe='/')}",
+    }
+    assert by_id[lite_repo].releases[0].metadata["weight_files"] == lite_files
+    assert {
+        link.url
+        for link in by_id[lite_repo].links
+        if link.relation == "weights"
+    } == {
+        f"https://huggingface.co/{lite_repo}/resolve/{lite_sha}/{filename}"
+        for filename in lite_files
+    }
     assert client.calls[0] == {
         "limit": 100,
         "full": "true",

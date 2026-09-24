@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **487 enabled
-source entries** (462 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **499 enabled
+source entries** (474 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -717,6 +717,28 @@ document hosted offerings and do not establish downloadable weights.
 The ONNX Model Zoo is an archival source, not a primary live distribution channel. Its
 per-entry evidence is preserved with the complete index revision; old download URLs are
 not relied on as available weight artifacts.
+
+### Additional public checkpoint inventories
+
+The enabled catalog also reads exact first-party manifests for Keras ResNet ImageNet
+weights (16 file links), PaddleNLP BERT checkpoints (11), PaddleMaterials model packages
+(71), Vosk speech models (80), and Ai2 MolmoBot policies (9). NVlabs' separate EDM2
+repository declares three publicly reachable network files. PFRL's published
+algorithm and benchmark inventory yields 530 archive paths; representative paths
+across its algorithm families were checked with HTTP HEAD.
+Archived TF-Slim MobileNet V1 and NASNet-A tables add 34 direct checkpoint links.
+These adapters read manifests or file metadata and do not transfer model binaries.
+
+A fixed Dryad DOI supplies a candidate record with five files explicitly named as
+model weights. The record remains a candidate because its archive contents are not
+inspected. It runs on a manual schedule to limit requests to the public Dryad API.
+Cloudflare's Workers AI changelog contributes 19 exact IDs in its documented
+2025 deprecation cohort; this is lifecycle evidence, not a shutdown claim.
+
+The 2025 ACL Anthology XML source adds paper and abstract evidence for 1,966 records in
+the current collection file. It extracts implementation links only when an abstract
+explicitly identifies a model-weight or checkpoint URL. This source is a bounded
+collection, not a claim that all ACL years or NLP papers have been ingested.
 
 ### ModelScope bounded public windows
 

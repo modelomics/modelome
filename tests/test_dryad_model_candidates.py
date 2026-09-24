@@ -23,9 +23,9 @@ class _Client:
         return _Response(self.payloads.pop(0))
 
 
-def _dataset():
+def _dataset(doi="10.5061/dryad.b2rbnzsq4"):
     return {
-        "identifier": "doi:10.5061/dryad.b2rbnzsq4",
+        "identifier": f"doi:{doi}",
         "title": "Segmentation with deep learning models",
         "abstract": "Files contain model weights and network architecture.",
         "relatedWorks": [
@@ -205,3 +205,47 @@ def test_reads_model_file_after_first_file_metadata_page():
     assert page.records[0].releases[0].metadata["filename"] == "model-weights.h5"
     assert client.calls[1][0] == "https://datadryad.org/api/v2/versions/123/files"
     assert client.calls[2][0] == "https://datadryad.org/api/v2/versions/123/files?page=2"
+
+
+def test_fixed_doi_route_reads_one_record_and_exact_file_metadata():
+    client = _Client(
+        [
+            {
+                **_dataset("10.5061/dryad.ns1rn8ptd"),
+                "title": "Supplementary information for a continuous-score machine learning model",
+                "abstract": (
+                    "This dataset contains weights of the trained machine learning models "
+                    "used in the manuscript."
+                ),
+            },
+            {
+                "count": 1,
+                "total": 1,
+                "_embedded": {
+                    "stash:files": [
+                        _file(
+                            "bcch_weights_epoch499.tar",
+                            "",
+                            "991",
+                        )
+                    ]
+                },
+            },
+        ]
+    )
+    adapter = DryadModelCandidatesSourceAdapter(
+        client=client,
+        dataset_doi="10.5061/dryad.ns1rn8ptd",
+    )
+
+    page = adapter.fetch_page({})
+
+    assert page.complete is True
+    assert page.upstream_count == 1
+    assert len(page.records) == 1
+    assert page.records[0].source_record_id == "dryad:10.5061/dryad.ns1rn8ptd"
+    assert page.records[0].releases[0].identifiers[0].value == "991"
+    assert client.calls[0][0] == (
+        "https://datadryad.org/api/v2/datasets/doi%3A10.5061%2Fdryad.ns1rn8ptd"
+    )
+    assert client.calls[1][0] == "https://datadryad.org/api/v2/versions/123/files"

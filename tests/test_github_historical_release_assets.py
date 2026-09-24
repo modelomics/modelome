@@ -10,6 +10,7 @@ from modelome.sources.catalog import create_source
 from modelome.sources.github_historical_release_assets import (
     GitHubHistoricalReleaseAssetsSourceAdapter,
     plan_github_repository_id_ranges,
+    plan_github_repository_id_ranges_with_budget,
 )
 
 
@@ -372,6 +373,48 @@ def test_planner_bounds_thousand_release_scan_by_retry_inclusive_budget() -> Non
             max_asset_pages_per_release=10,
             max_http_attempts=4,
             max_api_requests_per_range=8_083,
+        )
+
+
+def test_budget_planner_uses_full_or_largest_fitting_release_cap() -> None:
+    common = {
+        "initial_since": 10,
+        "max_repository_id": 12,
+        "shard_count": 1,
+        "max_releases_per_repository": 1_000,
+        "max_assets_per_release": 1_000,
+        "max_release_pages_per_repository": 10,
+        "max_asset_pages_per_release": 10,
+        "max_http_attempts": 4,
+    }
+    full = plan_github_repository_id_ranges_with_budget(
+        **common, max_api_requests_per_range=80_084
+    )[0]
+    assert full.max_releases_per_repository == 1_000
+    assert full.max_page_requests == 20_021
+    assert full.max_api_requests == 80_084
+
+    partial = plan_github_repository_id_ranges_with_budget(
+        **common, max_api_requests_per_range=20_000
+    )[0]
+    assert partial.max_releases_per_repository == 248
+    assert partial.max_api_requests == 19_924
+    adapter = GitHubHistoricalReleaseAssetsSourceAdapter(**partial.adapter_kwargs())
+    assert adapter.max_releases_per_repository == 248
+    assert adapter.max_api_requests == partial.max_api_requests
+
+
+def test_budget_planner_rejects_budget_below_one_release_per_repository() -> None:
+    with pytest.raises(ValueError, match="minimum is 164 requests"):
+        plan_github_repository_id_ranges_with_budget(
+            initial_since=10,
+            max_repository_id=12,
+            shard_count=1,
+            max_api_requests_per_range=163,
+            max_releases_per_repository=1_000,
+            max_release_pages_per_repository=10,
+            max_asset_pages_per_release=10,
+            max_http_attempts=4,
         )
 
 
