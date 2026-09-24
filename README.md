@@ -116,7 +116,7 @@ The following are available capabilities, not a directive to run every source or
 loader now. During the entry-first phase, use only the bounded source or link operations
 needed to validate the per-paper workflow. Their later corpus-scale role is documented in
 [Entry-first modelome](docs/entry-first.md#path-to-complete-paper-ingestion).
-The default catalog currently has **293 enabled sources** (280 loadable without provider credentials); this is a configuration count,
+The default catalog currently has **301 enabled sources** (288 loadable without provider credentials); this is a configuration count,
 not a claim that all upstream inventories have been exhausted.
 
 The default catalog enables independent, unfiltered streams for:
@@ -150,12 +150,13 @@ The default catalog enables independent, unfiltered streams for:
 - the complete ACL Anthology XML manifest traversal, plus Oracle OCI pretrained-model and
   Azure Foundry models-sold-by-Azure catalogs; these are paper or hosted-offering evidence,
   not inferred weight claims;
-- Google NeuralGCM checkpoint declarations, CompVis Stable Diffusion first-stage weights, and MACE-OFF23 checkpoints, alongside first-party Cellpose legacy checkpoint declarations, PyG GPSE checkpoint mappings, nnU-Net v1 task bundles, CompVis latent-diffusion bundles, Diffusion Policy checkpoints, the Chemprop
+- Google NeuralGCM and Pangu-Weather checkpoint declarations, CompVis Stable Diffusion first-stage and latent-diffusion README checkpoints, MACE-OFF23 and MACE foundation weights, and RFdiffusion pretrained checkpoints, alongside first-party Cellpose legacy checkpoint declarations, PyG GPSE checkpoint mappings, nnU-Net v1 task bundles, Diffusion Policy checkpoints, the Chemprop
   CheMeleon checkpoint, official MindSpore model-zoo checkpoint files, and RT-1 SavedModels;
 - OpenAI RL Clarity's exact Procgen/IMPALA `.jd` pretrained-policy checkpoints, indexed from its public release page;
 - Zenodo's public OAI-PMH DCAT stream for candidate neural-model records with matching checkpoint distributions;
 - additional literal model/repository declarations from PyTorch Hub's curated listing, distinct
   from the separately enumerated TorchVision weight registry;
+- exact ref-pinned `torch.hub.load` calls from first-party PyTorch Hub model cards, and NLTK model-data index bundles with source-declared IDs and archive links;
 - additional first-party checkpoint indexes for AlphaFold's parameter archive, the GraphGPS
   GPS-deep release, Gensim's single-file pretrained models, OpenCV DNN sample-model URLs, and
   legacy MediaPipe `.tflite`/`.task` files; AWS Bedrock's separate Region matrix adds hosted
@@ -186,7 +187,7 @@ The default catalog enables independent, unfiltered streams for:
 - every active Groq-hosted model from its documented Models API, retaining its exact
   serving ID, owner and timestamp metadata as a credential-gated, current-availability
   observation rather than an ownership or weight-distribution claim;
-- public lifecycle and retirement documentation for Groq, Azure Foundry, Anthropic, and AWS Bedrock, plus xAI API version/lifecycle metadata when `XAI_API_KEY` is configured;
+- public lifecycle and retirement documentation for Gemini, OpenAI model snapshots, Groq, Azure Foundry, Anthropic, and AWS Bedrock, plus xAI API version/lifecycle metadata when `XAI_API_KEY` is configured;
 - Together, Cerebras, DeepSeek, and SambaNova's credential-gated Models APIs, plus Cerebras'
   public model overview and Perplexity's public router-model table; API rows are current hosting
   availability, and public docs are provider offerings, not origin-checkpoint claims;

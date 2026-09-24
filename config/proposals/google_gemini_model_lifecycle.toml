@@ -1,0 +1,24 @@
+# Google AI for Developers tracks release and earliest shutdown dates for
+# Gemini API models, with exact model IDs and recommended replacements. The
+# page also includes non-model managed agents, which this table rule excludes.
+# Past shutdown dates remain lifecycle-history evidence, not proof of current
+# availability; the announcement dates are stated as earliest possible dates.
+[[source]]
+name = "google-gemini-api-model-lifecycle"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:google-gemini", "kind:hosted-model", "evidence:provider-lifecycle-history"]
+url = "https://ai.google.dev/gemini-api/docs/deprecations"
+provider_namespace = "google:gemini-api-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model \| Release date \| Shutdown date \| Recommended replacement$'
+name_column = 0
+identity_column = 0
+identity_source = "id"

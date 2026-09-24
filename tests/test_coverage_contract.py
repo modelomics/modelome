@@ -141,6 +141,10 @@ def test_fixture_model_names_are_not_runtime_seed_constants() -> None:
             "src/modelome/sources/robotics_registry_v3.py",
         },
         "nnU-Net": {"src/modelome/sources/nnunet_registry.py"},
+        "RFdiffusion": {
+            "src/modelome/sources/catalog.py",
+            "src/modelome/sources/rfdiffusion_registry.py",
+        },
     }
     violations: dict[str, list[str]] = {}
 

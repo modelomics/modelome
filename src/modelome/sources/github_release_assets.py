@@ -46,6 +46,7 @@ _CHECKPOINT_SUFFIXES = frozenset(
         ".weights",
     }
 )
+_ARCHIVE_SUFFIXES = frozenset({".zip", ".tar", ".tar.gz", ".tgz", ".7z", ".tar.zst"})
 _GENERIC_MODEL_NAME_TOKENS = frozenset(
     {
         "ai",
@@ -141,18 +142,45 @@ def project_github_release_assets(
             continue
         asset_id = _positive_decimal(asset.get("id"))
         name = _text(asset.get("name"))
-        if not asset_id or not name or not _is_checkpoint_name(name):
+        suffix = _asset_suffix(name)
+        # Dots are common in model names (for example, ``qwen2.5``). Treat a
+        # final short dotted token as a file extension, but allow dotted model
+        # identities that end in a longer descriptive token.
+        extensionless = (
+            bool(name)
+            and not suffix
+            and not re.search(r"\.[A-Za-z0-9]{1,8}$", name)
+        )
+        checkpoint_file = suffix in _CHECKPOINT_SUFFIXES
+        archive_file = suffix in _ARCHIVE_SUFFIXES
+        if not asset_id or not name or not (checkpoint_file or archive_file or extensionless):
             continue
         download_url = _asset_url(asset.get("browser_download_url"), repository_name)
         if not download_url:
             continue
         model_name, model_locator = _model_candidate(
             name,
+            suffix=suffix,
             asset_label=_text(asset.get("label")),
             release_name=_text(release.get("name")),
             release_tag=tag_name,
             context=" ".join((release_context, _text(asset.get("label")))),
         )
+        if archive_file and model_locator not in {
+            "$.payload.release.assets[id].name",
+            "$.payload.release.assets[id].label",
+        }:
+            model_name = ""
+        if extensionless and (
+            not _MODEL_CONTEXT_RE.search(" ".join((release_context, _text(asset.get("label")))))
+            or model_locator not in {
+                "$.payload.release.assets[id].name",
+                "$.payload.release.assets[id].label",
+            }
+        ):
+            model_name = ""
+        if not checkpoint_file and not model_name:
+            continue
         models = (
             (
                 ModelHint(
@@ -199,6 +227,7 @@ def project_github_release_assets(
                     "event_created_at": _text(event.get("created_at")),
                     "discovery_basis": "github_release_event_payload",
                     "is_verified_model_checkpoint": False,
+                    "asset_container_type": "archive" if archive_file else "single_file",
                     "model_hint_basis": (
                         "descriptive_checkpoint_filename_and_release_context"
                         if model_name
@@ -216,26 +245,25 @@ def _is_checkpoint_name(value: str) -> bool:
     return any(lowered.endswith(suffix) for suffix in _CHECKPOINT_SUFFIXES)
 
 
+def _asset_suffix(value: str) -> str:
+    lowered = value.casefold()
+    suffixes = _CHECKPOINT_SUFFIXES | _ARCHIVE_SUFFIXES
+    return next(
+        (suffix for suffix in sorted(suffixes, key=len, reverse=True) if lowered.endswith(suffix)),
+        "",
+    )
+
+
 def _model_candidate(
     filename: str,
     *,
+    suffix: str,
     asset_label: str,
     release_name: str,
     release_tag: str,
     context: str,
 ) -> tuple[str, str]:
-    lowered = filename.casefold()
-    suffix = next(
-        (
-            item
-            for item in sorted(_CHECKPOINT_SUFFIXES, key=len, reverse=True)
-            if lowered.endswith(item)
-        ),
-        "",
-    )
-    if not suffix:
-        return "", ""
-    stem = filename[: -len(suffix)]
+    stem = filename[: -len(suffix)] if suffix else filename
     if _NON_MODEL_FILE_RE.search(stem):
         return "", ""
     if suffix not in _STRONG_MODEL_SUFFIXES and not _MODEL_CONTEXT_RE.search(context):

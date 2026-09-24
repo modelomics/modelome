@@ -83,6 +83,9 @@ class KaggleModelsSourceAdapter:
         resuming = token is not None
         raw_items_seen = _state_count(state, "raw_items_seen") if resuming else 0
         scan_total = _state_count(state, "scan_total") if resuming else None
+        seen_tokens = _state_tokens(state, "seen_page_tokens") if resuming else set()
+        if token is not None and token in seen_tokens:
+            raise ValueError(f"{self.name}: pagination token was already consumed")
         params: dict[str, str | int] = {
             "sortBy": self.sort_by,
             "pageSize": self.page_size,
@@ -130,7 +133,9 @@ class KaggleModelsSourceAdapter:
                 )
 
         next_token = _optional_text(payload.get("nextPageToken"))
-        if token is not None and next_token == token:
+        if next_token is not None and (
+            next_token == token or next_token in seen_tokens
+        ):
             raise ValueError(f"{self.name}: pagination token did not advance")
         if next_token is None and scan_total is not None and raw_items_seen < scan_total:
             raise ValueError(
@@ -139,10 +144,15 @@ class KaggleModelsSourceAdapter:
             )
         next_state: dict[str, Any] = {}
         if next_token is not None:
+            consumed_tokens = set(seen_tokens)
+            if token is not None:
+                consumed_tokens.add(token)
             next_state = {
                 "next_page_token": next_token,
                 "raw_items_seen": raw_items_seen,
             }
+            if consumed_tokens:
+                next_state["seen_page_tokens"] = sorted(consumed_tokens)
             if scan_total is not None:
                 next_state["scan_total"] = scan_total
         return SourcePage(
@@ -605,6 +615,13 @@ def _state_count(state: Mapping[str, Any], key: str) -> int:
     if parsed is None:
         raise ValueError(f"Kaggle model sync state {key} must be a nonnegative integer")
     return parsed
+
+
+def _state_tokens(state: Mapping[str, Any], key: str) -> set[str]:
+    value = state.get(key, ())
+    if not _is_sequence(value) or any(not isinstance(token, str) or not token for token in value):
+        raise ValueError(f"Kaggle model sync state {key} must be a list of non-empty tokens")
+    return set(value)
 
 
 def _sequence(value: Any) -> Sequence[Any]:

@@ -6,7 +6,15 @@ import pyarrow.parquet as pq
 import pytest
 
 from modelome.export import export_public_metadata
-from modelome.models import ArtifactKind, Identifier, Link, ModelHint, ReleaseHint, SourceRecord
+from modelome.models import (
+    ArtifactKind,
+    Identifier,
+    Link,
+    ModelHint,
+    ModelStatus,
+    ReleaseHint,
+    SourceRecord,
+)
 from modelome.storage import Database
 
 
@@ -191,3 +199,63 @@ def test_metadata_export_projects_only_huggingface_release_weight_filenames(tmp_
     assert b"PRIVATE RELEASE METADATA" not in bundle_bytes
     assert b"outside.safetensors" not in bundle_bytes
     assert b"private.example" not in bundle_bytes
+
+
+def test_metadata_export_keeps_candidate_status_and_exact_release_versions(tmp_path) -> None:
+    store = Database(tmp_path / "store")
+    store.initialize()
+    store.ingest_page(
+        "candidate-catalog",
+        (
+            SourceRecord(
+                source_record_id="candidate-1",
+                kind=ArtifactKind.CATALOG_RECORD,
+                canonical_url="https://catalog.example.test/candidate-1",
+                title="Candidate record",
+                raw={"private_body": "PRIVATE CANDIDATE BODY"},
+                models=(
+                    ModelHint(
+                        "candidate",
+                        "Candidate Model",
+                        identifiers=(Identifier("catalog:model", "candidate-1"),),
+                        status=ModelStatus.CANDIDATE,
+                    ),
+                    ModelHint(
+                        "versioned",
+                        "Versioned Model",
+                        identifiers=(Identifier("catalog:model", "versioned-1"),),
+                    ),
+                ),
+                releases=(
+                    ReleaseHint(
+                        "versioned-release",
+                        "versioned",
+                        version="v1.2.3+build.7",
+                        revision="commit-0123456789abcdef",
+                        metadata={
+                            "private_note": "PRIVATE RELEASE BODY",
+                            "source_url": "https://private.example.test/release-details",
+                        },
+                    ),
+                ),
+            ),
+        ),
+        {},
+        extractor="fixture",
+    )
+
+    output = tmp_path / "bundle"
+    export_public_metadata(store, output, source_configs=())
+
+    models = pq.read_table(output / "models.parquet").to_pylist()
+    models_by_name = {row["canonical_name"]: row for row in models}
+    assert models_by_name["Candidate Model"]["status"] == "candidate"
+    assert models_by_name["Versioned Model"]["status"] == "released"
+    releases = pq.read_table(output / "model_releases.parquet").to_pylist()
+    assert len(releases) == 1
+    assert releases[0]["version"] == "v1.2.3+build.7"
+    assert releases[0]["revision"] == "commit-0123456789abcdef"
+    bundle_bytes = b"".join(path.read_bytes() for path in output.iterdir() if path.is_file())
+    assert b"PRIVATE CANDIDATE BODY" not in bundle_bytes
+    assert b"PRIVATE RELEASE BODY" not in bundle_bytes
+    assert b"https://private.example.test/release-details" not in bundle_bytes

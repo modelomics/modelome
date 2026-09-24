@@ -1,0 +1,17 @@
+# Literal MACE-MP and MACE-Polar checkpoint maps from the first-party loader.
+[[source]]
+name = "mace-foundation-checkpoints"
+adapter = "mace_foundation_checkpoint_registry"
+enabled = false
+repository = "ACEsuit/mace"
+branch = "develop"
+source_path = "mace/calculators/foundations_models.py"
+entry_tags = ["field:computational-chemistry", "ecosystem:mace", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 1000
+
+# The adapter reads only the literal `mace_mp_urls` and `polar_model_urls` maps.
+# It preserves source-native keys and direct GitHub release URLs, pins the source
+# file to a commit, and does not fetch weight bytes. MACE-OFF23 is listed by its
+# separate adapter; the source file does not define a MACE-ANI URL map.

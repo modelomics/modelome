@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from modelome.extract import IntroductionCueExtractor
 from modelome.fetchers import (
@@ -126,7 +126,7 @@ class FrontierCrawler:
                     _worth_fetching(url)
                     or (
                         declared_extensionless_weight
-                        and _is_extensionless_github_release_asset(url)
+                        and _is_reference_only_checkpoint_url(url)
                     )
                 ):
                     self.database.update_frontier(
@@ -136,7 +136,7 @@ class FrontierCrawler:
 
                 if (
                     declared_extensionless_weight
-                    and _is_extensionless_github_release_asset(url)
+                    and _is_reference_only_checkpoint_url(url)
                 ):
                     fetcher = reference_fetcher
                 else:
@@ -218,7 +218,7 @@ class FrontierCrawler:
 
 
 class _DeclaredWeightReferenceFetcher:
-    """Materialize specifically declared extensionless release assets by URL only."""
+    """Materialize narrowly recognized extensionless checkpoints by URL only."""
 
     def __init__(self, declared_urls: set[str]) -> None:
         self.declared_urls = declared_urls
@@ -227,13 +227,18 @@ class _DeclaredWeightReferenceFetcher:
     def accepts(self, url: str) -> bool:
         return (
             url in self.declared_urls
-            and _is_extensionless_github_release_asset(url)
+            and _is_reference_only_checkpoint_url(url)
             and self.url_policy.allows(url, resolve=False)
         )
 
     def fetch(self, url: str) -> SourceRecord:
         canonical_url = self.url_policy.validate(url, resolve=False)
-        filename = PurePosixPath(urlsplit(canonical_url).path).name
+        parts = urlsplit(canonical_url)
+        filename = PurePosixPath(parts.path).name
+        if _is_openreview_checkpoint_attachment(canonical_url):
+            names = parse_qs(parts.query, keep_blank_values=False).get("name", [])
+            if names:
+                filename = names[0]
         return SourceRecord(
             source_record_id=canonical_url,
             kind=ArtifactKind.WEIGHTS,
@@ -271,6 +276,30 @@ def _is_extensionless_github_release_asset(url: str) -> bool:
         and bool(segments[5])
         and not PurePosixPath(segments[5]).suffix
     )
+
+
+def _is_openreview_checkpoint_attachment(url: str) -> bool:
+    parts = urlsplit(url)
+    if (
+        parts.scheme.casefold() != "https"
+        or (parts.hostname or "").casefold() != "openreview.net"
+        or parts.path.rstrip("/") != "/attachment"
+    ):
+        return False
+    query = parse_qs(parts.query, keep_blank_values=False)
+    ids = query.get("id", [])
+    names = query.get("name", [])
+    name = names[0].casefold() if len(names) == 1 else ""
+    return (
+        len(ids) == 1
+        and bool(ids[0])
+        and bool(name)
+        and ("weight" in name or "checkpoint" in name)
+    )
+
+
+def _is_reference_only_checkpoint_url(url: str) -> bool:
+    return _is_extensionless_github_release_asset(url) or _is_openreview_checkpoint_attachment(url)
 
 
 def _worth_fetching(url: str) -> bool:

@@ -1,0 +1,15 @@
+# Bounded inventory of public weight URLs listed in the first-party README.
+[[source]]
+name = "rfdiffusion-first-party-checkpoints"
+adapter = "rfdiffusion_checkpoint_registry"
+enabled = false
+repository = "RosettaCommons/RFdiffusion"
+branch = "main"
+max_response_bytes = 2097152
+max_entries = 100
+schedule = "monthly"
+
+# First-party weights are enumerated in the README and downloader script:
+# https://github.com/RosettaCommons/RFdiffusion/blob/main/README.md
+# Checkpoint URLs are hosted by the University of Washington Institute for Protein Design.
+# This adapter records links without downloading the checkpoint bytes.

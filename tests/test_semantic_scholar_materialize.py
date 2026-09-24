@@ -230,6 +230,7 @@ def test_snapshot_materializer_joins_bounded_hash_buckets_and_is_idempotent(
                         "ArXiv": "2401.01234v2",
                         "ACL": "2024.acl-long.123",
                         "PubMed": "12345678",
+                        "PubMedCentral": "PMC2345678",
                     }
                     if corpus_id == 1
                     else {"PubMed": "not-a-pmid"} if corpus_id == 2 else {}
@@ -301,6 +302,7 @@ def test_snapshot_materializer_joins_bounded_hash_buckets_and_is_idempotent(
         "https://doi.org/10.1000/1",
         "https://aclanthology.org/2024.acl-long.123/",
         "https://pubmed.ncbi.nlm.nih.gov/12345678/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC2345678/",
     }
     assert {
         item["locator"]: item["url"]
@@ -311,6 +313,7 @@ def test_snapshot_materializer_joins_bounded_hash_buckets_and_is_idempotent(
         "$.paper.externalids.DOI": "https://doi.org/10.1000/1",
         "$.paper.externalids.ACL": "https://aclanthology.org/2024.acl-long.123/",
         "$.paper.externalids.PubMed": "https://pubmed.ncbi.nlm.nih.gov/12345678/",
+        "$.paper.externalids.PubMedCentral": "https://pmc.ncbi.nlm.nih.gov/articles/PMC2345678/",
     }
     second_row = next(row for row in rows if row["corpus_id"] == "2")
     assert all(
@@ -840,7 +843,7 @@ def test_unexpected_projection_path_entry_is_rejected(tmp_path: Path) -> None:
         materializer.materialize(RELEASE)
 
 
-def test_v4_projection_rematerializes_release_with_sealed_v3_artifact(
+def test_v5_projection_rematerializes_release_with_sealed_v4_artifact(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -864,13 +867,13 @@ def test_v4_projection_rematerializes_release_with_sealed_v3_artifact(
     monkeypatch.setattr(
         semantic_scholar_materialize,
         "_ALGORITHM",
-        "sha256-corpus-bucket-stateful-join-v3",
+        "sha256-corpus-bucket-stateful-join-v4",
     )
     old = materializer.materialize(RELEASE)
     monkeypatch.setattr(
         semantic_scholar_materialize,
         "_ALGORITHM",
-        "sha256-corpus-bucket-stateful-join-v4",
+        "sha256-corpus-bucket-stateful-join-v5",
     )
 
     assert materializer.list_projections(RELEASE) == ()

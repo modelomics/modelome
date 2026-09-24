@@ -5611,3 +5611,144 @@ url = "https://zenodo.org/oai2d"
 metadata_prefix = "dcat"
 schedule = "monthly"
 max_response_bytes = 16777216
+
+# First-party source from config/proposals/google_gemini_model_lifecycle.toml.
+[[source]]
+name = "google-gemini-api-model-lifecycle"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:google-gemini", "kind:hosted-model", "evidence:provider-lifecycle-history"]
+url = "https://ai.google.dev/gemini-api/docs/deprecations"
+provider_namespace = "google:gemini-api-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model \| Release date \| Shutdown date \| Recommended replacement$'
+name_column = 0
+identity_column = 0
+identity_source = "id"
+
+# First-party source from config/proposals/openai_model_snapshot_history.toml.
+[[source]]
+name = "openai-model-snapshot-deprecations"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:openai", "kind:model-lifecycle-documentation"]
+url = "https://developers.openai.com/api/docs/deprecations"
+provider_namespace = "openai:model-snapshot-lifecycle"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 8388608
+max_entries = 10000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Shutdown date \| (?:Model snapshot|Model family / snapshot|Deprecated model) \| (?:Substitute model|Recommended replacement|Recommended replacement base model)$'
+name_column = 1
+identity_source = "id"
+identity_column = 1
+require_url = false
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Shutdown date \| Deprecated model \| Deprecated model price \| Recommended replacement$'
+name_column = 1
+identity_source = "id"
+identity_column = 1
+require_url = false
+
+# First-party source from config/proposals/generative_extra.toml.
+[[source]]
+name = "compvis-latent-diffusion-readme-checkpoints"
+adapter = "compvis_latent_diffusion_readme_downloads"
+enabled = true
+entry_tags = ["field:generative-image-modeling", "ecosystem:compvis", "kind:checkpoint"]
+repository = "CompVis/latent-diffusion"
+branch = "main"
+source_path = "README.md"
+provider_namespace = "compvis:latent-diffusion"
+max_response_bytes = 4194304
+max_entries = 100
+schedule = "weekly"
+
+# First-stage autoencoders used by CompVis Stable Diffusion. The script pins
+# named KL/VQ model directories to direct first-party Ommer Lab bundles.
+
+# First-party source from config/proposals/huawei_pangu_weather_checkpoint_registry.toml.
+[[source]]
+name = "huawei-pangu-weather-checkpoint-registry"
+adapter = "pangu_weather_checkpoint_registry"
+enabled = true
+entry_tags = ["field:weather-machine-learning", "ecosystem:huawei-pangu-weather", "kind:pretrained-checkpoint"]
+repository = "198808xc/Pangu-Weather"
+branch = "main"
+source_path = "README.md"
+provider_namespace = "pangu-weather:checkpoint"
+max_response_bytes = 4194304
+max_entries = 10
+
+# First-party source from config/proposals/mace_foundation_registry.toml.
+[[source]]
+name = "mace-foundation-checkpoints"
+adapter = "mace_foundation_checkpoint_registry"
+enabled = true
+repository = "ACEsuit/mace"
+branch = "develop"
+source_path = "mace/calculators/foundations_models.py"
+entry_tags = ["field:computational-chemistry", "ecosystem:mace", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 1000
+
+# The adapter reads only the literal `mace_mp_urls` and `polar_model_urls` maps.
+# It preserves source-native keys and direct GitHub release URLs, pins the source
+# file to a commit, and does not fetch weight bytes. MACE-OFF23 is listed by its
+# separate adapter; the source file does not define a MACE-ANI URL map.
+
+# First-party source from config/proposals/rfdiffusion_registry.toml.
+[[source]]
+name = "rfdiffusion-first-party-checkpoints"
+adapter = "rfdiffusion_checkpoint_registry"
+enabled = true
+repository = "RosettaCommons/RFdiffusion"
+branch = "main"
+max_response_bytes = 2097152
+max_entries = 100
+schedule = "monthly"
+
+# First-party weights are enumerated in the README and downloader script:
+# https://github.com/RosettaCommons/RFdiffusion/blob/main/README.md
+# Checkpoint URLs are hosted by the University of Washington Institute for Protein Design.
+# This adapter records links without downloading the checkpoint bytes.
+
+# First-party source from config/proposals/nltk_data_models.toml.
+[[source]]
+name = "nltk-data-model-index"
+adapter = "nltk_data_models"
+enabled = true
+entry_tags = ["field:natural-language-processing", "ecosystem:nltk", "kind:pretrained-model"]
+repository = "nltk/nltk_data"
+branch = "gh-pages"
+provider_namespace = "nltk:data-model"
+schedule = "monthly"
+max_response_bytes = 4194304
+max_entries = 1000
+
+# Exact, ref-pinned torch.hub.load calls from PyTorch's official Hub cards.
+[[source]]
+name = "pytorch-hub-load-calls"
+adapter = "pytorch_hub_load_calls"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:pytorch-hub", "kind:pretrained-model"]
+index_url = "https://pytorch.org/hub/"
+schedule = "weekly"
+page_batch_size = 10
+max_response_bytes = 4194304
+max_code_chars = 262144
+max_pages = 1000

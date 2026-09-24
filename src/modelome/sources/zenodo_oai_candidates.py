@@ -249,6 +249,7 @@ class ZenodoOaiModelCandidatesSourceAdapter:
             filename = unquote(urlsplit(url).path.rsplit("/", 1)[-1])
             stem = _FILE_SUFFIX.sub("", filename)
             candidate_name = _TRAILING_FILE_MARKER.sub("", stem).replace("_", " ").strip()
+            candidate_handle = candidate_name
             normalized = normalize_name(candidate_name)
             name_tokens = normalized.split()
             context_match = re.search(
@@ -265,7 +266,11 @@ class ZenodoOaiModelCandidatesSourceAdapter:
             ):
                 continue
             candidate_name = context_match.group(0)
-            local_id = f"file-candidate:{content_hash(normalized)[:16]}"
+            # Context matching uses a punctuation-folded form, but local
+            # candidate IDs must preserve the exact source filename stem.
+            # Otherwise handles such as ``Alpha-Net`` and ``Alpha.Net`` can
+            # collapse into one candidate despite naming separate files.
+            local_id = f"file-candidate:{content_hash(candidate_handle)[:16]}"
             if local_id not in {model.local_id for model in models}:
                 models.append(
                     ModelHint(

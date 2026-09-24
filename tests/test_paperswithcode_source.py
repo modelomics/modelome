@@ -233,6 +233,11 @@ def test_only_arxiv_verified_nonspam_methods_become_documented_models() -> None:
     assert record.models[0].status is ModelStatus.DOCUMENTED
     assert record.models[0].confidence == 0.8
     assert Identifier("arxiv", "1802.05957") in record.identifiers
+    assert (
+        "https://paperswithcode.com/media/methods/spectral-normalization.py",
+        "code_reference",
+        False,
+    ) in {(link.url, link.relation, link.crawl) for link in record.links}
     assert page.next_state["validated_count"] == 1
     assert page.next_state["rejected"]["phone_payload"] == 1
     assert client.calls[2][1] == {"id_list": "1802.05957"}
@@ -493,6 +498,7 @@ def _method_rows() -> list[dict[str, Any]]:
         },
         "source_url": "https://arxiv.org/abs/1802.05957v2",
         "source_title": title,
+        "code_snippet_url": "https://paperswithcode.com/media/methods/spectral-normalization.py",
         "num_papers": 42,
         "collections": [],
     }

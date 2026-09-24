@@ -124,7 +124,10 @@ def _project_row(row: Mapping[str, Any]) -> SourceRecord | None:
         raise ValueError("OpenAIRE landing payload_json is invalid") from None
     if not isinstance(payload, Mapping):
         raise ValueError("OpenAIRE landing payload_json must contain an object")
-    return project_openaire_software(payload)
+    software = project_openaire_software(payload)
+    if software is not None:
+        return software
+    return project_openaire_relation(payload)
 
 
 def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None:
@@ -251,6 +254,67 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
     )
 
 
+def project_openaire_relation(payload: Mapping[str, Any]) -> SourceRecord | None:
+    """Expose explicit software-to-publication/dataset edges as non-model evidence."""
+
+    if not isinstance(payload, Mapping):
+        raise TypeError("OpenAIRE relation payload must be a mapping")
+    source_id, source_type = _relation_node(payload, "source")
+    target_id, target_type = _relation_node(payload, "target")
+    if source_type != "software" or target_type not in {"publication", "dataset", "data"}:
+        return None
+    relation = payload.get("relType") or payload.get("reltype")
+    if isinstance(relation, Mapping):
+        predicate = _text(relation.get("name"))
+        relation_type = _text(relation.get("type"))
+    else:
+        predicate = _text(payload.get("relation") or payload.get("predicate"))
+        relation_type = None
+    if predicate is None:
+        return None
+
+    source_url = _research_product_api_url(source_id)
+    target_url = _research_product_api_url(target_id)
+    row_digest = hashlib.sha256(
+        json.dumps(dict(payload), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+    edge_identity = f"{source_id}|{predicate}|{target_id}"
+    return SourceRecord(
+        source_record_id=f"openaire-graph:relation-evidence:{row_digest}",
+        kind=ArtifactKind.OTHER,
+        canonical_url=source_url,
+        title=f"OpenAIRE software relation: {predicate}",
+        identifiers=(
+            Identifier("openaire:graph-product", source_id),
+            Identifier("openaire:graph-relation-sha256", row_digest),
+        ),
+        links=(
+            Link(
+                target_url,
+                relation=f"openaire_related_{_relation_slug(predicate)}",
+                locator=f"relation:{edge_identity}",
+                crawl=False,
+            ),
+        ),
+        raw={
+            "record_type": "openaire_related_product_evidence",
+            "source_product_id": source_id,
+            "source_product_type": source_type,
+            "target_product_id": target_id,
+            "target_product_type": target_type,
+            "relation_type": relation_type,
+            "relation_predicate": predicate,
+            "relation_provenance": payload.get("provenance"),
+            "relation_validated": payload.get("validated"),
+            "relation_validation_date": payload.get("validationDate"),
+            "source_wide_filtering": False,
+            "model_classification_performed": False,
+        },
+    )
+
+
 def _title(value: Any) -> str | None:
     if isinstance(value, str):
         return _text(value)
@@ -309,6 +373,27 @@ def _pid_url(scheme: str, value: str) -> str | None:
     if normalized in {"url", "uri"}:
         return _public_https(value)
     return None
+
+
+def _relation_node(payload: Mapping[str, Any], role: str) -> tuple[str | None, str | None]:
+    node = payload.get(role)
+    if isinstance(node, Mapping):
+        node_id = _text(node.get("id"))
+        node_type = _text(node.get("type"))
+    else:
+        node_id = _text(node)
+        node_type = None
+    node_type = _text(payload.get(f"{role}Type")) or node_type
+    return node_id, node_type.casefold() if node_type is not None else None
+
+
+def _research_product_api_url(graph_id: str) -> str:
+    return f"https://api.openaire.eu/graph/v3/research-products/{quote(graph_id, safe='')}"
+
+
+def _relation_slug(value: str) -> str:
+    slug = "".join(char.casefold() if char.isalnum() else "_" for char in value)
+    return "_".join(part for part in slug.split("_") if part)
 
 
 def _text(value: Any) -> str | None:

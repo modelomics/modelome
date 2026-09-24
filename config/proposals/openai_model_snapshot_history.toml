@@ -1,0 +1,35 @@
+# Disabled proposal: OpenAI's public deprecation page enumerates exact model
+# snapshots and historical IDs alongside shutdown dates and replacement IDs.
+# This complements the current API model list and the public all-models index,
+# which do not retain all retired dated model IDs. The source intentionally
+# selects model snapshot/model rows and omits tables about API endpoints.
+#
+# Primary source: https://developers.openai.com/api/docs/deprecations
+[[source]]
+name = "openai-model-snapshot-deprecations"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:openai", "kind:model-lifecycle-documentation"]
+url = "https://developers.openai.com/api/docs/deprecations"
+provider_namespace = "openai:model-snapshot-lifecycle"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 8388608
+max_entries = 10000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Shutdown date \| (?:Model snapshot|Model family / snapshot|Deprecated model) \| (?:Substitute model|Recommended replacement|Recommended replacement base model)$'
+name_column = 1
+identity_source = "id"
+identity_column = 1
+require_url = false
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Shutdown date \| Deprecated model \| Deprecated model price \| Recommended replacement$'
+name_column = 1
+identity_source = "id"
+identity_column = 1
+require_url = false

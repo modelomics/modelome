@@ -13,6 +13,7 @@ from modelome.http import HttpResponse
 from modelome.models import ArtifactKind, Identifier
 from modelome.sources.generative_extra import (
     CompVisLatentDiffusionDownloadsSourceAdapter,
+    CompVisLatentDiffusionReadmeDownloadsSourceAdapter,
     CompVisStableDiffusionFirstStagesSourceAdapter,
     _parse_download_script,
 )
@@ -94,7 +95,22 @@ def test_disabled_compvis_proposal_matches_adapter_constructor() -> None:
     )
     assert adapter.name == proposal["name"]
 
-    first_stages = tomllib.loads(proposal_path.read_text())["source"][1]
+    proposal_sources = tomllib.loads(proposal_path.read_text())["source"]
+    readme_checkpoints = proposal_sources[1]
+    assert readme_checkpoints["enabled"] is False
+    assert readme_checkpoints["adapter"] == "compvis_latent_diffusion_readme_downloads"
+    readme_adapter = CompVisLatentDiffusionReadmeDownloadsSourceAdapter(
+        name=readme_checkpoints["name"],
+        repository=readme_checkpoints["repository"],
+        branch=readme_checkpoints["branch"],
+        source_path=readme_checkpoints["source_path"],
+        provider_namespace=readme_checkpoints["provider_namespace"],
+        max_response_bytes=readme_checkpoints["max_response_bytes"],
+        max_entries=readme_checkpoints["max_entries"],
+    )
+    assert readme_adapter.name == readme_checkpoints["name"]
+
+    first_stages = proposal_sources[2]
     assert first_stages["enabled"] is False
     assert first_stages["adapter"] == "compvis_stable_diffusion_first_stages"
     first_stage_adapter = CompVisStableDiffusionFirstStagesSourceAdapter(
@@ -108,6 +124,38 @@ def test_disabled_compvis_proposal_matches_adapter_constructor() -> None:
     )
     assert first_stage_adapter.name == first_stages["name"]
     assert first_stage_adapter.target_prefix == "models/first_stage_models"
+
+
+def test_compvis_readme_catalog_extracts_additional_direct_checkpoints_only() -> None:
+    readme = """\
+## Retrieval model
+
+```shell
+wget -O models/ldm/rdm/rdm768x768/model.ckpt https://ommer-lab.com/files/rdm/model.ckpt
+```
+
+## Text to image
+
+```sh
+wget -O models/ldm/text2img-large/model.ckpt https://ommer-lab.com/files/latent-diffusion/nitro/txt2img-f8-large/model.ckpt
+wget -O models/ldm/inpainting_big/last.ckpt https://heibox.uni-heidelberg.de/f/4d9ac7ea40c64582b7c9/?dl=1
+```
+
+Outside a shell example:
+wget -O models/ldm/ignored/model.ckpt https://ommer-lab.com/files/rdm/ignored.ckpt
+"""
+    client = _QueuedClient(_response({"sha": _REVISION}), _response(readme))
+    adapter = CompVisLatentDiffusionReadmeDownloadsSourceAdapter(client=client)
+
+    page = adapter.fetch_page({})
+
+    assert [record.models[0].identifiers[0].value for record in page.records] == [
+        "rdm/rdm768x768",
+        "text2img-large",
+    ]
+    assert page.records[0].releases[0].metadata["weight_url"] == (
+        "https://ommer-lab.com/files/rdm/model.ckpt"
+    )
 
 
 def test_stable_diffusion_first_stage_script_uses_separate_exact_handles() -> None:

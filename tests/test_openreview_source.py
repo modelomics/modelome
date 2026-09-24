@@ -574,3 +574,22 @@ def test_file_attachments_in_checkpoint_fields_are_preserved_as_weight_links(
     assert len(checkpoint_links) == 1
     assert checkpoint_links[0].relation == "weights"
     assert checkpoint_links[0].crawl is True
+
+
+def test_generic_file_field_uses_openreview_attachment_name_for_checkpoint_relation() -> None:
+    note = v2_note(
+        content={
+            "title": "An archived checkpoint",
+            "abstract": "The invitation uses a generic file field.",
+            "authors": ["Model Author"],
+            "artifact": "/attachment?id=generic-paper&name=model_weights",
+        }
+    )
+    page = adapter(QueueClient(response([note], count=1))).fetch_page(v2_state())
+
+    assert any(
+        link.url == "https://openreview.net/attachment?id=generic-paper&name=model_weights"
+        and link.relation == "weights"
+        and link.crawl
+        for link in page.records[0].links
+    )

@@ -5,7 +5,7 @@ import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import quote, urljoin, urlsplit
+from urllib.parse import parse_qs, quote, urljoin, urlsplit
 
 from modelome.http import HttpClient, HttpResponse
 from modelome.models import ArtifactKind, Identifier, Link, SourceIssue, SourcePage, SourceRecord
@@ -689,11 +689,15 @@ class OpenReviewSourceAdapter:
                         locator=f"{locator}:{span}",
                     )
                 stripped = scalar.strip()
-                if stripped.startswith("/") and _attachment_field(key):
+                attachment_name = _openreview_attachment_name(stripped)
+                if stripped.startswith("/") and (
+                    _attachment_field(key) or attachment_name is not None
+                ):
+                    attachment_key = _field_key(attachment_name) if attachment_name else key
                     self._append_link(
                         result,
                         urljoin(f"{self.web_base_url}/", stripped),
-                        relation=_link_relation(key, stripped, "text:0-1"),
+                        relation=_link_relation(attachment_key, stripped, "text:0-1"),
                         locator=locator,
                     )
                 doi = _plain_doi(stripped)
@@ -1081,6 +1085,17 @@ def _attachment_field(key: str) -> bool:
             "weight",
         )
     )
+
+
+def _openreview_attachment_name(value: str) -> str | None:
+    """Return the named field for a root-relative OpenReview attachment route."""
+    parts = urlsplit(value)
+    if parts.scheme or parts.netloc or parts.path.rstrip("/") != "/attachment":
+        return None
+    names = parse_qs(parts.query, keep_blank_values=False).get("name", [])
+    if len(names) != 1 or not names[0].strip():
+        return None
+    return names[0].strip()
 
 
 def _plain_doi(value: str) -> str:

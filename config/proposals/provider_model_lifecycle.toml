@@ -22,7 +22,7 @@ max_entries = 5000
 
 [[source.rules]]
 kind = "table"
-header_pattern = '^Model \\| Version \\| Lifecycle \\| Retirement date \\| Replacement$'
+header_pattern = '^Model \| Version \| Lifecycle \| Retirement date \| Replacement$'
 name_column = 0
 identity_source = "name"
 require_url = false
@@ -47,14 +47,14 @@ max_entries = 5000
 
 [[source.rules]]
 kind = "table"
-header_pattern = '^API model name \\| Current state \\| Deprecated \\| Tentative retirement date$'
+header_pattern = '^API model name \| Current state \| Deprecated \| Tentative retirement date$'
 name_column = 0
 identity_source = "name"
 require_url = false
 
 [[source.rules]]
 kind = "table"
-header_pattern = '^Retirement date \\| Deprecated model \\| Recommended replacement$'
+header_pattern = '^Retirement date \| Deprecated model \| Recommended replacement$'
 name_column = 1
 identity_source = "name"
 require_url = false

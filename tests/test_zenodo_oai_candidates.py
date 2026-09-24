@@ -102,6 +102,41 @@ def test_oai_dcat_discovers_candidate_checkpoint_and_resumes_with_opaque_token()
     assert second.next_state["records_seen"] == 2
 
 
+def test_punctuation_distinct_checkpoint_stems_keep_distinct_candidate_ids() -> None:
+    xml = harvest_page(
+        """<record>
+  <header><identifier>oai:zenodo.org:125</identifier>
+    <datestamp>2026-09-22T10:00:00Z</datestamp><setSpec>openaire_data</setSpec>
+  </header>
+  <metadata><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+      xmlns:dcat="http://www.w3.org/ns/dcat#" xmlns:dct="http://purl.org/dc/terms/">
+    <dcat:Dataset><dct:title>Alpha-Net and Alpha.Net neural network models</dct:title>
+      <dct:description>Separate neural network checkpoint models Alpha-Net
+        and Alpha.Net.</dct:description>
+      <dct:type>Dataset</dct:type>
+      <dcat:distribution><dcat:Distribution><dct:title>Alpha-Net checkpoint</dct:title>
+        <dcat:downloadURL rdf:resource="https://zenodo.org/api/files/abc/Alpha-Net_checkpoint.safetensors"/>
+      </dcat:Distribution></dcat:distribution>
+      <dcat:distribution><dcat:Distribution><dct:title>Alpha.Net weights</dct:title>
+        <dcat:downloadURL rdf:resource="https://zenodo.org/api/files/abc/Alpha.Net_weights.ckpt"/>
+      </dcat:Distribution></dcat:distribution>
+    </dcat:Dataset>
+  </rdf:RDF></metadata>
+</record>"""
+    )
+    adapter = ZenodoOaiModelCandidatesSourceAdapter(
+        client=Client(response(xml)),
+        clock=lambda: datetime(2026, 9, 22, 12, 0, tzinfo=UTC),
+    )
+
+    page = adapter.fetch_page({})
+
+    assert len(page.records[0].models) == 2
+    # Both context matches can resolve to the same display spelling, but the
+    # source's distinct file stems must remain distinct candidate identities.
+    assert len({model.local_id for model in page.records[0].models}) == 2
+
+
 def test_oai_dcat_rejects_expired_token_checkpoint() -> None:
     now = datetime(2026, 9, 22, 12, 2, tzinfo=UTC)
     adapter = ZenodoOaiModelCandidatesSourceAdapter(clock=lambda: now)

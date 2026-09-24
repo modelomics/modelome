@@ -21,15 +21,25 @@ class _PageClient:
         return HttpResponse(self.status, {"content-type": "text/html"}, self.body, url)
 
 
-def test_indexes_only_explicit_supported_rl_clarity_model_handles() -> None:
-    html = """<ul>
-      <li>coinrun</li>
-      <li>finite_levels/run_1/coinrun_100</li>
-      <li>procgen/coinrun</li>
-      <li>impala/coinrun_ablation_0</li>
-      <li>coinrun_procgen (procedural assets)</li>
-      <li>unrelated item</li>
-    </ul>"""
+def test_indexes_all_explicit_supported_rl_clarity_model_handles() -> None:
+    levels = (100, 300, 1000, 3000, 10000, 30000, 100000)
+    procgen = (
+        "coinrun", "starpilot", "caveflyer", "dodgeball", "fruitbot", "chaser",
+        "miner", "jumper", "leaper", "maze", "bigfish", "heist", "climber",
+        "plunder", "ninja", "bossfight",
+    )
+    handles = ["coinrun"]
+    handles.extend(
+        f"finite_levels/run_{run}/coinrun_{levels_count}"
+        for run in (1, 2)
+        for levels_count in levels
+    )
+    handles.extend(("edit/coinrun_saw_edit", "edit/coinrun_enemy_edit"))
+    handles.extend(f"procgen/{name}" for name in procgen)
+    handles.extend(f"impala/coinrun_ablation_{index}" for index in range(8))
+    # Match the source index's explicit model paths embedded in a list page.
+    html = "<ul>" + "".join(f"<li>{handle}</li>" for handle in handles)
+    html += "<li>coinrun_procgen</li></ul>"
     client = _PageClient(html)
     adapter = RlClarityCheckpointIndexAdapter(
         client=client, clock=lambda: datetime(2026, 9, 23, tzinfo=UTC)
@@ -38,17 +48,20 @@ def test_indexes_only_explicit_supported_rl_clarity_model_handles() -> None:
     page = adapter.fetch_page({})
 
     assert page.complete and page.authoritative_snapshot
-    assert page.upstream_count == 4
+    assert page.upstream_count == len(handles) == 41
     assert client.calls == [_INDEX]
-    assert [record.identifiers[0].value for record in page.records] == [
-        "coinrun",
-        "finite_levels/run_1/coinrun_100",
-        "impala/coinrun_ablation_0",
-        "procgen/coinrun",
-    ]
-    assert page.records[0].canonical_url.endswith("/coinrun.jd")
-    assert page.records[1].canonical_url.endswith("/finite_levels/run_1/coinrun_100.jd")
-    assert page.records[2].links[-1].url.endswith("/impala/coinrun_ablation_0.jd")
+    assert {record.identifiers[0].value for record in page.records} == set(handles)
+    by_handle = {record.identifiers[0].value: record for record in page.records}
+    assert by_handle["coinrun"].canonical_url.endswith("/coinrun.jd")
+    assert by_handle["finite_levels/run_1/coinrun_100"].canonical_url.endswith(
+        "/finite_levels/run_1/coinrun_100.jd"
+    )
+    assert by_handle["edit/coinrun_saw_edit"].links[-1].url.endswith(
+        "/edit/coinrun_saw_edit.jd"
+    )
+    assert by_handle["impala/coinrun_ablation_7"].links[-1].url.endswith(
+        "/impala/coinrun_ablation_7.jd"
+    )
     assert all(record.kind.value == "weights" for record in page.records)
 
 

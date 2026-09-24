@@ -26,6 +26,7 @@ _DOCS = (
     "official/vision/MODEL_GARDEN.md",
     "official/nlp/docs/pretrained_models.md",
     "official/nlp/MODEL_GARDEN.md",
+    "official/vision/README.md",
 )
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 _MARKDOWN_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^)]+)\)")
@@ -33,6 +34,7 @@ _INLINE_HUB = re.compile(r"(?P<url>https://tfhub\.dev/[^\s,|`]+)")
 _INIT_CHECKPOINT = re.compile(r"task\.init_checkpoint=(?P<url>gs://[^\s,|`]+)")
 _HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*$")
 _NLP_DOC = "official/nlp/docs/pretrained_models.md"
+_VISION_README = "official/vision/README.md"
 
 
 class TensorFlowGardenSourceAdapter:
@@ -64,7 +66,7 @@ class TensorFlowGardenSourceAdapter:
         self.client = client or HttpClient(max_response_bytes=max_bytes)
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "tensorflow-model-garden-v1",
+                "adapter": "tensorflow-model-garden-v2",
                 "repository": _REPOSITORY,
                 "docs": _DOCS,
                 "max_bytes": max_bytes,
@@ -136,9 +138,16 @@ class TensorFlowGardenSourceAdapter:
             normalized_cells = [
                 re.sub(r"\[([^]]+)\]\([^)]+\)", r"\1", c).strip().lower() for c in cells
             ]
-            if any(c == "model" or c == "name" for c in normalized_cells):
+            if any(c in {"model", "name"} for c in normalized_cells) or (
+                path == _VISION_README and "variant" in normalized_cells
+            ):
                 headers = normalized_cells
                 continue
+            if headers and len(cells) > len(headers):
+                # Published Download cells sometimes separate config and
+                # checkpoint links with a raw pipe, creating more cells than
+                # the declared header. Keep the overflow with the last column.
+                cells = cells[: len(headers) - 1] + [" | ".join(cells[len(headers) - 1 :])]
             row_number += 1
             model_cell = cells[0]
             checkpoint_columns = [

@@ -1,0 +1,34 @@
+# Opt-in public JATS follow-up. Each details page can require up to 30
+# sequential first-party XML requests, so this is separate from the default
+# metadata sweep. It extracts only JATS supplementary links with model cues.
+[[source]]
+name = "biorxiv-jats-supplementary"
+adapter = "biorxiv_jats_supplementary"
+enabled = false
+url = "https://api.biorxiv.org/details"
+server = "biorxiv"
+artifact_kind = "paper"
+schedule = "weekly"
+initial_lookback_days = 7
+overlap_days = 2
+max_jats_fetches_per_page = 30
+max_jats_bytes = 33554432
+max_jats_elements = 250000
+max_supplement_links_per_record = 2000
+minimum_request_interval_seconds = 0.34
+
+[[source]]
+name = "medrxiv-jats-supplementary"
+adapter = "biorxiv_jats_supplementary"
+enabled = false
+url = "https://api.biorxiv.org/details"
+server = "medrxiv"
+artifact_kind = "paper"
+schedule = "weekly"
+initial_lookback_days = 7
+overlap_days = 2
+max_jats_fetches_per_page = 30
+max_jats_bytes = 33554432
+max_jats_elements = 250000
+max_supplement_links_per_record = 2000
+minimum_request_interval_seconds = 0.34

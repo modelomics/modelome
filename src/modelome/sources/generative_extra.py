@@ -158,6 +158,85 @@ class CompVisStableDiffusionFirstStagesSourceAdapter(
             target_prefix="models/first_stage_models",
             **kwargs,
         )
+
+
+class CompVisLatentDiffusionReadmeDownloadsSourceAdapter(
+    CompVisLatentDiffusionDownloadsSourceAdapter
+):
+    """Enumerate additional direct checkpoint commands from the official README."""
+
+    coverage_limitation = (
+        "Covers only direct .ckpt downloads declared in fenced README shell examples "
+        "under models/ldm at a pinned commit, and only on ommer-lab.com. It excludes "
+        "community links, dataset files, bundle contents, and non-direct share URLs."
+    )
+
+    def __init__(
+        self,
+        *,
+        name: str = "compvis-latent-diffusion-readme-checkpoints",
+        repository: str = "CompVis/latent-diffusion",
+        branch: str = "main",
+        source_path: str = "README.md",
+        provider_namespace: str = "compvis:latent-diffusion",
+        max_response_bytes: int = 4 * 1024 * 1024,
+        max_entries: int = 100,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            name=name,
+            repository=repository,
+            branch=branch,
+            source_path=source_path,
+            provider_namespace=provider_namespace,
+            max_response_bytes=max_response_bytes,
+            max_entries=max_entries,
+            **kwargs,
+        )
+
+    def fetch_page(self, state: Mapping[str, Any]) -> SourcePage:
+        revision, _ = self._revision()
+        checked_at = _isoformat(self.clock())
+        if revision == _text(state.get("completed_revision")):
+            next_state = dict(state)
+            next_state["checked_at"] = checked_at
+            return SourcePage(
+                records=(),
+                next_state=next_state,
+                complete=True,
+                upstream_count=state.get("model_count")
+                if isinstance(state.get("model_count"), int)
+                else None,
+            )
+        response: HttpResponse = self.client.get(
+            self.raw_url(revision), headers={"Accept": "text/markdown,text/plain"}
+        )
+        if response.status != 200:
+            raise ValueError(f"{self.name}: README returned HTTP {response.status}")
+        if len(response.body) > self.max_response_bytes:
+            raise ValueError(f"{self.name}: README exceeds byte limit")
+        checkpoints = _parse_readme_downloads(
+            response.text(), source=self.name, path=self.source_path,
+            maximum=self.max_entries,
+        )
+        records = tuple(
+            self._record(checkpoint, revision, response.body)
+            for checkpoint in checkpoints
+        )
+        next_state: dict[str, Any] = {
+            "completed_revision": revision,
+            "checked_at": checked_at,
+            "source_url": self.raw_url(revision),
+            "source_sha256": content_hash(response.body),
+            "model_count": len(records),
+        }
+        return SourcePage(
+            records=records,
+            next_state=next_state,
+            complete=True,
+            upstream_count=len(records),
+            authoritative_snapshot=True,
+        )
 def _parse_download_script(
     document: str,
     *,
@@ -214,7 +293,77 @@ def _parse_download_script(
     return tuple(entries)
 
 
+def _parse_readme_downloads(
+    document: str,
+    *,
+    source: str,
+    path: str,
+    maximum: int,
+) -> tuple[_Checkpoint, ...]:
+    """Read strict wget mappings from fenced README shell examples only."""
+    entries: list[_Checkpoint] = []
+    seen: set[str] = set()
+    fence: tuple[str, int] | None = None
+    target_re = re.compile(r"^models/ldm/(?P<handle>[A-Za-z0-9_.+-]+(?:/[A-Za-z0-9_.+-]+)*)/[^/]+$")
+    for line_number, line in enumerate(document.splitlines(), start=1):
+        fence_match = re.match(r"^ {0,3}(?P<fence>`{3,}|~{3,})(?P<tail>.*)$", line)
+        if fence_match:
+            marker = fence_match.group("fence")
+            if fence is None:
+                fence = (marker[0], len(marker))
+            elif (
+                marker[0] == fence[0]
+                and len(marker) >= fence[1]
+                and not fence_match.group("tail").strip()
+            ):
+                fence = None
+            continue
+        if fence is None:
+            continue
+        try:
+            fields = shlex.split(line.strip(), comments=True, posix=True)
+        except ValueError as error:
+            raise ValueError(f"{source}: invalid shell syntax on line {line_number}") from error
+        if not fields or fields[0] != "wget":
+            continue
+        if len(fields) != 4 or fields[1] != "-O":
+            # README contains other wget commands for datasets. Ignore them
+            # unless they explicitly target a model directory, which must parse.
+            if any(value.startswith("models/ldm/") for value in fields):
+                raise ValueError(f"{source}: unsupported model wget row on line {line_number}")
+            continue
+        target, url = fields[2], fields[3]
+        match = target_re.fullmatch(target)
+        if match is None:
+            if target.startswith("models/ldm/"):
+                raise ValueError(f"{source}: invalid model output path on line {line_number}")
+            continue
+        handle = match.group("handle")
+        parts = urlsplit(url)
+        if (
+            parts.scheme != "https"
+            or parts.hostname != "ommer-lab.com"
+            or not parts.path.casefold().endswith(".ckpt")
+            or not parts.path.startswith(("/files/latent-diffusion/", "/files/rdm/"))
+        ):
+            # The upstream README also names externally hosted shares; they do
+            # not meet this adapter's direct first-party URL contract.
+            continue
+        if handle in seen:
+            continue
+        seen.add(handle)
+        entries.append(
+            _Checkpoint(handle, canonicalize_url(url), f"{path}:line:{line_number}")
+        )
+        if len(entries) > maximum:
+            raise ValueError(f"{source}: README checkpoint list exceeds {maximum} entries")
+    if not entries:
+        raise ValueError(f"{source}: no direct README checkpoints found")
+    return tuple(entries)
+
+
 __all__ = [
     "CompVisLatentDiffusionDownloadsSourceAdapter",
     "CompVisStableDiffusionFirstStagesSourceAdapter",
+    "CompVisLatentDiffusionReadmeDownloadsSourceAdapter",
 ]

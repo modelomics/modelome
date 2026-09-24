@@ -210,3 +210,59 @@ def test_garden_rejects_bad_cursor_and_invalid_commit_sha() -> None:
         TensorFlowGardenSourceAdapter(client=Client()).fetch_page({"doc_index": -1})
     with pytest.raises(ValueError, match="SHA-1"):
         TensorFlowGardenSourceAdapter(client=Client(response({"sha": "bad"}))).fetch_page({})
+
+
+def test_garden_captures_official_vision_readme_yolov7_checkpoint_row() -> None:
+    # The current official/vision/README.md contains this published checkpoint
+    # table, but the older MODEL_GARDEN.md document does not. The table's model
+    # column is named "Variant" rather than "Model".
+    document = "\n".join(
+        [
+            "### YOLOv7 (Trained from scratch)",
+            "| Variant | Resolution | Epochs | FLOPs (B) | Params (M) | Box AP | Download |",
+            "|---|---|---|---|---|---|---|",
+            (
+                "| YOLOv7 | 640x640 | 300 | 53.16 | 44.57 | 50.5 | "
+                "[config](https://github.com/tensorflow/models/blob/master/"
+                "official/projects/yolo/configs/experiments/yolov7/detection/yolov7.yaml) | "
+                "[ckpt](https://storage.googleapis.com/tf_model_garden/vision/"
+                "yolo/yolov7/yolov7.tar.gz) |"
+            ),
+        ]
+    )
+    adapter = TensorFlowGardenSourceAdapter(client=Client())
+
+    records = adapter._records("official/vision/README.md", REVISION, document)
+
+    assert len(records) == 1
+    record = records[0]
+    assert record.title == "YOLOv7"
+    assert record.raw["document"] == "official/vision/README.md"
+    assert record.releases[0].metadata["checkpoints"] == [
+        "https://storage.googleapis.com/tf_model_garden/vision/yolo/yolov7/yolov7.tar.gz"
+    ]
+
+
+def test_garden_fetches_added_vision_readme_at_pinned_revision() -> None:
+    markdown = "\n".join(
+        [
+            "### YOLOv7 (Trained from scratch)",
+            "| Variant | Resolution | Epochs | FLOPs (B) | Params (M) | Box AP | Download |",
+            "|---|---|---|---|---|---|---|",
+            (
+                "| YOLOv7 | 640x640 | 300 | 53.16 | 44.57 | 50.5 | "
+                "[config](https://github.com/tensorflow/models/blob/master/"
+                "official/projects/yolo/configs/experiments/yolov7/detection/yolov7.yaml) | "
+                "[ckpt](https://storage.googleapis.com/tf_model_garden/vision/"
+                "yolo/yolov7/yolov7.tar.gz) |"
+            ),
+        ]
+    )
+    client = Client(response(markdown))
+    adapter = TensorFlowGardenSourceAdapter(client=client)
+
+    page = adapter.fetch_page({"revision": REVISION, "doc_index": 3})
+
+    assert [record.title for record in page.records] == ["YOLOv7"]
+    assert page.records[0].raw["revision"] == REVISION
+    assert client.calls == [adapter.raw_url(REVISION, "official/vision/README.md")]

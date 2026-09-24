@@ -99,6 +99,51 @@ def test_adds_a_low_confidence_model_hint_for_descriptive_model_asset_evidence()
     assert hint.identifiers == ()
 
 
+def test_projects_model_named_zip_when_release_context_confirms_weights() -> None:
+    event = release_event_record(
+        [asset(1, "qwen2.5-7b-instruct.zip")],
+        release_body="Pretrained model weights for Qwen2.5 7B Instruct.",
+    )
+
+    [candidate] = project_github_release_assets(event)
+
+    assert candidate.title == "qwen2.5-7b-instruct.zip"
+    assert candidate.raw["asset_container_type"] == "archive"
+    assert len(candidate.models) == 1
+    assert candidate.models[0].name == "qwen2.5 7b instruct"
+    assert candidate.models[0].confidence == 0.2
+
+
+def test_does_not_infer_model_identity_for_generic_named_archive() -> None:
+    event = release_event_record(
+        [asset(1, "source.zip")],
+        release_body="Pretrained model weights for Qwen2.5 7B Instruct.",
+    )
+
+    assert project_github_release_assets(event) == ()
+
+
+def test_projects_model_named_extensionless_asset_only_with_release_context() -> None:
+    event = release_event_record(
+        [asset(1, "qwen2.5-7b-instruct")],
+        release_body="Pretrained model weights for Qwen2.5 7B Instruct.",
+    )
+
+    [candidate] = project_github_release_assets(event)
+
+    assert candidate.raw["asset_container_type"] == "single_file"
+    assert candidate.models[0].name == "qwen2.5 7b instruct"
+
+
+def test_does_not_infer_model_from_generic_extensionless_asset_name() -> None:
+    event = release_event_record(
+        [asset(1, "download")],
+        release_body="Pretrained model weights for Qwen2.5 7B Instruct.",
+    )
+
+    assert project_github_release_assets(event) == ()
+
+
 def test_recovers_model_identity_from_release_title_for_generic_checkpoint_filename() -> None:
     event = release_event_record(
         [asset(1, "model.safetensors")],

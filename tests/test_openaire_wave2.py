@@ -5,7 +5,11 @@ from typing import Any
 
 from modelome.lake import LakeRecord, ParquetLandingZone, ShardApplicationOrder
 from modelome.models import ArtifactKind
-from modelome.openaire_projection import OpenAireSoftwareProjector, project_openaire_software
+from modelome.openaire_projection import (
+    OpenAireSoftwareProjector,
+    project_openaire_relation,
+    project_openaire_software,
+)
 
 
 def _software() -> dict[str, Any]:
@@ -149,6 +153,55 @@ def test_skips_products_without_a_safe_canonical_url() -> None:
     ) is None
 
 
+def test_projects_explicit_software_to_dataset_relation_as_non_model_evidence() -> None:
+    record = project_openaire_relation(
+        {
+            "source": "openaire-software-1",
+            "sourceType": "software",
+            "target": "openaire-dataset-2",
+            "targetType": "dataset",
+            "relType": {"type": "relationship", "name": "IsSupplementTo"},
+            "validated": True,
+        }
+    )
+
+    assert record is not None
+    assert record.source_record_id.startswith("openaire-graph:relation-evidence:")
+    assert record.identifiers[0].namespace == "openaire:graph-product"
+    assert record.identifiers[0].value == "openaire-software-1"
+    assert record.links[0].url == (
+        "https://api.openaire.eu/graph/v3/research-products/openaire-dataset-2"
+    )
+    assert record.links[0].relation == "openaire_related_issupplementto"
+    assert record.links[0].crawl is False
+    assert record.raw["target_product_type"] == "dataset"
+    assert record.raw["relation_validated"] is True
+    assert record.raw["model_classification_performed"] is False
+
+
+def test_projects_nested_relation_nodes_and_rejects_non_product_targets() -> None:
+    record = project_openaire_relation(
+        {
+            "source": {"id": "openaire-software-3", "type": "software"},
+            "target": {"id": "openaire-publication-4", "type": "publication"},
+            "reltype": {"type": "citation", "name": "Cites"},
+        }
+    )
+    assert record is not None
+    assert record.raw["target_product_type"] == "publication"
+    assert record.links[0].url.endswith("/openaire-publication-4")
+
+    assert project_openaire_relation(
+        {
+            "source": "openaire-software-3",
+            "sourceType": "software",
+            "target": "openaire-project-5",
+            "targetType": "project",
+            "relation": "produces",
+        }
+    ) is None
+
+
 def test_landed_projection_is_bounded_and_advances_over_unselected_rows(tmp_path: Path) -> None:
     lake = ParquetLandingZone(tmp_path / "lake")
     receipt = lake.commit_shard(
@@ -165,8 +218,18 @@ def test_landed_projection_is_bounded_and_advances_over_unselected_rows(tmp_path
             LakeRecord("row:publication", {"id": "publication-1", "type": "publication"}),
             LakeRecord("row:software", _software()),
             LakeRecord("row:other", {"id": "other-1", "type": "otherresearchproduct"}),
+            LakeRecord(
+                "row:relation",
+                {
+                    "source": "openaire-product-123",
+                    "sourceType": "software",
+                    "target": "dataset-1",
+                    "targetType": "dataset",
+                    "relType": {"type": "relationship", "name": "IsSupplementTo"},
+                },
+            ),
         ),
-        expected_rows=3,
+        expected_rows=4,
         batch_rows=1,
     )
     lake.seal_release(
@@ -185,6 +248,7 @@ def test_landed_projection_is_bounded_and_advances_over_unselected_rows(tmp_path
         "openaire-graph:software:openaire-product-123"
     ]
     final = projector.page("20428976", start_row=page.next_row, max_rows=2)
-    assert final.rows_examined == 1
+    assert final.rows_examined == 2
     assert final.complete is True
-    assert final.records == ()
+    assert len(final.records) == 1
+    assert final.records[0].raw["record_type"] == "openaire_related_product_evidence"

@@ -253,6 +253,8 @@ def test_zenodo_model_catalog_quarantines_a_non_model_result() -> None:
     [
         ("oceannet_checkpoint.safetensors", "checkpoint"),
         ("oceannet_weights.pth", "checkpoint"),
+        # Zenodo record 16948542 declares model.pt as a Chemprop checkpoint.
+        ("model.pt", "checkpoint"),
         ("oceannet.pt", None),
         ("weights.csv", None),
     ],

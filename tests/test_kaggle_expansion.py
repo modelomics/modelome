@@ -76,6 +76,21 @@ def test_incomplete_page_sequence_raises_instead_of_marking_scan_complete() -> N
         adapter.fetch_page({})
 
 
+def test_model_list_pagination_cycle_fails_instead_of_rereading_pages() -> None:
+    client = _Client(
+        {"models": [{"ref": "google/first"}], "nextPageToken": "first"},
+        {"models": [{"ref": "google/second"}], "nextPageToken": "second"},
+        {"models": [{"ref": "google/third"}], "nextPageToken": "first"},
+    )
+    adapter = KaggleModelsSourceAdapter(client=client)
+
+    first = adapter.fetch_page({})
+    second = adapter.fetch_page(first.next_state)
+
+    with pytest.raises(ValueError, match="pagination token did not advance"):
+        adapter.fetch_page(second.next_state)
+
+
 def test_malformed_model_is_reported_without_dropping_valid_models() -> None:
     client = _Client(
         {

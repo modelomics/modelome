@@ -1,0 +1,14 @@
+# NLTK's first-party downloader index declares exact archive identities,
+# archive locations, sizes, and SHA-256 checksums for reusable model packages.
+# Disabled pending source review; this inventory does not include corpus data.
+[[source]]
+name = "nltk-data-model-index"
+adapter = "nltk_data_models"
+enabled = false
+entry_tags = ["field:natural-language-processing", "ecosystem:nltk", "kind:pretrained-model"]
+repository = "nltk/nltk_data"
+branch = "gh-pages"
+provider_namespace = "nltk:data-model"
+schedule = "monthly"
+max_response_bytes = 4194304
+max_entries = 1000

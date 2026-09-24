@@ -491,6 +491,15 @@ class PapersWithCodeValidatedMethodsSourceAdapter:
                 crawl=False,
             )
         )
+        if candidate["code_snippet_url"]:
+            links.append(
+                Link(
+                    candidate["code_snippet_url"],
+                    relation="code_reference",
+                    locator="$.code_snippet_url",
+                    crawl=False,
+                )
+            )
         return SourceRecord(
             # The method URL identifies the method, while this source record
             # represents its particular paper relationship. Include both so a
@@ -518,6 +527,7 @@ class PapersWithCodeValidatedMethodsSourceAdapter:
                 "source_url": candidate["source_url"],
                 "source_title": candidate["source_title"],
                 "arxiv_id": arxiv_id,
+                "code_snippet_url": candidate["code_snippet_url"],
                 "verified_arxiv_title": verified_title,
                 "num_papers": candidate["num_papers"],
                 "collections": candidate["collections"],
@@ -722,7 +732,7 @@ def _read_method_rows(body: bytes, source: str) -> list[Mapping[str, Any]]:
         raise ValueError(
             f"{source}: Parquet schema is missing required column(s): {', '.join(missing)}"
         )
-    columns = sorted(_METHOD_REQUIRED_COLUMNS | {"description"})
+    columns = sorted(_METHOD_REQUIRED_COLUMNS | {"description", "code_snippet_url"})
     available = [column for column in columns if column in table.column_names]
     return table.select(available).to_pylist()
 
@@ -1034,6 +1044,7 @@ def _method_candidates(
                 else None,
                 "source_title": source_title or None,
                 "arxiv_id": arxiv_id,
+                "code_snippet_url": _optional_web_url(row.get("code_snippet_url")),
                 "num_papers": str(row.get("num_papers") or ""),
                 "collections": str(row.get("collections") or ""),
             }

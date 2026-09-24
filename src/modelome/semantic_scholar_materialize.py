@@ -19,11 +19,12 @@ import pyarrow.parquet as pq
 from modelome.lake import ParquetLandingZone
 
 _FORMAT = "modelome-semantic-scholar-projection-v2"
-_ALGORITHM = "sha256-corpus-bucket-stateful-join-v4"
+_ALGORITHM = "sha256-corpus-bucket-stateful-join-v5"
 _LEGACY_ALGORITHMS = frozenset(
     {
         "sha256-corpus-bucket-stateful-join-v2",
         "sha256-corpus-bucket-stateful-join-v3",
+        "sha256-corpus-bucket-stateful-join-v4",
     }
 )
 _DATASETS = ("papers", "abstracts", "paper-ids")
@@ -2483,6 +2484,13 @@ def _external_identifier_urls(external_ids: Mapping[str, Any]) -> list[dict[str,
             url = f"https://aclanthology.org/{quote(identifier, safe='./-')}/"
         elif normalized_key == "pubmed" and re.fullmatch(r"[1-9]\d*", identifier):
             url = f"https://pubmed.ncbi.nlm.nih.gov/{identifier}/"
+        elif normalized_key in {"pmcid", "pubmedcentral"} and re.fullmatch(
+            r"(?:PMC)?[1-9]\d*", identifier, re.IGNORECASE
+        ):
+            pmcid = identifier.upper()
+            if not pmcid.startswith("PMC"):
+                pmcid = f"PMC{pmcid}"
+            url = f"https://pmc.ncbi.nlm.nih.gov/articles/{pmcid}/"
         else:
             continue
         found.append({"locator": f"$.paper.externalids.{key}", "url": url})
