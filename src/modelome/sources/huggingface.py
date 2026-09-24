@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import quote, urljoin, urlsplit
 
-from modelome.http import HttpClient, HttpResponse
+from modelome.http import HttpClient, HttpFailure, HttpResponse
 from modelome.models import (
     ArtifactKind,
     Identifier,
@@ -312,16 +312,7 @@ class HuggingFaceSourceAdapter:
             scan_high = None
             response = self.client.get(
                 self.url,
-                params={
-                    "limit": self.page_size,
-                    "full": "true",
-                    "cardData": "true",
-                    # The Hub API excludes model configuration from `full`;
-                    # it is a separate opt-in (`config=true` in the REST API).
-                    "config": "true",
-                    "sort": "createdAt" if created_at_sweep else "lastModified",
-                    "direction": 1 if created_at_sweep else -1,
-                },
+                params=self._listing_params(created_at_sweep),
                 headers=headers,
             )
 
@@ -374,7 +365,9 @@ class HuggingFaceSourceAdapter:
                 reached_cutoff = True
                 break
             try:
-                records.append(self._record(item))
+                record = self._record(item)
+                if record is not None:
+                    records.append(record)
             except (KeyError, TypeError, ValueError) as error:
                 raw = dict(item)
                 issues.append(
@@ -472,6 +465,18 @@ class HuggingFaceSourceAdapter:
             issues=tuple(issues),
         )
 
+    def _listing_params(self, created_at_sweep: bool) -> Mapping[str, Any]:
+        return {
+            "limit": self.page_size,
+            "full": "true",
+            "cardData": "true",
+            # The Hub API excludes model configuration from `full`;
+            # it is a separate opt-in (`config=true` in the REST API).
+            "config": "true",
+            "sort": "createdAt" if created_at_sweep else "lastModified",
+            "direction": 1 if created_at_sweep else -1,
+        }
+
     def _fetch_revision_page(
         self, state: Mapping[str, Any], headers: Mapping[str, str]
     ) -> SourcePage:
@@ -532,10 +537,13 @@ class HuggingFaceSourceAdapter:
                     if not isinstance(entry, Mapping) or entry.get("type", "file") != "file":
                         continue
                     path = _text(entry.get("path") or entry.get("rfilename"))
-                    if (
-                        _safe_repo_filename(path)
-                        and _potential_weight_file(path)
-                    ):
+                    if _potential_weight_file(path):
+                        if not _safe_repo_filename(path):
+                            # The path looks like a checkpoint but cannot be
+                            # represented safely in checkpoint state/URLs.
+                            # Do not claim the file list is exhaustive.
+                            candidates_truncated = True
+                            continue
                         if path not in filenames:
                             path_bytes = len(path.encode("utf-8"))
                             if (
@@ -846,7 +854,7 @@ class HuggingFaceSourceAdapter:
             raise ValueError(f"{self.name}: pagination URL changed origin")
         return candidate
 
-    def _record(self, item: Mapping[str, Any]) -> SourceRecord:
+    def _record(self, item: Mapping[str, Any]) -> SourceRecord | None:
         repo_id = _text(item.get("id")) or _text(item.get("modelId"))
         if not repo_id:
             raise ValueError(f"{self.name}: model result is missing id")
@@ -1092,6 +1100,317 @@ class HuggingFaceSourceAdapter:
                 target=target,
                 locator=locator,
             )
+
+
+class HuggingFaceDatasetCheckpointSourceAdapter(HuggingFaceSourceAdapter):
+    """Enumerate public dataset repos and admit only explicit checkpoint files.
+
+    The Hub's global dataset listing does not reliably include repo siblings.
+    This adapter checkpoints the listing cursor and a bounded queue of repo IDs,
+    then fetches one repo detail response per page. It verifies the detail SHA
+    against the listing SHA before admitting any file identity.
+    """
+
+    coverage_limitation = (
+        "Covers checkpoint-looking files in public dataset repositories returned "
+        "by the unfiltered Hub dataset listing. Each repository is a candidate "
+        "model bundle only; dataset contents can include incidental checkpoints. "
+        "Private repos and files outside recognized weight formats are excluded."
+    )
+
+    def __init__(
+        self,
+        *,
+        name: str = "huggingface-dataset-checkpoints",
+        url: str = "https://huggingface.co/api/datasets",
+        page_size: int = 10,
+        created_at_sweep_interval_days: int = 30,
+        max_response_bytes: int = 16 * 1024 * 1024,
+        max_checkpoint_files: int = 10_000,
+        token: str | None = None,
+        client: HttpClient | Any | None = None,
+        clock: Clock = _utcnow,
+    ) -> None:
+        self.max_checkpoint_files = _positive_int(
+            max_checkpoint_files, "max_checkpoint_files"
+        )
+        super().__init__(
+            name=name,
+            url=url,
+            artifact_kind=ArtifactKind.WEIGHTS,
+            page_size=page_size,
+            overlap_days=2,
+            created_at_sweep_interval_days=created_at_sweep_interval_days,
+            max_response_bytes=max_response_bytes,
+            token=token,
+            include_private=False,
+            include_revisions=False,
+            client=client,
+            clock=clock,
+        )
+        self.checkpoint_signature = content_hash(
+            {
+                "adapter": "huggingface-dataset-checkpoints-v1",
+                "base_signature": self.checkpoint_signature,
+                "max_checkpoint_files": max_checkpoint_files,
+            }
+        )
+
+    def fetch_page(self, state: Mapping[str, Any]) -> SourcePage:
+        queue = _sequence(state.get("dataset_detail_queue"))
+        if not queue:
+            base_page = super().fetch_page(state)
+            queue = [
+                dict(record.raw)
+                for record in base_page.records
+                if record.raw.get("dataset_detail_pending") is True
+            ]
+            if not queue:
+                return base_page
+            next_state = {
+                "dataset_base_state": dict(base_page.next_state),
+                "dataset_detail_queue": queue,
+                "dataset_listing_complete": base_page.complete,
+                "dataset_upstream_count": base_page.upstream_count,
+            }
+            return SourcePage(
+                records=(),
+                next_state=next_state,
+                complete=False,
+                upstream_count=base_page.upstream_count,
+                issues=base_page.issues,
+            )
+
+        repo = queue[0]
+        if not isinstance(repo, Mapping):
+            raise ValueError(f"{self.name}: invalid dataset detail checkpoint")
+        repo_id = _hub_repo_id(repo.get("id"))
+        expected_sha = _text(repo.get("sha"))
+        if not repo_id or not re.fullmatch(r"[0-9a-f]{40}", expected_sha):
+            raise ValueError(f"{self.name}: invalid dataset detail checkpoint identity")
+        detail_url = f"https://huggingface.co/api/datasets/{quote(repo_id, safe='/')}"
+        headers = {"Accept": "application/json"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        issues: tuple[SourceIssue, ...] = ()
+        records: tuple[SourceRecord, ...] = ()
+        try:
+            response: HttpResponse = self.client.get(detail_url, headers=headers)
+        except HttpFailure as error:
+            if "exceeded" not in str(error) or "bytes" not in str(error):
+                raise
+            issues = (
+                self._detail_issue(
+                    repo_id,
+                    f"dataset detail exceeded the {self.max_response_bytes}-byte metadata limit",
+                ),
+            )
+            payload = None
+        else:
+            if response.status != 200:
+                raise ValueError(f"{self.name}: dataset detail returned HTTP {response.status}")
+            if len(response.body) > self.max_response_bytes:
+                issues = (
+                    self._detail_issue(
+                        repo_id,
+                        "dataset detail exceeded the "
+                        f"{self.max_response_bytes}-byte metadata limit",
+                    ),
+                )
+                payload = None
+            else:
+                payload = response.json()
+        if payload is None:
+            pass
+        elif not isinstance(payload, Mapping):
+            issues = (self._detail_issue(repo_id, "dataset detail is not a JSON object"),)
+        else:
+            detail_id = _hub_repo_id(payload.get("id"))
+            detail_sha = _text(payload.get("sha"))
+            if detail_id != repo_id:
+                issues = (self._detail_issue(repo_id, "dataset detail identity changed"),)
+            elif detail_sha != expected_sha:
+                issues = (
+                    SourceIssue(
+                        source_record_id=f"{repo_id}@{expected_sha}",
+                        stage="source_normalize",
+                        error="dataset detail revision changed during listing",
+                        summary={
+                            "listed_sha": expected_sha,
+                            "detail_sha": detail_sha or None,
+                            "file_inventory_status": "revision_drift_incomplete",
+                        },
+                    ),
+                )
+            elif not isinstance(payload.get("siblings"), Sequence) or isinstance(
+                payload.get("siblings"), (str, bytes, bytearray)
+            ):
+                issues = (self._detail_issue(repo_id, "dataset detail lacks file siblings"),)
+            else:
+                record = self._checkpoint_record(payload)
+                if record is not None:
+                    records = (record,)
+
+        remaining = [dict(value) for value in queue[1:] if isinstance(value, Mapping)]
+        base_state = dict(state.get("dataset_base_state") or {})
+        if remaining:
+            next_state = {
+                "dataset_base_state": base_state,
+                "dataset_detail_queue": remaining,
+                "dataset_listing_complete": state.get("dataset_listing_complete") is True,
+                "dataset_upstream_count": state.get("dataset_upstream_count"),
+            }
+            complete = False
+        else:
+            next_state = base_state
+            complete = state.get("dataset_listing_complete") is True
+        return SourcePage(
+            records=records,
+            next_state=next_state,
+            complete=complete,
+            upstream_count=state.get("dataset_upstream_count"),
+            issues=issues,
+            advance_on_source_issues=bool(issues),
+        )
+
+    def _detail_issue(self, repo_id: str, message: str) -> SourceIssue:
+        return SourceIssue(
+            source_record_id=f"{self.name}:{repo_id}",
+            stage="source_normalize",
+            error=message,
+            summary={"dataset_id": repo_id, "file_inventory_status": "incomplete"},
+        )
+
+    def _listing_params(self, created_at_sweep: bool) -> Mapping[str, Any]:
+        # Keep the global list unfiltered. It provides the SHA needed to verify
+        # the later detail call, but live list responses omit `siblings`.
+        return {
+            "limit": self.page_size,
+            "full": "true",
+            "sort": "createdAt" if created_at_sweep else "lastModified",
+            "direction": 1 if created_at_sweep else -1,
+        }
+
+    def _record(self, item: Mapping[str, Any]) -> SourceRecord:
+        repo_id = _hub_repo_id(item.get("id"))
+        if not repo_id:
+            raise ValueError(f"{self.name}: dataset result is missing a valid owner/repo id")
+        raw_revision = _text(item.get("sha"))
+        if not re.fullmatch(r"[0-9a-f]{40}", raw_revision):
+            raise ValueError(f"{self.name}: dataset result is missing a full commit SHA")
+        tags = [
+            _text(value)[:256]
+            for value in _sequence(item.get("tags"))[:100]
+            if _text(value)
+        ]
+        metadata = {
+            "id": repo_id,
+            "sha": raw_revision,
+            "dataset_detail_pending": True,
+            "gated": item.get("gated") is True,
+            "tags": tags,
+            "createdAt": _text(item.get("createdAt") or item.get("created_at"))[:128],
+            "lastModified": _text(item.get("lastModified") or item.get("last_modified"))[:128],
+        }
+        return SourceRecord(
+            source_record_id=f"{repo_id}@{raw_revision}:detail-queue",
+            kind=ArtifactKind.CATALOG_RECORD,
+            canonical_url=canonicalize_url(
+                f"https://huggingface.co/datasets/{quote(repo_id, safe='/')}"
+            ),
+            title=f"{repo_id} dataset file inventory queue",
+            raw=metadata,
+        )
+
+    def _checkpoint_record(self, item: Mapping[str, Any]) -> SourceRecord | None:
+        repo_id = _hub_repo_id(item.get("id"))
+        if not repo_id:
+            raise ValueError(f"{self.name}: dataset detail is missing a valid owner/repo id")
+        raw_revision = _text(item.get("sha"))
+        if not re.fullmatch(r"[0-9a-f]{40}", raw_revision):
+            raise ValueError(f"{self.name}: dataset detail is missing a full commit SHA")
+        siblings = _sequence(item.get("siblings"))
+        filenames = {
+            _text(sibling.get("rfilename"))
+            for sibling in siblings
+            if isinstance(sibling, Mapping) and _text(sibling.get("rfilename"))
+        }
+        weight_files = sorted(
+            filename
+            for filename in _safe_weight_file_candidates(tuple(filenames))
+            if _is_weight_file(filename, tuple(filenames))
+        )
+        if not weight_files:
+            return None
+        complete = len(weight_files) <= self.max_checkpoint_files
+        weight_files = weight_files[: self.max_checkpoint_files]
+        encoded_id = quote(repo_id, safe="/")
+        dataset_url = canonicalize_url(f"https://huggingface.co/datasets/{encoded_id}")
+        model_local_id = f"{repo_id}#dataset-checkpoint-bundle"
+        checkpoint_id = f"{repo_id}@{raw_revision}"
+        links = tuple(
+            Link(
+                canonicalize_url(
+                    f"https://huggingface.co/datasets/{encoded_id}/resolve/"
+                    f"{raw_revision}/{quote(filename, safe='/')}"
+                ),
+                relation="weights",
+                locator="$.siblings",
+                crawl=False,
+            )
+            for filename in weight_files
+        )
+        tags = tuple(_text(value) for value in _sequence(item.get("tags")) if _text(value))
+        raw = {
+            "id": repo_id,
+            "sha": raw_revision,
+            "repo_type": "dataset",
+            "gated": item.get("gated") is True,
+            "weight_files": weight_files,
+            "weight_files_complete": complete,
+            "tags": list(tags),
+        }
+        return SourceRecord(
+            source_record_id=checkpoint_id,
+            kind=ArtifactKind.WEIGHTS,
+            canonical_url=dataset_url,
+            title=f"{repo_id} checkpoint bundle",
+            raw=raw,
+            text="tags: " + ", ".join(tags) if tags else "",
+            published_at=_text(item.get("createdAt") or item.get("created_at")) or None,
+            modified_at=_text(item.get("lastModified") or item.get("last_modified")) or None,
+            identifiers=(Identifier("huggingface:dataset", repo_id),),
+            links=links,
+            models=(
+                ModelHint(
+                    local_id=model_local_id,
+                    name=f"{repo_id} checkpoint bundle",
+                    identifiers=(
+                        Identifier("huggingface:dataset-checkpoint-candidate", repo_id),
+                    ),
+                    status=ModelStatus.CANDIDATE,
+                    locator="$.siblings",
+                ),
+            ),
+            releases=(
+                ReleaseHint(
+                    local_id=f"{repo_id}#dataset-release:{raw_revision}",
+                    model_local_id=model_local_id,
+                    revision=raw_revision,
+                    identifiers=(
+                        Identifier("huggingface:dataset-revision", checkpoint_id),
+                    ),
+                    released_at=_text(item.get("lastModified") or item.get("last_modified"))
+                    or None,
+                    metadata={
+                        "repo_type": "dataset",
+                        "weight_files": weight_files,
+                        "weight_files_complete": complete,
+                    },
+                    locator="$.sha",
+                ),
+            ),
+        )
 
 
 def _named_values(value: Any, locator: str) -> list[tuple[str, str]]:

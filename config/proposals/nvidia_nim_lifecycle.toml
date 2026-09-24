@@ -1,0 +1,16 @@
+# NVIDIA's public AI Enterprise lifecycle notices include exact named NIM
+# components in deprecated and immediate end-of-support tables. These are
+# product/component identities; this source does not infer a NIM serving ID.
+# The page is a lifecycle snapshot, not a complete NIM catalog.
+#
+# Verified source: https://docs.nvidia.com/ai-enterprise/lifecycle/latest/eol-notices.html
+[[source]]
+name = "nvidia-ai-enterprise-nim-lifecycle"
+adapter = "nvidia_nim_lifecycle"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:nvidia-nim", "kind:hosted-model-component", "evidence:provider-lifecycle-history"]
+url = "https://docs.nvidia.com/ai-enterprise/lifecycle/latest/eol-notices.html"
+provider_namespace = "nvidia:ai-enterprise-component"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 200

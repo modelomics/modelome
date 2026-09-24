@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 from xml.etree import ElementTree
 
 import pyarrow as pa
@@ -1035,6 +1035,20 @@ def _evaluation_model_identifier_from_url(value: str) -> Identifier | None:
         and _KAGGLE_VERSION.fullmatch(path_segments[1])
     ):
         return Identifier("zenodo:record", path_segments[1])
+    if (
+        host in {"modelscope.cn", "www.modelscope.cn"}
+        and len(path_segments) >= 3
+        and path_segments[0] == "models"
+    ):
+        owner, model = (unquote(segment) for segment in path_segments[1:3])
+        if (
+            owner
+            and model
+            and "/" not in owner
+            and "/" not in model
+            and not any(character.isspace() for character in (owner + model))
+        ):
+            return Identifier("modelscope:model", f"{owner}/{model}")
     if host not in {"kaggle.com", "www.kaggle.com"}:
         return None
     segments = path_segments

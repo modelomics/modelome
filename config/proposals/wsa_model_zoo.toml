@@ -1,0 +1,14 @@
+# WSA's official README model zoo lists two pretrained and four benchmark-tuned
+# WSA policy checkpoints with exact Hugging Face refs.
+[[source]]
+name = "wsa-model-zoo"
+adapter = "wsa_model_zoo"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:wsa", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 8
+
+# Primary first-party table: https://github.com/zaleni/WSA/blob/main/README.md
+# Direct model refs are zaleni/WSA-Base, WSA-Base-RoboTwin, WSA-Base-LIBERO,
+# WSA-Large, WSA-Large-RoboTwin, and WSA-Large-LIBERO.

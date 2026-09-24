@@ -1,0 +1,16 @@
+# The U-TILISE README names three released .pth checkpoints. Its first-party
+# download script links a public directory index; the adapter parses only that
+# HTML listing and never downloads checkpoint bytes.
+[[source]]
+name = "prs-eth-u-tilise-checkpoints"
+adapter = "utile_checkpoint_registry"
+enabled = false
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:prs-eth-u-tilise", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+max_response_bytes = 1048576
+
+[evidence]
+model_inventory = "https://github.com/prs-eth/U-TILISE"
+directory_index = "https://share.phys.ethz.ch/~pf/stuckercdata/u-tilise/checkpoints/"
+download_script = "https://github.com/prs-eth/U-TILISE/blob/main/scripts/download_checkpoints.sh"
+checkpoint_scope = "Three README-declared .pth filenames only; fetches HTML index metadata, not weight bytes"

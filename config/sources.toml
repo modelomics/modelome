@@ -7735,3 +7735,245 @@ token_env = "OPENROUTER_API_KEY"
 schedule = "daily"
 max_response_bytes = 16777216
 max_models = 100000
+
+# RFdiffusion2's installer lists direct model checkpoint assets and helper weights.
+[[source]]
+name = "rfdiffusion2-checkpoints"
+adapter = "rfdiffusion2_checkpoint_registry"
+enabled = true
+repository = "RosettaCommons/RFdiffusion2"
+branch = "main"
+max_source_bytes = 524288
+max_entries = 32
+schedule = "monthly"
+
+# First-party manifest: https://github.com/RosettaCommons/RFdiffusion2/blob/main/setup.py
+# Records only model_weights/*.pt. Third-party LigandMPNN weights and SIF containers
+# in the same installer are excluded; checkpoint bytes are never fetched.
+
+# Eight exact checkpoint URLs listed by OpenAI in its improved-diffusion README.
+# Metadata only; the adapter never downloads checkpoint bytes.
+[[source]]
+name = "openai-improved-diffusion-checkpoints"
+adapter = "openai_improved_diffusion_checkpoints"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:openai", "model-family:improved-diffusion", "kind:checkpoint", "evidence:first-party-checkpoint-download-list"]
+repository = "openai/improved-diffusion"
+branch = "main"
+document_path = "README.md"
+max_response_bytes = 4194304
+max_checkpoints = 100
+
+# The U-TILISE README names three released .pth checkpoints. Its first-party
+# download script links a public directory index; the adapter parses only that
+# HTML listing and never downloads checkpoint bytes.
+[[source]]
+name = "prs-eth-u-tilise-checkpoints"
+adapter = "utile_checkpoint_registry"
+enabled = true
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:prs-eth-u-tilise", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+max_response_bytes = 1048576
+
+# NVIDIA's public AI Enterprise lifecycle notices include exact named NIM
+# components in deprecated and immediate end-of-support tables. These are
+# product/component identities; this source does not infer a NIM serving ID.
+# The page is a lifecycle snapshot, not a complete NIM catalog.
+#
+# Verified source: https://docs.nvidia.com/ai-enterprise/lifecycle/latest/eol-notices.html
+[[source]]
+name = "nvidia-ai-enterprise-nim-lifecycle"
+adapter = "nvidia_nim_lifecycle"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:nvidia-nim", "kind:hosted-model-component", "evidence:provider-lifecycle-history"]
+url = "https://docs.nvidia.com/ai-enterprise/lifecycle/latest/eol-notices.html"
+provider_namespace = "nvidia:ai-enterprise-component"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 200
+
+# WSA's official README model zoo lists two pretrained and four benchmark-tuned
+# WSA policy checkpoints with exact Hugging Face refs.
+[[source]]
+name = "wsa-model-zoo"
+adapter = "wsa_model_zoo"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:wsa", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 8
+
+# Primary first-party table: https://github.com/zaleni/WSA/blob/main/README.md
+# Direct model refs are zaleni/WSA-Base, WSA-Base-RoboTwin, WSA-Base-LIBERO,
+# WSA-Large, WSA-Large-RoboTwin, and WSA-Large-LIBERO.
+
+# Enumerates the official ULTRA repository's four named checkpoint files from
+# the pinned GitHub contents API. Three base models also have HF mirrors.
+[[source]]
+name = "deepgraphlearning-ultra-checkpoint-files"
+adapter = "ultra_checkpoint_files"
+enabled = true
+entry_tags = ["field:graph-machine-learning", "field:knowledge-graphs", "ecosystem:ultra", "model-family:ultra-gnn", "kind:checkpoint"]
+repository = "DeepGraphLearning/ULTRA"
+branch = "main"
+provider_namespace = "deepgraphlearning-ultra:checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100000
+
+# Google AI's release notes document this exact retired preview endpoint, which
+# is absent from the current Gemini deprecation table. Keep the archive
+# evidence source disabled and identity-only.
+[[source]]
+name = "google-gemini-retired-2025-11-14-flash-exp-image-generation"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:google-gemini", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history", "lifecycle:retired", "retired-on:2025-11-14"]
+url = "https://ai.google.dev/gemini-api/docs/changelog"
+provider_namespace = "google:gemini-api-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 100
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '\b(?P<name>gemini-2[.]0-flash-exp-image-generation)\b'
+identity_source = "name"
+require_url = false
+
+# Opt-in catalog of xAI publisher models managed by Vertex AI Model Garden.
+# The request is scoped to the public `publishers/xai` publisher, not
+# project-owned tuned models or deployed endpoints. `listAllVersions` exposes
+# PublisherModel versions; the adapter retains exact version identity as
+# name@versionId. This covers Google-hosted Grok offerings, not xAI's full API.
+# References:
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models/list
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1beta1/publishers.models
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/grok/grok-4-6
+# https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/grok/capabilities/function-calling
+[[source]]
+name = "vertex-model-garden-xai-publisher"
+adapter = "json_catalog"
+enabled = true
+activation_env = "VERTEX_AI_ACCESS_TOKEN"
+entry_tags = ["field:machine-learning", "ecosystem:xai", "ecosystem:google-vertex-ai", "kind:hosted-model-offering", "evidence:provider-catalog"]
+url = "https://us-central1-aiplatform.googleapis.com/v1beta1/publishers/xai/models?listAllVersions=true"
+provider_namespace = "google:vertex-model-garden"
+model_card_url_template = "https://us-central1-aiplatform.googleapis.com/v1beta1/{id_path}"
+model_page_crawl = false
+model_status = "documented"
+auth_env = "VERTEX_AI_ACCESS_TOKEN"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+headers = { "x-goog-user-project" = "${GOOGLE_CLOUD_PROJECT}" }
+cursor_param = "pageToken"
+page_size = 100
+page_size_param = "pageSize"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "publisherModels"
+id_path = "name"
+name_path = "name"
+version_path = "versionId"
+release_id_template = "{id}@{version}"
+next_cursor_path = "nextPageToken"
+
+# sherpa-onnx maintains a finite release asset inventory for its text-to-speech
+# model archives; the release contains far more models than the docs examples.
+# The adapter reads only release metadata and does not download archive bytes.
+# First-party model list: https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models
+# Documentation index: https://github.com/k2-fsa/sherpa/blob/master/docs/source/onnx/tts/pretrained_models/index.rst
+[[source]]
+name = "sherpa-tts-model-release"
+adapter = "sherpa_tts_model_release"
+enabled = true
+entry_tags = ["field:speech", "task:text-to-speech", "ecosystem:sherpa-onnx", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 16777216
+max_assets = 1000
+
+# Optional SageMakerPublicHub version enumeration. The caller must inject an
+# AWS-signed SageMaker client for the region and principal being inspected.
+# This is account-visible public-hub metadata, not an anonymous global census.
+[[source]]
+name = "aws-sagemaker-jumpstart-versions"
+adapter = "aws_sagemaker_jumpstart_versions"
+enabled = true
+activation_env = "MODELOME_SAGEMAKER_PUBLIC_HUB_REGION"
+region = "${MODELOME_SAGEMAKER_PUBLIC_HUB_REGION}"
+entry_tags = ["field:machine-learning", "ecosystem:aws-sagemaker-jumpstart", "kind:hosted-model-version"]
+schedule = "weekly"
+page_size = 50
+max_versions_per_model = 10000
+max_records_per_page = 20000
+
+
+# timm v0.6.13 explicitly declared 19 ResNetV2 pretrained URLs, including
+# Google BiT and distillation checkpoints. Current main no longer includes
+# these direct references in its ResNetV2 pretrained configs.
+[[source]]
+name = "timm-legacy-resnetv2-v0613"
+adapter = "timm_legacy_resnetv2"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:timm", "kind:checkpoint"]
+repository = "huggingface/pytorch-image-models"
+tag = "v0.6.13"
+schedule = "weekly"
+
+
+# The first-party Zatom README currently documents 24 individual checkpoint
+# commands pointing to exact files in one public Zenodo record.
+[[source]]
+name = "zatom-checkpoints"
+adapter = "zatom_checkpoint_registry"
+enabled = true
+repository = "Zatom-AI/zatom"
+branch = "main"
+source_path = "README.md"
+zenodo_record = "19766997"
+entry_tags = ["field:computational-chemistry", "ecosystem:zatom", "model-family:zatom-1", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_entries = 100
+
+# Coverage follows only literal .ckpt wget commands in the README's bounded
+# Checkpoints section. It excludes result archives and does not fetch weights.
+
+
+# Zenodo record 19766997 enumerates 26 checkpoint file objects. Compared with
+# the README's 24 explicit checkpoint commands, it includes two record-only
+# files; file names, content URLs, and MD5 values come from Zenodo metadata.
+[[source]]
+name = "zatom-zenodo-checkpoint-record"
+adapter = "zatom_zenodo_checkpoint_record"
+enabled = true
+record_id = "19766997"
+record_url = "https://zenodo.org/records/19766997"
+metadata_url = "https://zenodo.org/api/records/19766997"
+entry_tags = ["field:computational-chemistry", "ecosystem:zatom", "model-family:zatom-1", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_entries = 100
+
+# Record-only files: platom_1_joint_pretraining_paper_weights.ckpt and
+# zatom_1_from_omol25_mol_prop_pred_paper_weights.ckpt. Each checkpoint's
+# Zenodo MD5 and exact API content URL are retained; no bytes are fetched.
+
+
+# Unfiltered public dataset listing, followed by SHA-verified repo detail calls
+# for exact checkpoint file names. Dataset repos remain candidate bundles.
+[[source]]
+name = "huggingface-dataset-checkpoints"
+adapter = "huggingface_dataset_checkpoints"
+enabled = true
+entry_tags = ["ecosystem:huggingface", "kind:dataset-checkpoint-candidate"]
+url = "https://huggingface.co/api/datasets"
+schedule = "weekly"
+page_size = 10
+created_at_sweep_interval_days = 30
+max_response_bytes = 16777216
+max_checkpoint_files = 10000

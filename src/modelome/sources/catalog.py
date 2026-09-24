@@ -24,6 +24,7 @@ from modelome.sources.astronn_gaia_release import AstroNNGaiaReleaseSourceAdapte
 from modelome.sources.atari_pb_checkpoints import AtariPbCheckpointAdapter
 from modelome.sources.audio_extra import CoquiTtsRegistrySourceAdapter
 from modelome.sources.aws_bedrock_region_matrix import AwsBedrockRegionMatrixAdapter
+from modelome.sources.aws_sagemaker_client import create_signed_sagemaker_client
 from modelome.sources.aws_sagemaker_jumpstart_versions import (
     AwsSageMakerJumpStartVersionsSourceAdapter,
 )
@@ -112,7 +113,10 @@ from modelome.sources.groundingdino_checkpoints import GroundingDINOCheckpointSo
 from modelome.sources.grover_registry import GroverCheckpointRegistrySourceAdapter
 from modelome.sources.hal import HalSourceAdapter
 from modelome.sources.html_catalog import HtmlCatalogSourceAdapter
-from modelome.sources.huggingface import HuggingFaceSourceAdapter
+from modelome.sources.huggingface import (
+    HuggingFaceDatasetCheckpointSourceAdapter,
+    HuggingFaceSourceAdapter,
+)
 from modelome.sources.jax_extra_registry import JaxExtraRegistrySourceAdapter
 from modelome.sources.jax_registry import JaxRegistrySourceAdapter
 from modelome.sources.json_catalog import JsonCatalogSourceAdapter
@@ -161,6 +165,7 @@ from modelome.sources.nnunet_zenodo_bundles import NnUNetZenodoBundleRegistryAda
 from modelome.sources.nvidia_cosmos3_checkpoints import NvidiaCosmos3CheckpointSourceAdapter
 from modelome.sources.nvidia_earth2 import NvidiaEarth2SourceAdapter
 from modelome.sources.nvidia_groot_n17_checkpoints import NvidiaGR00TN17CheckpointSourceAdapter
+from modelome.sources.nvidia_nim_lifecycle import NvidiaNimLifecycle
 from modelome.sources.ocp_model_registry import OCPModelRegistrySourceAdapter
 from modelome.sources.octo_checkpoints import OctoCheckpointSourceAdapter
 from modelome.sources.ollama_library_tags import OllamaLibraryTagCatalogAdapter
@@ -169,6 +174,9 @@ from modelome.sources.open_x_rt1x_checkpoint import OpenXRT1XCheckpointSourceAda
 from modelome.sources.openai_gpt2_checkpoints import OpenAIGPT2CheckpointSourceAdapter
 from modelome.sources.openai_guided_diffusion_checkpoints import (
     OpenAIGuidedDiffusionCheckpointSourceAdapter,
+)
+from modelome.sources.openai_improved_diffusion_checkpoints import (
+    OpenAIImprovedDiffusionCheckpointSourceAdapter,
 )
 from modelome.sources.openai_models import OpenAIModelsSourceAdapter
 from modelome.sources.openaire import OpenAireGraphSourceAdapter
@@ -236,6 +244,7 @@ from modelome.sources.pyg_schnet_qm9_registry import PyGSchNetQM9RegistrySourceA
 from modelome.sources.pytorch_hub_load_calls import PyTorchHubLoadCallSourceAdapter
 from modelome.sources.qualcomm_ai_hub_models import QualcommAIHubModelsSourceAdapter
 from modelome.sources.replicate import ReplicateModelsSourceAdapter
+from modelome.sources.rfdiffusion2_registry import RFDiffusion2CheckpointRegistryAdapter
 from modelome.sources.rfdiffusion_registry import RFDiffusionCheckpointSourceAdapter
 from modelome.sources.rl_checkpoint_indexes import RlClarityCheckpointIndexAdapter
 from modelome.sources.rl_checkpoints_extra import DiffusionPolicyCheckpointIndexAdapter
@@ -247,6 +256,7 @@ from modelome.sources.sdss_ssl_checkpoints import SdssSslCheckpointsSourceAdapte
 from modelome.sources.semantic_scholar import SemanticScholarDatasetSourceAdapter
 from modelome.sources.sherpa_audio_tagging import SherpaAudioTaggingSourceAdapter
 from modelome.sources.sherpa_source_separation import SherpaSourceSeparationSourceAdapter
+from modelome.sources.sherpa_tts_model_release import SherpaTtsModelReleaseSourceAdapter
 from modelome.sources.software_heritage import SoftwareHeritageOriginSourceAdapter
 from modelome.sources.spacy_models import SpacyModelsSourceAdapter
 from modelome.sources.ssl4eo_s12_drive_checkpoints import (
@@ -267,6 +277,7 @@ from modelome.sources.tensorflow_garden import TensorFlowGardenSourceAdapter
 from modelome.sources.tensorflow_hub_archive import TensorFlowHubArchiveSourceAdapter
 from modelome.sources.tensorflow_tpu_efficientnet import TensorFlowTPUEfficientNetSourceAdapter
 from modelome.sources.timm_legacy_poolformer import TimmLegacyPoolFormerSourceAdapter
+from modelome.sources.timm_legacy_resnetv2 import TimmLegacyResNetV2SourceAdapter
 from modelome.sources.timm_model_registry import TimmModelRegistrySourceAdapter
 from modelome.sources.torch_hub_extra import TorchHubListingSourceAdapter
 from modelome.sources.torchaudio_pipeline_registry import (
@@ -281,16 +292,23 @@ from modelome.sources.torchvision_weight_registry import (
 )
 from modelome.sources.torchxrayvision_registry import TorchXRayVisionRegistrySourceAdapter
 from modelome.sources.transformer_m_checkpoints import TransformerMCheckpointSourceAdapter
+from modelome.sources.ultra_checkpoint_files import UltraCheckpointFilesSourceAdapter
 from modelome.sources.ultralytics_release_checkpoints import (
     UltralyticsReleaseCheckpointSourceAdapter,
 )
 from modelome.sources.unimol_checkpoint import UniMolCheckpointSourceAdapter
+from modelome.sources.utile_checkpoint_registry import UTilizeCheckpointRegistrySourceAdapter
 from modelome.sources.vq_diffusion import MicrosoftVqDiffusionCheckpointManifestSourceAdapter
 from modelome.sources.weathernext2_checkpoint_registry import (
     WeatherNext2CheckpointRegistrySourceAdapter,
 )
 from modelome.sources.wenet_model_zoo import WenetPretrainedModelSourceAdapter
+from modelome.sources.wsa_model_zoo import WSAModelZooSourceAdapter
 from modelome.sources.yolox_model_zoo import YOLOXModelZooSourceAdapter
+from modelome.sources.zatom_checkpoint_registry import ZatomCheckpointRegistrySourceAdapter
+from modelome.sources.zatom_zenodo_checkpoint_record import (
+    ZatomZenodoCheckpointRecordSourceAdapter,
+)
 from modelome.sources.zenodo import ZenodoModelRecordsSourceAdapter
 from modelome.sources.zenodo_oai_candidates import ZenodoOaiModelCandidatesSourceAdapter
 
@@ -1515,11 +1533,15 @@ def create_source(
         )
 
     if adapter == "aws_sagemaker_jumpstart_versions":
-        if client is None:
-            raise ValueError(f"{name}: an injected signed SageMaker client is required")
+        sagemaker_client = client
+        if sagemaker_client is None or isinstance(sagemaker_client, HttpClient):
+            sagemaker_client = create_signed_sagemaker_client(
+                region_name=_text(expanded.get("region")) or None,
+                environ=environment,
+            )
         return AwsSageMakerJumpStartVersionsSourceAdapter(
             name=name,
-            client=client,
+            client=sagemaker_client,
             page_size=_integer(expanded.get("page_size"), 50),
             max_versions_per_model=_integer(expanded.get("max_versions_per_model"), 10_000),
             max_records_per_page=_integer(expanded.get("max_records_per_page"), 20_000),
@@ -1806,6 +1828,17 @@ def create_source(
             "bpemb_pretrained_vector_registry",
             "piper_voice_catalog",
             "openrouter_video",
+            "rfdiffusion2_checkpoint_registry",
+            "openai_improved_diffusion_checkpoints",
+            "utile_checkpoint_registry",
+            "nvidia_nim_lifecycle",
+            "sherpa_tts_model_release",
+            "wsa_model_zoo",
+            "ultra_checkpoint_files",
+            "timm_legacy_resnetv2",
+            "zatom_checkpoint_registry",
+            "zatom_zenodo_checkpoint_record",
+            "huggingface_dataset_checkpoints",
         }
         else _required_text(expanded, "url")
     )
@@ -1915,6 +1948,24 @@ def create_source(
             created_at_sweep_interval_days=_nonnegative_integer(
                 expanded.get("created_at_sweep_interval_days"), 0
             ),
+            **injected,
+        )
+
+    if adapter == "huggingface_dataset_checkpoints":
+        return HuggingFaceDatasetCheckpointSourceAdapter(
+            name=name,
+            url=(
+                _text(expanded.get("url"))
+                or "https://huggingface.co/api/datasets"
+            ),
+            page_size=_integer(expanded.get("page_size"), 10),
+            created_at_sweep_interval_days=_nonnegative_integer(
+                expanded.get("created_at_sweep_interval_days"), 30
+            ),
+            max_response_bytes=_integer(
+                expanded.get("max_response_bytes"), 16 * 1024 * 1024
+            ),
+            max_checkpoint_files=_integer(expanded.get("max_checkpoint_files"), 10_000),
             **injected,
         )
 
@@ -3031,6 +3082,100 @@ def create_source(
             max_pages_per_family=_integer(expanded.get("max_pages_per_family"), 100),
             max_anchors_per_page=_integer(expanded.get("max_anchors_per_page"), 100_000),
             client=injected["client"],
+        )
+
+    if adapter == "rfdiffusion2_checkpoint_registry":
+        return RFDiffusion2CheckpointRegistryAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "RosettaCommons/RFdiffusion2",
+            branch=_text(expanded.get("branch")) or "main",
+            max_source_bytes=_integer(expanded.get("max_source_bytes"), 512 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 32),
+            **injected,
+        )
+
+    if adapter == "openai_improved_diffusion_checkpoints":
+        return OpenAIImprovedDiffusionCheckpointSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "openai/improved-diffusion",
+            branch=_text(expanded.get("branch")) or "main",
+            document_path=_text(expanded.get("document_path")) or "README.md",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_checkpoints=_integer(expanded.get("max_checkpoints"), 100),
+            client=injected["client"],
+        )
+
+    if adapter == "utile_checkpoint_registry":
+        return UTilizeCheckpointRegistrySourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "nvidia_nim_lifecycle":
+        return NvidiaNimLifecycle(
+            name=name,
+            url=_text(expanded.get("url"))
+            or "https://docs.nvidia.com/ai-enterprise/lifecycle/latest/eol-notices.html",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 200),
+            client=injected["client"],
+        )
+
+    if adapter == "sherpa_tts_model_release":
+        return SherpaTtsModelReleaseSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(
+                expanded.get("max_response_bytes"), 16 * 1024 * 1024
+            ),
+            max_assets=_integer(expanded.get("max_assets"), 1000),
+            **injected,
+        )
+
+    if adapter == "wsa_model_zoo":
+        return WSAModelZooSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 8),
+            **injected,
+        )
+
+    if adapter == "ultra_checkpoint_files":
+        return UltraCheckpointFilesSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "DeepGraphLearning/ULTRA",
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_text(expanded.get("source_path")) or "ckpts",
+            provider_namespace=_text(expanded.get("provider_namespace"))
+            or "deepgraphlearning-ultra:checkpoint",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100_000),
+            **injected,
+        )
+
+    if adapter == "timm_legacy_resnetv2":
+        return TimmLegacyResNetV2SourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository"))
+            or "huggingface/pytorch-image-models",
+            tag=_text(expanded.get("tag")) or "v0.6.13",
+            **injected,
+        )
+
+    if adapter == "zatom_checkpoint_registry":
+        return ZatomCheckpointRegistrySourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "zatom_zenodo_checkpoint_record":
+        return ZatomZenodoCheckpointRecordSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
         )
 
     raise ValueError(f"{name}: unknown source adapter {adapter!r}")

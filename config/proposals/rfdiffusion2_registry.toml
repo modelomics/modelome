@@ -1,0 +1,14 @@
+# RFdiffusion2's installer lists direct model checkpoint assets and helper weights.
+[[source]]
+name = "rfdiffusion2-checkpoints"
+adapter = "rfdiffusion2_checkpoint_registry"
+enabled = false
+repository = "RosettaCommons/RFdiffusion2"
+branch = "main"
+max_source_bytes = 524288
+max_entries = 32
+schedule = "monthly"
+
+# First-party manifest: https://github.com/RosettaCommons/RFdiffusion2/blob/main/setup.py
+# Records only model_weights/*.pt. Third-party LigandMPNN weights and SIF containers
+# in the same installer are excluded; checkpoint bytes are never fetched.

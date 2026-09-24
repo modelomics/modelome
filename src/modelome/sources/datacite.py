@@ -665,6 +665,11 @@ def _related_url(identifier: Any, identifier_type: Any) -> str:
         return canonicalize_url(f"https://doi.org/{quote(doi, safe='/():._-')}") if doi else ""
     if category in {"url", "purl", "w3id"}:
         return _safe_url(value)
+    if category == "swhid" and _is_swhid(value):
+        return _safe_url(
+            "https://archive.softwareheritage.org/"
+            + quote(value, safe=":;=,&%._~+-/")
+        )
     if category == "pmid" and value.isascii() and value.isdigit():
         return canonicalize_url(f"https://pubmed.ncbi.nlm.nih.gov/{value}/")
     if category == "arxiv":
@@ -692,6 +697,34 @@ def _related_url(identifier: Any, identifier_type: Any) -> str:
     if category in {"ark", "urn"}:
         return canonicalize_url(f"https://n2t.net/{quote(value, safe=':._-/')}")
     return ""
+
+
+def _is_swhid(value: str) -> bool:
+    """Accept a core SWHID and syntactically safe standard qualifiers."""
+
+    if len(value) > 2_048 or any(character.isspace() for character in value):
+        return False
+    pieces = value.split(";")
+    if re.fullmatch(r"swh:1:(?:cnt|dir|rev|rel|snp):[0-9a-f]{40}", pieces[0]) is None:
+        return False
+    allowed_qualifiers = {"anchor", "lines", "origin", "path", "visit"}
+    seen: set[str] = set()
+    for piece in pieces[1:]:
+        key, separator, qualifier = piece.partition("=")
+        if not separator or key not in allowed_qualifiers or key in seen or not qualifier:
+            return False
+        seen.add(key)
+        index = 0
+        while index < len(qualifier):
+            if qualifier[index] == "%":
+                if re.match(r"[0-9a-fA-F]{2}", qualifier[index + 1 :]) is None:
+                    return False
+                index += 3
+                continue
+            if re.fullmatch(r"[A-Za-z0-9._~:/+-]", qualifier[index]) is None:
+                return False
+            index += 1
+    return True
 
 
 def _relation_name(value: Any) -> str:

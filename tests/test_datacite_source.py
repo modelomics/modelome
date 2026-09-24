@@ -473,6 +473,39 @@ def test_related_item_doi_and_alternate_identifiers_preserve_explicit_identity()
     )
 
 
+def test_swhid_related_identifier_resolves_to_exact_software_heritage_object() -> None:
+    swhid = "swh:1:rev:2db189928c94d62a3b4757b3eec68f0a4d4113f0"
+    item = resource()
+    item["attributes"]["relatedIdentifiers"] = [
+        {
+            "relatedIdentifier": swhid,
+            "relatedIdentifierType": "SWHID",
+            "relationType": "IsSupplementedBy",
+            "resourceTypeGeneral": "Software",
+        },
+        {
+            "relatedIdentifier": "swh:1:rev:not-a-hash",
+            "relatedIdentifierType": "SWHID",
+            "relationType": "IsSupplementedBy",
+            "resourceTypeGeneral": "Software",
+        },
+    ]
+
+    page = adapter(QueuedClient(response([item], total=1))).fetch_page({})
+
+    record = page.records[0]
+    swh_link = next(
+        link
+        for link in record.links
+        if link.url.startswith("https://archive.softwareheritage.org/swh:")
+    )
+    assert swh_link.url == f"https://archive.softwareheritage.org/{swhid}"
+    assert swh_link.relation == "is_supplemented_by"
+    assert swh_link.locator == "$.attributes.relatedIdentifiers[0].relatedIdentifier"
+    assert not any("not-a-hash" in link.url for link in record.links)
+    assert record.models == ()
+
+
 def test_datacite_bridges_only_related_dois_marked_identical() -> None:
     item = resource()
     item["attributes"]["relatedIdentifiers"] = [

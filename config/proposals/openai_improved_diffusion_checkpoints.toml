@@ -1,0 +1,12 @@
+# Eight exact checkpoint URLs listed by OpenAI in its improved-diffusion README.
+# Metadata only; the adapter never downloads checkpoint bytes.
+[[source]]
+name = "openai-improved-diffusion-checkpoints"
+adapter = "openai_improved_diffusion_checkpoints"
+enabled = false
+entry_tags = ["field:computer-vision", "ecosystem:openai", "model-family:improved-diffusion", "kind:checkpoint", "evidence:first-party-checkpoint-download-list"]
+repository = "openai/improved-diffusion"
+branch = "main"
+document_path = "README.md"
+max_response_bytes = 4194304
+max_checkpoints = 100

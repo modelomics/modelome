@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **429 enabled
-source entries** (407 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **443 enabled
+source entries** (419 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -99,6 +99,24 @@ Vertex publisher catalogs for DeepSeek, Meta, and OpenAI are available when
 the caller supplies Google Cloud credentials. OpenRouter's separate video-model
 list is available when the caller supplies its API key; it reports current
 routing availability, not historical models.
+The Hugging Face dataset checkpoint frontier also walks the unfiltered public
+dataset listing. It checks each repository's detail response against the listed
+commit SHA before retaining files with explicit weight formats. A dataset
+repository is a candidate checkpoint bundle, not proof that its files are
+trained models; missing file lists and changed revisions are reported as
+incomplete. This can require one detail request per listed dataset.
+Further exact checkpoint inventories cover RFdiffusion2 (2 weights), OpenAI
+improved-diffusion (8), U-TILISE (3), WSA (6), ULTRA (4), timm's historical
+ResNetV2 registry (19), and Zatom. Zatom's README declares 24 checkpoints;
+its Zenodo record lists 26, and shared identifiers join the 24 overlaps while
+retaining the two record-only files. Sherpa's paginated TTS release asset
+inventory currently lists 635 model archives. The NVIDIA NIM and Gemini
+historical notices add exact lifecycle identities without implying that their
+endpoints are still available. Vertex Model Garden's xAI publisher catalog
+requires a Google Cloud token. A separate SageMaker Public Hub version source
+requires `MODELOME_SAGEMAKER_PUBLIC_HUB_REGION`, AWS credentials, and the
+optional `aws` dependency; it reports the versions visible to that principal
+in that region, not a global inventory.
 The GitLab adapter scans public project release metadata one request per page and emits
 low-confidence model-file candidates. The Cohere and Mistral Models API proposals
 remain opt-in because their authenticated lists can include caller-owned models.

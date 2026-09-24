@@ -12,10 +12,12 @@ from __future__ import annotations
 import ast
 import re
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import Any
+from urllib.parse import urlsplit
 
 from modelome.http import HttpResponse
-from modelome.models import SourcePage
+from modelome.models import SourcePage, SourceRecord
 from modelome.normalize import content_hash
 from modelome.sources.static_json_checkpoint_registry import (
     StaticJsonCheckpointRegistrySourceAdapter,
@@ -142,6 +144,34 @@ class StaticPythonCheckpointRegistrySourceAdapter(
 
     def _model_name(self, handle: str) -> str:
         return handle
+
+    def _record(
+        self,
+        checkpoint: _Checkpoint,
+        revision: str,
+        source: bytes,
+    ) -> SourceRecord:
+        record = super()._record(checkpoint, revision, source)
+        parts = urlsplit(checkpoint.url).path.rstrip("/").split("/")
+        digest = parts[-2] if len(parts) >= 2 else ""
+        if re.fullmatch(r"[0-9a-fA-F]{64}", digest) is None:
+            return record
+        checksum = {
+            "algorithm": "sha256",
+            "value": digest.casefold(),
+            "source": "url_path",
+        }
+        release = record.releases[0]
+        return replace(
+            record,
+            raw={**record.raw, "weight_checksum": checksum},
+            releases=(
+                replace(
+                    release,
+                    metadata={**release.metadata, "weight_checksum": checksum},
+                ),
+            ),
+        )
 
 
 def _mapping_variable(value: str) -> str:

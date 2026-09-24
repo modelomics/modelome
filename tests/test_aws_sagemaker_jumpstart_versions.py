@@ -55,17 +55,65 @@ class _Client:
         return {"HubContentSummaries": [{"HubContentVersion": "1.0.0"}]}
 
 
-def test_jumpstart_versions_factory_requires_signed_client() -> None:
+def test_jumpstart_versions_factory_builds_signed_client_from_explicit_region(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import modelome.sources.catalog as catalog
+
     config = {
         "name": "aws-sagemaker-jumpstart-versions",
         "adapter": "aws_sagemaker_jumpstart_versions",
+        "region": "us-west-2",
         "page_size": 25,
     }
-    with pytest.raises(ValueError, match="signed SageMaker client"):
-        create_source(config, environ={})
-    source = create_source(config, client=_Client(), environ={})
+    factory_calls: list[tuple[str | None, dict[str, str]]] = []
+
+    def make_client(*, region_name=None, environ=None):
+        factory_calls.append((region_name, dict(environ or {})))
+        return _Client()
+
+    monkeypatch.setattr(catalog, "create_signed_sagemaker_client", make_client)
+    source = create_source(config, environ={"AWS_REGION": "us-east-1"})
     assert isinstance(source, AwsSageMakerJumpStartVersionsSourceAdapter)
     assert source.page_size == 25
+    assert factory_calls == [("us-west-2", {"AWS_REGION": "us-east-1"})]
+
+
+def test_load_sources_replaces_shared_http_client_with_signed_sagemaker_client(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    import modelome.sources.catalog as catalog
+    from modelome.http import HttpClient
+    from modelome.sources.catalog import load_sources
+
+    config_path = tmp_path / "jumpstart.toml"
+    config_path.write_text(
+        """\
+[[source]]
+name = "aws-sagemaker-jumpstart-versions"
+adapter = "aws_sagemaker_jumpstart_versions"
+enabled = true
+region = "us-west-2"
+page_size = 1
+"""
+    )
+    factory_calls: list[tuple[str | None, dict[str, str]]] = []
+
+    def make_client(*, region_name=None, environ=None):
+        factory_calls.append((region_name, dict(environ or {})))
+        return _Client()
+
+    monkeypatch.setattr(catalog, "create_signed_sagemaker_client", make_client)
+    sources = load_sources(
+        config_path,
+        client=HttpClient(),
+        environ={"AWS_DEFAULT_REGION": "eu-west-1"},
+    )
+
+    assert isinstance(sources["aws-sagemaker-jumpstart-versions"],
+                      AwsSageMakerJumpStartVersionsSourceAdapter)
+    assert factory_calls == [("us-west-2", {"AWS_DEFAULT_REGION": "eu-west-1"})]
 
 
 def test_jumpstart_versions_lists_exact_ids_and_paged_historical_versions() -> None:

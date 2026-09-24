@@ -79,7 +79,7 @@ def test_revision_weight_files_follow_tree_pagination_and_resume() -> None:
         200,
         [
             {"type": "file", "path": "shards/part-00001.safetensors"},
-            {"type": "file", "path": "../escape.safetensors"},
+            {"type": "file", "path": "docs/README.md"},
         ],
         {},
     )
@@ -250,9 +250,37 @@ def test_escaped_unicode_filename_is_percent_encoded_and_surrogates_are_rejected
     record = result.records[0]
 
     assert record.releases[0].metadata["weight_files"] == ["folder/model #1.safetensors"]
+    assert record.releases[0].metadata["weight_files_complete"] is False
     assert [link.url for link in record.links if link.relation == "weights"] == [
         f"https://huggingface.co/{repo}/resolve/commit-a/folder/model%20%231.safetensors"
     ]
+
+
+def test_overlong_weight_path_cannot_be_silently_reported_as_complete() -> None:
+    repo = "lab/revision-model"
+    tree = f"https://huggingface.co/api/models/{repo}/tree/commit-a?recursive=true&expand=false"
+    long_weight_path = "/".join(["a" * 200] * 6) + "/model.safetensors"
+    routes = _revision_routes(repo)
+    routes[tree] = (
+        200,
+        [
+            {"type": "file", "path": "model.safetensors"},
+            {"type": "file", "path": long_weight_path},
+        ],
+        {},
+    )
+    client = _RouteClient(routes)
+    adapter = HuggingFaceSourceAdapter(
+        client=client,
+        include_revisions=True,
+        include_revision_files=True,
+    )
+
+    state = _drain_to_tree(adapter, {})
+    record = adapter.fetch_page(state).records[0]
+
+    assert record.releases[0].metadata["weight_files"] == ["model.safetensors"]
+    assert record.releases[0].metadata["weight_files_complete"] is False
 
 
 def test_lfs_metadata_checkpoint_is_byte_bounded_and_truncation_is_explicit() -> None:

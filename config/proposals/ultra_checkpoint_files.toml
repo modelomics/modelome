@@ -1,0 +1,13 @@
+# Enumerates the official ULTRA repository's four named checkpoint files from
+# the pinned GitHub contents API. Three base models also have HF mirrors.
+[[source]]
+name = "deepgraphlearning-ultra-checkpoint-files"
+adapter = "ultra_checkpoint_files"
+enabled = false
+entry_tags = ["field:graph-machine-learning", "field:knowledge-graphs", "ecosystem:ultra", "model-family:ultra-gnn", "kind:checkpoint"]
+repository = "DeepGraphLearning/ULTRA"
+branch = "main"
+provider_namespace = "deepgraphlearning-ultra:checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100000

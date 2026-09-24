@@ -743,6 +743,21 @@ class BioImageIoSourceAdapter:
                 locator = f"$.artifact.manifest.weights.{weight_format}.source"
                 if url := self._reference_url(descriptor.get("source"), alias, version):
                     links.append(Link(url, relation="weights", locator=locator, crawl=False))
+                external_data = descriptor.get("external_data")
+                if external_data is not None:
+                    external_data_locator = (
+                        "$.artifact.manifest.weights."
+                        f"{weight_format}.external_data.source"
+                    )
+                    if url := self._reference_url(external_data, alias, version):
+                        links.append(
+                            Link(
+                                url,
+                                relation="weights",
+                                locator=external_data_locator,
+                                crawl=False,
+                            )
+                        )
                 architecture = descriptor.get("architecture")
                 if isinstance(architecture, Mapping):
                     architecture_locator = (
@@ -1046,13 +1061,21 @@ def _weight_metadata(value: Any) -> tuple[list[str], list[dict[str, Any]]]:
         if isinstance(source, Mapping):
             source = source.get("source")
         source_text = _text(source)
-        sources.append(
-            {
-                "format": weight_format,
-                "source": source_text or None,
-                "sha256": _optional_text(descriptor.get("sha256"), 64),
-            }
-        )
+        source_entry = {
+            "format": weight_format,
+            "source": source_text or None,
+            "sha256": _optional_text(descriptor.get("sha256"), 64),
+        }
+        external_data = descriptor.get("external_data")
+        if isinstance(external_data, Mapping):
+            external_source = external_data.get("source")
+            if isinstance(external_source, Mapping):
+                external_source = external_source.get("source")
+            source_entry["external_data_source"] = _text(external_source) or None
+            source_entry["external_data_sha256"] = _optional_text(
+                external_data.get("sha256"), 64
+            )
+        sources.append(source_entry)
     return formats, sources
 
 

@@ -1,0 +1,16 @@
+# timm v0.6.13 explicitly declared 19 ResNetV2 pretrained URLs, including
+# Google BiT and distillation checkpoints. Current main no longer includes
+# these direct references in its ResNetV2 pretrained configs.
+[[source]]
+name = "timm-legacy-resnetv2-v0613"
+adapter = "timm_legacy_resnetv2"
+enabled = false
+entry_tags = ["field:computer-vision", "ecosystem:timm", "kind:checkpoint"]
+repository = "huggingface/pytorch-image-models"
+tag = "v0.6.13"
+schedule = "weekly"
+
+[evidence]
+timm_resnetv2_source = "https://github.com/huggingface/pytorch-image-models/blob/v0.6.13/timm/models/resnetv2.py"
+timm_resnetv2_module = "https://raw.githubusercontent.com/huggingface/pytorch-image-models/v0.6.13/timm/models/resnetv2.py"
+google_bit_model_release = "https://github.com/google-research/big_transfer"

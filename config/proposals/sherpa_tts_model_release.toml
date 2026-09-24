@@ -1,0 +1,13 @@
+# sherpa-onnx maintains a finite release asset inventory for its text-to-speech
+# model archives; the release contains far more models than the docs examples.
+# The adapter reads only release metadata and does not download archive bytes.
+# First-party model list: https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models
+# Documentation index: https://github.com/k2-fsa/sherpa/blob/master/docs/source/onnx/tts/pretrained_models/index.rst
+[[source]]
+name = "sherpa-tts-model-release"
+adapter = "sherpa_tts_model_release"
+enabled = false
+entry_tags = ["field:speech", "task:text-to-speech", "ecosystem:sherpa-onnx", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 16777216
+max_assets = 1000

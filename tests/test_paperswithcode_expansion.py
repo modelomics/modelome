@@ -354,6 +354,10 @@ def test_evaluation_model_links_do_not_treat_github_or_dataset_urls_as_model_ids
         _evaluation_model_identifier_from_url("https://www.kaggle.com/datasets/example/models")
         is None
     )
+    assert (
+        _evaluation_model_identifier_from_url("https://modelscope.cn/datasets/example/data")
+        is None
+    )
     assert _evaluation_model_identifier_from_url(
         "https://doi.org/10.5281/zenodo.12345"
     ) == Identifier("zenodo:record", "12345")
@@ -389,6 +393,40 @@ def test_evaluation_model_links_project_exact_zenodo_record_identity() -> None:
     assert rejected == {}
     linked_model = next(model for model in records[0].models if model.name == "Zenodo weights")
     assert linked_model.identifiers == (Identifier("zenodo:record", "12345"),)
+    assert linked_model.status is ModelStatus.CANDIDATE
+    assert linked_model.confidence == 0.65
+    model_link = next(link for link in records[0].links if link.relation == "model_artifact")
+    assert model_link.model_local_ids == (linked_model.local_id,)
+
+
+def test_evaluation_model_links_project_exact_modelscope_model_identity() -> None:
+    from modelome.sources.paperswithcode import _evaluation_records
+
+    row = {
+        "model_name": "ModelScope Published Model",
+        "paper_url": "https://arxiv.org/abs/2401.12345",
+        "paper_title": "ModelScope Published Model paper",
+        "model_links": [
+            {
+                "url": "https://modelscope.cn/models/example/published-model/resolve/master/model.safetensors",
+                "title": "ModelScope weights",
+            }
+        ],
+    }
+    records, rejected, _ = _evaluation_records(
+        [{"task": "Classification", "datasets": [{"dataset": "Example", "sota": {"rows": [row]}}]}],
+        revision="c" * 40,
+        data_path="data/train.parquet",
+        dataset_id="pwc-archive/evaluation-tables",
+        license="CC-BY-SA-4.0",
+        max_model_rows=10,
+    )
+
+    assert rejected == {}
+    linked_model = next(model for model in records[0].models if model.name == "ModelScope weights")
+    assert linked_model.identifiers == (
+        Identifier("modelscope:model", "example/published-model"),
+    )
     assert linked_model.status is ModelStatus.CANDIDATE
     assert linked_model.confidence == 0.65
     model_link = next(link for link in records[0].links if link.relation == "model_artifact")

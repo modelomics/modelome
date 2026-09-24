@@ -23,6 +23,9 @@ dev = [
   "pytest-cov>=6.0",
   "ruff>=0.11",
 ]
+aws = [
+  "boto3>=1.35",
+]
 
 [project.scripts]
 modelome = "modelome.cli:main"

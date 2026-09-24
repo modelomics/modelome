@@ -1,0 +1,18 @@
+# Zenodo record 19766997 enumerates 26 checkpoint file objects. Compared with
+# the README's 24 explicit checkpoint commands, it includes two record-only
+# files; file names, content URLs, and MD5 values come from Zenodo metadata.
+[[source]]
+name = "zatom-zenodo-checkpoint-record"
+adapter = "zatom_zenodo_checkpoint_record"
+enabled = false
+record_id = "19766997"
+record_url = "https://zenodo.org/records/19766997"
+metadata_url = "https://zenodo.org/api/records/19766997"
+entry_tags = ["field:computational-chemistry", "ecosystem:zatom", "model-family:zatom-1", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_entries = 100
+
+# Record-only files: platom_1_joint_pretraining_paper_weights.ckpt and
+# zatom_1_from_omol25_mol_prop_pred_paper_weights.ckpt. Each checkpoint's
+# Zenodo MD5 and exact API content URL are retained; no bytes are fetched.

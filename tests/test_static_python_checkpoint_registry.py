@@ -113,6 +113,22 @@ def test_static_python_registry_skips_an_unchanged_source_file() -> None:
     assert second.upstream_count == 2
 
 
+def test_static_python_registry_preserves_url_path_sha256_for_clip_style_weights() -> None:
+    digest = "afeb0e10f9e5a86da6080e35cf09123aca3b358a0c3e3b6c78a7b63bc04b6762"
+    document = (
+        '_MODELS = {"RN50": '
+        f'"https://openaipublic.azureedge.net/clip/models/{digest}/RN50.pt"'
+        "}"
+    )
+    adapter = _adapter(_QueuedClient(_response({"sha": _REVISION}), _response(document)))
+
+    record = adapter.fetch_page({}).records[0]
+
+    expected = {"algorithm": "sha256", "value": digest, "source": "url_path"}
+    assert record.raw["weight_checksum"] == expected
+    assert record.releases[0].metadata["weight_checksum"] == expected
+
+
 @pytest.mark.parametrize(
     ("document", "match"),
     [

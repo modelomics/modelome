@@ -116,7 +116,7 @@ The following are available capabilities, not a directive to run every source or
 loader now. During the entry-first phase, use only the bounded source or link operations
 needed to validate the per-paper workflow. Their later corpus-scale role is documented in
 [Entry-first modelome](docs/entry-first.md#path-to-complete-paper-ingestion).
-The default catalog currently has **429 enabled sources** (407 loadable without provider credentials); this is a configuration count,
+The default catalog currently has **443 enabled sources** (419 loadable without provider credentials); this is a configuration count,
 not a claim that all upstream inventories have been exhausted.
 
 The default catalog enables independent, unfiltered streams for:
@@ -124,6 +124,8 @@ The default catalog enables independent, unfiltered streams for:
 - public Hugging Face model repositories, cards, current weight-file metadata, declared
   paper/code URLs, and `base_model` relations, with monthly created-at windows for bounded
   temporal discovery and optional historical revision-file traversal;
+- public Hugging Face dataset repositories with explicit checkpoint-format files,
+  treated as candidate bundles after revision-matched file-detail inspection;
 - the documented bounded union of ModelScope's public model-list orderings, retaining
   source-native model cards and metadata while explicitly respecting its 3,000-row
   per-sort pagination ceiling;

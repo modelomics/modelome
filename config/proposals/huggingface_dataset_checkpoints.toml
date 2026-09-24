@@ -1,0 +1,13 @@
+# Unfiltered public dataset listing, followed by SHA-verified repo detail calls
+# for exact checkpoint file names. Dataset repos remain candidate bundles.
+[[source]]
+name = "huggingface-dataset-checkpoints"
+adapter = "huggingface_dataset_checkpoints"
+enabled = false
+entry_tags = ["ecosystem:huggingface", "kind:dataset-checkpoint-candidate"]
+url = "https://huggingface.co/api/datasets"
+schedule = "weekly"
+page_size = 10
+created_at_sweep_interval_days = 30
+max_response_bytes = 16777216
+max_checkpoint_files = 10000
