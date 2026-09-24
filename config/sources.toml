@@ -38,8 +38,8 @@ schedule = "weekly"
 page_size = 100
 sort_by = "createTime"
 include_all_versions = true
-# Opt in to per-version file metadata when the additional API cost is acceptable.
-include_version_files = false
+# Retain every publicly listed version file as exact, reference-only evidence.
+include_version_files = true
 
 # CivitAI is an independent public catalog for generative-model checkpoints and
 # derivatives. The adapter follows its opaque newest-first cursor, retains all
@@ -8173,3 +8173,297 @@ max_response_bytes = 16777216
 max_volumes = 2000
 max_papers_per_volume = 5000
 schedule = "weekly"
+
+# Public Spaces listing with SHA-matched detail siblings for checkpoint candidates.
+[[source]]
+name = "huggingface-spaces-checkpoints"
+adapter = "huggingface_spaces_checkpoints"
+enabled = true
+entry_tags = ["ecosystem:huggingface", "kind:space-checkpoint-candidate"]
+url = "https://huggingface.co/api/spaces"
+schedule = "weekly"
+page_size = 10
+max_response_bytes = 16777216
+max_checkpoint_files = 10000
+
+# OpenAI's archived consistency_models README declares twelve exact checkpoint files.
+[[source]]
+name = "openai-consistency-checkpoints"
+adapter = "openai_consistency_checkpoints"
+enabled = true
+entry_tags = ["field:generative-image-modeling", "ecosystem:openai", "model-family:consistency-models", "kind:checkpoint", "evidence:first-party-checkpoint-download-list"]
+repository = "openai/consistency_models"
+branch = "main"
+document_path = "README.md"
+max_response_bytes = 4194304
+max_checkpoints = 100
+
+# Orb's first-party ORB_PRETRAINED_MODELS mapping names each public model ID and
+# loader function. The adapter resolves exact ID/file pairs from literal
+# weights_path defaults at a pinned Git commit and never fetches checkpoint bytes.
+[[source]]
+name = "orb-models-pretrained-registry"
+adapter = "orb_models_pretrained_registry"
+enabled = true
+repository = "orbital-materials/orb-models"
+branch = "main"
+source_path = "orb_models/forcefield/pretrained.py"
+artifact_host = "orbitalmaterials-public-models.s3.us-west-1.amazonaws.com"
+entry_tags = ["field:computational-materials-science", "ecosystem:orb-models", "model-family:orb", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# The registry includes deprecated keys whose loaders have no published URL;
+# these are omitted. Aliased registry IDs are retained even when they resolve
+# to the same literal file. Binary reachability is not inferred.
+
+[[source]]
+name = "apt-vla-checkpoint-registry"
+adapter = "apt_vla_checkpoint_registry"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:apt-vla", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 8
+
+# Three README-declared policies plus two verified Vision-Action prior releases.
+# Metadata only; checkpoint bytes are not downloaded.
+
+# RadiologyNET's first-party README lists ten per-model PyTorch weight archives
+# with exact Google Drive IDs. Each archive is tar.gz; internal paths are unknown.
+[[source]]
+name = "radiologynet-first-party-checkpoints"
+adapter = "radiologynet_registry"
+enabled = true
+entry_tags = ["field:medical-imaging", "ecosystem:radiologynet", "kind:pretrained-weights"]
+repository = "AIlab-RITEH/RadiologyNET-TL-models"
+branch = "master"
+source_path = "README.md"
+max_response_bytes = 2097152
+max_entries = 100
+
+# PaddleNLP's ALBERT config declares 14 model IDs with literal model_state
+# checkpoint URLs, separate from the ERNIE-family and Taskflow maps.
+[[source]]
+name = "paddlenlp-albert-pretrained-registry"
+adapter = "paddlenlp_albert_registry"
+enabled = true
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/transformers/albert/configuration.py"
+provider_namespace = "paddlenlp:transformer-model"
+max_response_bytes = 4194304
+
+# First-party maintained checkpoint links and model context from the MSST table.
+# The table also includes community-contributed entries and excludes its linked
+# MelRoformer experiments table. Checkpoint contents are never fetched.
+# Source: https://github.com/ZFTurbo/Music-Source-Separation-Training/blob/main/docs/pretrained_models.md
+[[source]]
+name = "msst-pretrained-checkpoints"
+adapter = "msst_pretrained_models"
+enabled = true
+entry_tags = ["field:audio-machine-learning", "task:music-source-separation", "ecosystem:msst", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_models = 100
+
+# fal's public model gallery exposes exact endpoint IDs on stable model detail
+# pages and reports the result range and total for the current gallery page.
+# This adapter records provider endpoints as documented models only; it makes
+# no reusable-weight/checkpoint claim and does not call inference endpoints.
+[[source]]
+name = "fal-model-gallery"
+adapter = "fal_model_gallery"
+enabled = true
+entry_tags = ["ecosystem:fal", "kind:hosted-model-endpoint"]
+url = "https://fal.ai/explore/search"
+provider_namespace = "fal:endpoint"
+schedule = "daily"
+page_size = 24
+max_pages = 1000
+max_anchors = 10000
+max_response_bytes = 8388608
+
+# AI21's Jamba documentation publishes a finite table of exact deprecated API
+# endpoints and dates. These are serving endpoint IDs, not checkpoint IDs.
+[[source]]
+name = "ai21-jamba-api-deprecations-2026-02-01"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:ai21", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history", "lifecycle:deprecated", "deprecated-on:2026-02-01"]
+url = "https://docs.ai21.com/docs/jamba-foundation-models"
+provider_namespace = "ai21:jamba-api-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 100
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '\b(?P<name>jamba-mini-1[.]7-2025-08)\b'
+identity_source = "name"
+require_url = false
+
+[[source]]
+name = "ai21-jamba-api-deprecations-2025-08-03"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:ai21", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history", "lifecycle:deprecated", "deprecated-on:2025-08-03"]
+url = "https://docs.ai21.com/docs/jamba-foundation-models"
+provider_namespace = "ai21:jamba-api-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 100
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '\b(?P<name>jamba-(?:large|mini)-1[.]6-2025-03)\b'
+identity_source = "name"
+require_url = false
+
+[[source]]
+name = "ai21-jamba-api-deprecations-2025-05-06"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:ai21", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history", "lifecycle:deprecated", "deprecated-on:2025-05-06"]
+url = "https://docs.ai21.com/docs/jamba-foundation-models"
+provider_namespace = "ai21:jamba-api-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 100
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '\b(?P<name>jamba-(?:large|mini)-1[.]5-2024-08)\b'
+identity_source = "name"
+require_url = false
+
+# Resumable Figshare history traversal. The workflow stores one date cursor and
+# at most one active OAI token, then advances through adjacent one-day windows.
+# `from_date` and `until_date` bound the requested scan; `until_date` is exclusive.
+[[source]]
+name = "figshare-model-candidates-history"
+adapter = "figshare_model_candidates_workflow"
+enabled = true
+oai_url = "https://api.figshare.com/v2/oai"
+api_url = "https://api.figshare.com/v2/articles"
+from_date = "2011-01-01"
+until_date = "2027-01-01"
+window_days = 1
+entry_tags = ["provider:figshare", "kind:model-artifact-candidate"]
+schedule = "manual"
+max_response_bytes = 8388608
+
+# Figshare's observed OAI endpoint treats `until` as exclusive. Its opaque tokens
+# expire after 60 minutes. If a token expires, the current one-day window fails
+# clearly and can restart from its empty checkpoint without moving the date cursor.
+# OAI METS exposes current article versions. Detail requests read REST metadata
+# only. Admission requires explicit named weight/checkpoint evidence plus matching
+# OAI/REST filename and download URL; every emitted ModelHint remains a candidate.
+# This scans only the configured date range. It never fetches file bytes. The
+# workflow adapter is available in the catalog.
+
+# Alibaba Cloud's Model Studio rate-limit documentation lists these exact API
+# model IDs under its July 30, 2025 retired-model batch.
+[[source]]
+name = "alibaba-model-studio-retired-llm-2025-07-30"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:alibaba-model-studio", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history", "lifecycle:retired", "retired-on:2025-07-30"]
+url = "https://help.aliyun.com/zh/model-studio/rate-limit"
+provider_namespace = "alibaba:model-studio-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 100
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '\b(?P<name>qwen-vl-plus-2023-12-01|yi-large-rag|yi-large-turbo|yi-large|yi-medium|dolly-12b-v2)\b'
+identity_source = "name"
+require_url = false
+
+# PaddleNLP's XLM config pairs ten model IDs with direct model_state archives.
+[[source]]
+name = "paddlenlp-xlm-pretrained-registry"
+adapter = "paddlenlp_xlm_registry"
+enabled = true
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/transformers/xlm/configuration.py"
+provider_namespace = "paddlenlp:transformer-model"
+max_response_bytes = 4194304
+
+# Ten direct checkpoint links in OpenAI's separate JAX CIFAR-10 consistency repo.
+[[source]]
+name = "openai-consistency-cifar10-checkpoints"
+adapter = "openai_consistency_cifar10_checkpoints"
+enabled = true
+entry_tags = ["field:generative-image-modeling", "ecosystem:openai", "model-family:consistency-models", "dataset:cifar-10", "kind:checkpoint", "evidence:first-party-checkpoint-download-list"]
+repository = "openai/consistency_models_cifar10"
+branch = "main"
+document_path = "README.md"
+max_response_bytes = 4194304
+max_checkpoints = 100
+
+# The Deep Wetlands first-party README lists four Google Drive files: small and
+# large Sentinel-1 models trained on two year ranges.
+[[source]]
+name = "deep-wetlands-checkpoint-registry"
+adapter = "deep_wetlands_checkpoint_registry"
+enabled = true
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:deep-wetlands", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+max_response_bytes = 1048576
+
+# MedicalNet's first-party README names 11 pretrained 3D ResNet checkpoint
+# members and links a single Google Drive ZIP archive. Member URLs are unknown.
+[[source]]
+name = "medicalnet-pretrained-checkpoints"
+adapter = "medicalnet_registry"
+enabled = true
+entry_tags = ["field:medical-imaging", "ecosystem:medicalnet", "kind:pretrained-checkpoints"]
+repository = "Tencent/MedicalNet"
+branch = "master"
+source_path = "README.md"
+max_response_bytes = 2097152
+max_entries = 100
+
+# timm v0.6.13's BYOBNet module declares 32 direct checkpoint URLs for
+# RegNet/GerNet, RepVGG, and related models. This proposal covers only that
+# immutable release and module.
+[[source]]
+name = "timm-legacy-byobnet-v0613"
+adapter = "timm_legacy_byobnet"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:timm", "kind:checkpoint"]
+schedule = "weekly"
+
+# Additional checkpoints from the linked MSST MelRoformer experiments table.
+# The final large model is distributed as two files and is represented as one record.
+[[source]]
+name = "msst-mel-roformer-experiments"
+adapter = "msst_mel_roformer_experiments"
+enabled = true
+entry_tags = ["field:audio-machine-learning", "task:music-source-separation", "ecosystem:msst", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_models = 50
+
+# First-party list used by Demucs' official remote pretrained model loader.
+# The manifest contains individual checkpoint files, not composed model bags.
+# Model URLs are constructed from the declared root and exact filenames.
+[[source]]
+name = "demucs-pretrained-checkpoints"
+adapter = "demucs_pretrained_registry"
+enabled = true
+entry_tags = ["field:audio-machine-learning", "task:music-source-separation", "ecosystem:demucs", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 1048576
+max_models = 100

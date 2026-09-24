@@ -1,0 +1,10 @@
+# Additional checkpoints from the linked MSST MelRoformer experiments table.
+# The final large model is distributed as two files and is represented as one record.
+[[source]]
+name = "msst-mel-roformer-experiments"
+adapter = "msst_mel_roformer_experiments"
+enabled = false
+entry_tags = ["field:audio-machine-learning", "task:music-source-separation", "ecosystem:msst", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_models = 50

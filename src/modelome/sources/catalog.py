@@ -18,6 +18,7 @@ from modelome.sources.alignn_atomwise_registry import AlignnAtomwiseRegistrySour
 from modelome.sources.allennlp_model_archives import AllenNLPModelArchiveSourceAdapter
 from modelome.sources.alphachip_rl_checkpoint import AlphaChipRlCheckpointAdapter
 from modelome.sources.alphafold_registry import AlphaFoldParameterArchiveSourceAdapter
+from modelome.sources.apt_vla_checkpoint_registry import APTVLACheckpointRegistryAdapter
 from modelome.sources.arxiv import ArxivSourceAdapter
 from modelome.sources.arxiv_snapshot import ArxivCompleteSnapshotSourceAdapter
 from modelome.sources.astronn_gaia_release import AstroNNGaiaReleaseSourceAdapter
@@ -57,7 +58,11 @@ from modelome.sources.conceptnet_numberbatch import ConceptNetNumberbatchSourceA
 from modelome.sources.crossref import CrossrefSourceAdapter
 from modelome.sources.csv_source import CsvSourceAdapter
 from modelome.sources.datacite import DataCiteSourceAdapter
+from modelome.sources.deep_wetlands_checkpoint_registry import (
+    DeepWetlandsCheckpointRegistrySourceAdapter,
+)
 from modelome.sources.deepchem_checkpoint import DeepChemMol2VecCheckpointSourceAdapter
+from modelome.sources.demucs_pretrained_registry import DemucsPretrainedRegistrySourceAdapter
 from modelome.sources.detectron2_model_zoo import Detectron2ModelZooSourceAdapter
 from modelome.sources.dgl_core_tutorial_checkpoint import DGLCoreTutorialCheckpointSourceAdapter
 from modelome.sources.dgl_lifesci_registry import DglLifeSciCheckpointRegistrySourceAdapter
@@ -73,7 +78,10 @@ from modelome.sources.europe_pmc import EuropePmcSourceAdapter
 from modelome.sources.fairchem_omat24_checkpoints import FairChemOMat24CheckpointSourceAdapter
 from modelome.sources.fairchem_uma_checkpoints import FairChemUMACheckpointSourceAdapter
 from modelome.sources.fairseq_language_models import FairseqPretrainedLanguageModelSourceAdapter
+from modelome.sources.fal_model_gallery import FalModelGalleryAdapter
 from modelome.sources.fengwu_checkpoint_registry import FengWuCheckpointRegistrySourceAdapter
+from modelome.sources.figshare_model_candidates import FigshareModelCandidatesSourceAdapter
+from modelome.sources.figshare_model_candidates_workflow import FigshareModelCandidatesWorkflow
 from modelome.sources.fourcastnet_checkpoint_registry import (
     FourCastNetCheckpointRegistrySourceAdapter,
 )
@@ -120,6 +128,9 @@ from modelome.sources.huggingface import (
     HuggingFaceDatasetCheckpointSourceAdapter,
     HuggingFaceSourceAdapter,
 )
+from modelome.sources.huggingface_spaces_checkpoints import (
+    HuggingFaceSpacesCheckpointSourceAdapter,
+)
 from modelome.sources.jax_extra_registry import JaxExtraRegistrySourceAdapter
 from modelome.sources.jax_registry import JaxRegistrySourceAdapter
 from modelome.sources.json_catalog import JsonCatalogSourceAdapter
@@ -148,6 +159,7 @@ from modelome.sources.markdown_checkpoint_list import MarkdownCheckpointListSour
 from modelome.sources.markdown_model_card_list import MarkdownModelCardListSourceAdapter
 from modelome.sources.markdown_model_table import MarkdownModelTableSourceAdapter
 from modelome.sources.mediapipe_model_catalog import MediaPipeModelCatalogSourceAdapter
+from modelome.sources.medicalnet_registry import MedicalNetRegistrySourceAdapter
 from modelome.sources.medigan_registry import MediganRegistrySourceAdapter
 from modelome.sources.meta_sam3_checkpoints import MetaSAM3CheckpointSourceAdapter
 from modelome.sources.microsoft_aurora_checkpoints import MicrosoftAuroraCheckpointSourceAdapter
@@ -157,6 +169,10 @@ from modelome.sources.molecular_registry import OpenFoldCheckpointRegistrySource
 from modelome.sources.moler_checkpoint import MoLeRCheckpointSourceAdapter
 from modelome.sources.molmoact2_checkpoints import MolmoAct2CheckpointSourceAdapter
 from modelome.sources.monai_model_zoo import MonaiModelZooSourceAdapter
+from modelome.sources.msst_mel_roformer_experiments import (
+    MsstMelRoformerExperimentsSourceAdapter,
+)
+from modelome.sources.msst_pretrained_models import MsstPretrainedModelsSourceAdapter
 from modelome.sources.nemo_checkpoints import NemoCheckpointCatalogSourceAdapter
 from modelome.sources.neuralgcm_checkpoint_registry import (
     NeuralGCMCheckpointRegistrySourceAdapter,
@@ -176,6 +192,12 @@ from modelome.sources.octo_checkpoints import OctoCheckpointSourceAdapter
 from modelome.sources.ollama_library_tags import OllamaLibraryTagCatalogAdapter
 from modelome.sources.onnx_model_zoo import OnnxModelZooSourceAdapter
 from modelome.sources.open_x_rt1x_checkpoint import OpenXRT1XCheckpointSourceAdapter
+from modelome.sources.openai_consistency_checkpoints import (
+    OpenAIConsistencyCheckpointSourceAdapter,
+)
+from modelome.sources.openai_consistency_cifar10_checkpoints import (
+    OpenAIConsistencyCIFAR10CheckpointSourceAdapter,
+)
 from modelome.sources.openai_gpt2_checkpoints import OpenAIGPT2CheckpointSourceAdapter
 from modelome.sources.openai_guided_diffusion_checkpoints import (
     OpenAIGuidedDiffusionCheckpointSourceAdapter,
@@ -199,6 +221,7 @@ from modelome.sources.openrouter import (
 )
 from modelome.sources.openvino_model_zoo import OpenVinoModelZooSourceAdapter
 from modelome.sources.openvla_checkpoints import OpenVLACheckpointSourceAdapter
+from modelome.sources.orb_models_pretrained_registry import OrbModelsPretrainedRegistryAdapter
 from modelome.sources.osf_preprints import OsfPreprintSourceAdapter
 from modelome.sources.paddle_detection_model_zoo import PaddleDetectionModelZooSourceAdapter
 from modelome.sources.paddle_model_center import PaddleModelCenterSourceAdapter
@@ -207,6 +230,7 @@ from modelome.sources.paddlegan_tutorial_model_zoo import (
     PaddleGanTutorialModelZooSourceAdapter,
 )
 from modelome.sources.paddlehelix_gem_checkpoint import PaddleHelixGemCheckpointSourceAdapter
+from modelome.sources.paddlenlp_albert_registry import PaddleNlpAlbertRegistrySourceAdapter
 from modelome.sources.paddlenlp_ernie_registry import PaddleNlpErnieRegistrySourceAdapter
 from modelome.sources.paddlenlp_taskflow_knowledge_mining import (
     PaddleNlpTaskflowKnowledgeMiningSourceAdapter,
@@ -219,6 +243,7 @@ from modelome.sources.paddlenlp_taskflow_text_similarity import (
     PaddleNlpTaskflowTextSimilaritySourceAdapter,
 )
 from modelome.sources.paddlenlp_taskflow_uie import PaddleNlpTaskflowUieSourceAdapter
+from modelome.sources.paddlenlp_xlm_registry import PaddleNlpXlmRegistrySourceAdapter
 from modelome.sources.paddleocr_current_model_list import (
     PaddleOcrCurrentModelListSourceAdapter,
 )
@@ -251,6 +276,7 @@ from modelome.sources.pyg_gpse_registry import PyGGPSECheckpointRegistrySourceAd
 from modelome.sources.pyg_schnet_qm9_registry import PyGSchNetQM9RegistrySourceAdapter
 from modelome.sources.pytorch_hub_load_calls import PyTorchHubLoadCallSourceAdapter
 from modelome.sources.qualcomm_ai_hub_models import QualcommAIHubModelsSourceAdapter
+from modelome.sources.radiologynet_registry import RadiologyNETCheckpointSourceAdapter
 from modelome.sources.replicate import ReplicateModelsSourceAdapter
 from modelome.sources.rfdiffusion2_registry import RFDiffusion2CheckpointRegistryAdapter
 from modelome.sources.rfdiffusion_registry import RFDiffusionCheckpointSourceAdapter
@@ -285,6 +311,7 @@ from modelome.sources.tensorflow_audioset_checkpoints import (
 from modelome.sources.tensorflow_garden import TensorFlowGardenSourceAdapter
 from modelome.sources.tensorflow_hub_archive import TensorFlowHubArchiveSourceAdapter
 from modelome.sources.tensorflow_tpu_efficientnet import TensorFlowTPUEfficientNetSourceAdapter
+from modelome.sources.timm_legacy_byobnet import TimmLegacyByobNetSourceAdapter
 from modelome.sources.timm_legacy_efficientnet import TimmLegacyEfficientNetSourceAdapter
 from modelome.sources.timm_legacy_poolformer import TimmLegacyPoolFormerSourceAdapter
 from modelome.sources.timm_legacy_resnetv2 import TimmLegacyResNetV2SourceAdapter
@@ -1876,6 +1903,23 @@ def create_source(
             "timm_legacy_efficientnet",
             "pmt_pretrained_checkpoints",
             "pmlr",
+            "huggingface_spaces_checkpoints",
+            "openai_consistency_checkpoints",
+            "orb_models_pretrained_registry",
+            "apt_vla_checkpoint_registry",
+            "radiologynet_registry",
+            "paddlenlp_albert_registry",
+            "fal_model_gallery",
+            "figshare_model_candidates",
+            "msst_pretrained_models",
+            "medicalnet_registry",
+            "paddlenlp_xlm_registry",
+            "openai_consistency_cifar10_checkpoints",
+            "deep_wetlands_checkpoint_registry",
+            "timm_legacy_byobnet",
+            "msst_mel_roformer_experiments",
+            "figshare_model_candidates_workflow",
+            "demucs_pretrained_registry",
         }
         else _required_text(expanded, "url")
     )
@@ -3300,6 +3344,170 @@ def create_source(
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 16 * 1024 * 1024),
             max_volumes=_integer(expanded.get("max_volumes"), 2_000),
             max_papers_per_volume=_integer(expanded.get("max_papers_per_volume"), 5_000),
+            **injected,
+        )
+
+    if adapter == "huggingface_spaces_checkpoints":
+        return HuggingFaceSpacesCheckpointSourceAdapter(
+            name=name,
+            url=_text(expanded.get("url")) or "https://huggingface.co/api/spaces",
+            page_size=_integer(expanded.get("page_size"), 10),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 16 * 1024 * 1024),
+            max_checkpoint_files=_integer(expanded.get("max_checkpoint_files"), 10_000),
+            token=_credential(expanded, environment, defaults=("HF_TOKEN",)) or None,
+            **injected,
+        )
+
+    if adapter == "openai_consistency_checkpoints":
+        return OpenAIConsistencyCheckpointSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "openai/consistency_models",
+            branch=_text(expanded.get("branch")) or "main",
+            document_path=_text(expanded.get("document_path")) or "README.md",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_checkpoints=_integer(expanded.get("max_checkpoints"), 100),
+            client=injected["client"],
+        )
+
+    if adapter == "orb_models_pretrained_registry":
+        return OrbModelsPretrainedRegistryAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "apt_vla_checkpoint_registry":
+        return APTVLACheckpointRegistryAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 8),
+            **injected,
+        )
+
+    if adapter == "radiologynet_registry":
+        return RadiologyNETCheckpointSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository"))
+            or "AIlab-RITEH/RadiologyNET-TL-models",
+            branch=_text(expanded.get("branch")) or "master",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "paddlenlp_albert_registry":
+        return PaddleNlpAlbertRegistrySourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "PaddlePaddle/PaddleNLP",
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_text(expanded.get("source_path"))
+            or "paddlenlp/transformers/albert/configuration.py",
+            provider_namespace=_text(expanded.get("provider_namespace"))
+            or "paddlenlp:transformer-model",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "fal_model_gallery":
+        return FalModelGalleryAdapter(
+            name=name,
+            url=_text(expanded.get("url")) or "https://fal.ai/explore/search",
+            page_size=_integer(expanded.get("page_size"), 24),
+            max_pages=_integer(expanded.get("max_pages"), 1_000),
+            max_anchors=_integer(expanded.get("max_anchors"), 10_000),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "figshare_model_candidates":
+        return FigshareModelCandidatesSourceAdapter(
+            name=name,
+            oai_url=_text(expanded.get("oai_url")) or "https://api.figshare.com/v2/oai",
+            api_url=_text(expanded.get("api_url")) or "https://api.figshare.com/v2/articles",
+            from_date=_required_text(expanded, "from_date"),
+            until_date=_required_text(expanded, "until_date"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "figshare_model_candidates_workflow":
+        return FigshareModelCandidatesWorkflow(
+            name=name,
+            oai_url=_text(expanded.get("oai_url")) or "https://api.figshare.com/v2/oai",
+            api_url=_text(expanded.get("api_url")) or "https://api.figshare.com/v2/articles",
+            from_date=_required_text(expanded, "from_date"),
+            until_date=_required_text(expanded, "until_date"),
+            window_days=_integer(expanded.get("window_days"), 1),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "demucs_pretrained_registry":
+        return DemucsPretrainedRegistrySourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 1024 * 1024),
+            max_models=_integer(expanded.get("max_models"), 100),
+            **injected,
+        )
+
+    if adapter == "msst_pretrained_models":
+        return MsstPretrainedModelsSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_models=_integer(expanded.get("max_models"), 100),
+            **injected,
+        )
+
+    if adapter == "medicalnet_registry":
+        return MedicalNetRegistrySourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "Tencent/MedicalNet",
+            branch=_text(expanded.get("branch")) or "master",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "paddlenlp_xlm_registry":
+        return PaddleNlpXlmRegistrySourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "PaddlePaddle/PaddleNLP",
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_text(expanded.get("source_path"))
+            or "paddlenlp/transformers/xlm/configuration.py",
+            provider_namespace=_text(expanded.get("provider_namespace"))
+            or "paddlenlp:transformer-model",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "openai_consistency_cifar10_checkpoints":
+        return OpenAIConsistencyCIFAR10CheckpointSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository"))
+            or "openai/consistency_models_cifar10",
+            branch=_text(expanded.get("branch")) or "main",
+            document_path=_text(expanded.get("document_path")) or "README.md",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_checkpoints=_integer(expanded.get("max_checkpoints"), 100),
+            client=injected["client"],
+        )
+
+    if adapter == "deep_wetlands_checkpoint_registry":
+        return DeepWetlandsCheckpointRegistrySourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "timm_legacy_byobnet":
+        return TimmLegacyByobNetSourceAdapter(name=name, **injected)
+
+    if adapter == "msst_mel_roformer_experiments":
+        return MsstMelRoformerExperimentsSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_models=_integer(expanded.get("max_models"), 50),
             **injected,
         )
 

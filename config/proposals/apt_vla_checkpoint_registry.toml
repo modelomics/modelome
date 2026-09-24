@@ -1,0 +1,11 @@
+[[source]]
+name = "apt-vla-checkpoint-registry"
+adapter = "apt_vla_checkpoint_registry"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:apt-vla", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 8
+
+# Three README-declared policies plus two verified Vision-Action prior releases.
+# Metadata only; checkpoint bytes are not downloaded.

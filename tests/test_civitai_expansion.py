@@ -97,6 +97,7 @@ def test_model_filters_and_version_file_evidence_are_retained() -> None:
     assert set(next_query["types"]) == {"LORA", "Checkpoint"}
     assert next_query["baseModels"] == ["Flux.1 D"]
     assert next_query["period"] == ["Month"]
+    assert next_query["earlyAccess"] == ["true"]
     assert resumed.complete
 
     release = page.records[0].releases[0]

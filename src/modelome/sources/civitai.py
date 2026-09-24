@@ -160,6 +160,7 @@ class CivitaiModelsSourceAdapter:
                     sort_by=self.sort_by,
                     period=self.period,
                     include_nsfw=self.include_nsfw,
+                    include_early_access=self.include_early_access,
                     cursor=cursor,
                     extra_params=self._filter_params(),
                 )
@@ -479,6 +480,7 @@ def _cursor_url(
     sort_by: str,
     period: str,
     include_nsfw: bool,
+    include_early_access: bool,
     cursor: str,
     extra_params: Mapping[str, Any] | None = None,
 ) -> str:
@@ -486,6 +488,7 @@ def _cursor_url(
         ("limit", str(page_size)),
         ("sort", sort_by),
         ("nsfw", str(include_nsfw).lower()),
+        ("earlyAccess", str(include_early_access).lower()),
         ("cursor", cursor),
     ]
     if period != "AllTime":

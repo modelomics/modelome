@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 
 from modelome.sources.catalog import create_source
@@ -131,7 +133,7 @@ from modelome.sources.timm_legacy_efficientnet import TimmLegacyEfficientNetSour
 def test_wave26_checkpoint_adapters_load_through_factory(
     config: dict[str, object], adapter_type: type, attributes: dict[str, object]
 ) -> None:
-    source = create_source(config)
+    source = create_source(config, clock=lambda: datetime(2026, 1, 1, tzinfo=UTC))
 
     assert isinstance(source, adapter_type)
     assert source.name == config["name"]

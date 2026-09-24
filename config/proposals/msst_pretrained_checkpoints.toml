@@ -1,0 +1,12 @@
+# First-party maintained checkpoint links and model context from the MSST table.
+# The table also includes community-contributed entries and excludes its linked
+# MelRoformer experiments table. Checkpoint contents are never fetched.
+# Source: https://github.com/ZFTurbo/Music-Source-Separation-Training/blob/main/docs/pretrained_models.md
+[[source]]
+name = "msst-pretrained-checkpoints"
+adapter = "msst_pretrained_models"
+enabled = false
+entry_tags = ["field:audio-machine-learning", "task:music-source-separation", "ecosystem:msst", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_models = 100

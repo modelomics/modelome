@@ -27,6 +27,7 @@ _DOCS = (
     "official/nlp/docs/pretrained_models.md",
     "official/nlp/MODEL_GARDEN.md",
     "official/vision/README.md",
+    "official/projects/movinet/README.md",
 )
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 _MARKDOWN_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^)]+)\)")
@@ -49,6 +50,7 @@ _HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*$")
 _NLP_DOC = "official/nlp/docs/pretrained_models.md"
 _NLP_GARDEN_DOC = "official/nlp/MODEL_GARDEN.md"
 _VISION_README = "official/vision/README.md"
+_MOVINET_README = "official/projects/movinet/README.md"
 
 
 class TensorFlowGardenSourceAdapter:
@@ -63,8 +65,9 @@ class TensorFlowGardenSourceAdapter:
     disable_derived_extraction = True
     coverage_limitation = (
         "Covers checkpoint-linked rows in the official TensorFlow Models vision "
-        "and NLP Model Garden documents. It does not enumerate every research/ "
-        "directory, independently hosted model, or download checkpoint bytes."
+        "and NLP Model Garden documents and the MoViNet project README. It does "
+        "not enumerate every research/ directory, independently hosted model, "
+        "or download checkpoint bytes."
     )
 
     def __init__(
@@ -81,7 +84,7 @@ class TensorFlowGardenSourceAdapter:
         self.client = client or HttpClient(max_response_bytes=max_bytes)
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "tensorflow-model-garden-v7",
+                "adapter": "tensorflow-model-garden-v8",
                 "repository": _REPOSITORY,
                 "docs": _DOCS,
                 "max_bytes": max_bytes,
@@ -204,7 +207,7 @@ class TensorFlowGardenSourceAdapter:
             normalized_cells = [
                 re.sub(r"\[([^]]+)\]\([^)]+\)", r"\1", c).strip().lower() for c in cells
             ]
-            if any(c in {"model", "name"} for c in normalized_cells) or (
+            if any(c in {"model", "name", "model name"} for c in normalized_cells) or (
                 path == _VISION_README and any(
                     header in {"variant", "backbone"} for header in normalized_cells
                 )

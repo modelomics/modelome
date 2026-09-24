@@ -1,0 +1,19 @@
+# Orb's first-party ORB_PRETRAINED_MODELS mapping names each public model ID and
+# loader function. The adapter resolves exact ID/file pairs from literal
+# weights_path defaults at a pinned Git commit and never fetches checkpoint bytes.
+[[source]]
+name = "orb-models-pretrained-registry"
+adapter = "orb_models_pretrained_registry"
+enabled = false
+repository = "orbital-materials/orb-models"
+branch = "main"
+source_path = "orb_models/forcefield/pretrained.py"
+artifact_host = "orbitalmaterials-public-models.s3.us-west-1.amazonaws.com"
+entry_tags = ["field:computational-materials-science", "ecosystem:orb-models", "model-family:orb", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# The registry declares 27 model keys. The 22 keys with literal checkpoint URLs
+# are indexed; five deprecated loaders with weights_path=None are omitted.
+# Aliased IDs remain separate even when they resolve to the same literal file.
+# Binary reachability is not inferred.

@@ -275,16 +275,28 @@ class KaggleModelsSourceAdapter:
         releases: list[ReleaseHint] = []
         relations: list[ModelRelationHint] = []
         instances = _sequence(item.get("instances"))
+        variation_inventory_status = "not_requested"
         if self.include_all_versions:
-            instances = self._model_instances(model_ref, instances)
+            listed_instances = self._model_instances(model_ref, instances)
+            if listed_instances is None:
+                variation_inventory_status = "unavailable_unauthorized"
+            else:
+                instances = listed_instances
+                variation_inventory_status = "complete"
         for instance_index, instance in enumerate(instances):
             if not isinstance(instance, Mapping):
                 continue
             if self.include_all_versions:
                 version_items = self._instance_versions(model_ref, instance)
-                versions_to_emit = _versions_with_latest(version_items)
+                if version_items is None:
+                    versions_to_emit = (None,)
+                    version_inventory_status = "unavailable_unauthorized"
+                else:
+                    versions_to_emit = _versions_with_latest(version_items)
+                    version_inventory_status = "complete"
             else:
                 versions_to_emit = (None,)
+                version_inventory_status = "not_requested"
             for version_item in versions_to_emit:
                 release, instance_links, relation = self._instance(
                     model_ref,
@@ -292,6 +304,8 @@ class KaggleModelsSourceAdapter:
                     instance,
                     instance_index,
                     version_item=version_item,
+                    variation_inventory_status=variation_inventory_status,
+                    version_inventory_status=version_inventory_status,
                 )
                 releases.append(release)
                 links.extend(instance_links)
@@ -329,7 +343,7 @@ class KaggleModelsSourceAdapter:
         self,
         model_ref: str,
         embedded: Sequence[Any],
-    ) -> tuple[Any, ...]:
+    ) -> tuple[Any, ...] | None:
         """Page the first-party variation listing and merge embedded summaries."""
         owner, separator, model_slug = model_ref.partition("/")
         if not separator or not owner or not model_slug:
@@ -350,6 +364,10 @@ class KaggleModelsSourceAdapter:
                 headers={"Accept": "application/json"},
             )
             if response.status != 200:
+                if response.status in {401, 403}:
+                    # Kaggle's public model search can expose an instance summary
+                    # while the detail endpoint requires authentication.
+                    return None
                 raise ValueError(
                     f"{self.name}: variations for {model_ref} returned HTTP {response.status}"
                 )
@@ -409,6 +427,8 @@ class KaggleModelsSourceAdapter:
         index: int,
         *,
         version_item: Mapping[str, Any] | None = None,
+        variation_inventory_status: str = "not_requested",
+        version_inventory_status: str = "not_requested",
     ) -> tuple[ReleaseHint, tuple[Link, ...], ModelRelationHint | None]:
         parent_instance = instance
         instance = {**parent_instance, **(version_item or {})}
@@ -545,11 +565,17 @@ class KaggleModelsSourceAdapter:
                 ),
                 locator="$.instances.externalBaseModelUrl",
             )
-        version_files = (
-            self._version_files(model_ref, framework, slug, version)
-            if self.include_version_files and version != "unknown"
-            else ()
-        )
+        if self.include_version_files and version != "unknown":
+            listed_files = self._version_files(model_ref, framework, slug, version)
+            version_files = listed_files or ()
+            file_manifest_status = (
+                "complete" if listed_files is not None else "unavailable_unauthorized"
+            )
+        else:
+            version_files = ()
+            file_manifest_status = (
+                "not_requested" if not self.include_version_files else "unknown_version"
+            )
         release = ReleaseHint(
             local_id=(
                 f"{model_ref}#release:{instance_id or instance_ref}"
@@ -589,6 +615,9 @@ class KaggleModelsSourceAdapter:
                     )
                 ),
                 "files": version_files,
+                "file_manifest_status": file_manifest_status,
+                "version_inventory_status": version_inventory_status,
+                "variation_inventory_status": variation_inventory_status,
                 "total_uncompressed_bytes": _optional_nonnegative_int(
                     instance.get("totalUncompressedBytes")
                 ),
@@ -603,7 +632,7 @@ class KaggleModelsSourceAdapter:
         self,
         model_ref: str,
         instance: Mapping[str, Any],
-    ) -> tuple[Mapping[str, Any], ...]:
+    ) -> tuple[Mapping[str, Any], ...] | None:
         owner, separator, model_slug = model_ref.partition("/")
         if not separator or not owner or not model_slug:
             raise ValueError(f"invalid Kaggle model ref for version lookup: {model_ref!r}")
@@ -629,6 +658,8 @@ class KaggleModelsSourceAdapter:
                 headers={"Accept": "application/json"},
             )
             if response.status != 200:
+                if response.status in {401, 403}:
+                    return None
                 raise ValueError(
                     f"{self.name}: versions for {model_ref}/{framework}/{slug} "
                     f"returned HTTP {response.status}"
@@ -720,7 +751,7 @@ class KaggleModelsSourceAdapter:
         framework: str,
         slug: str,
         version: str,
-    ) -> tuple[dict[str, Any], ...]:
+    ) -> tuple[dict[str, Any], ...] | None:
         """List files for one exact version when explicitly requested."""
         parts = urlsplit(self.url)
         path = "/".join(
@@ -740,6 +771,8 @@ class KaggleModelsSourceAdapter:
                 headers={"Accept": "application/json"},
             )
             if response.status != 200:
+                if response.status in {401, 403}:
+                    return None
                 raise ValueError(
                     f"{self.name}: files for {model_ref}/{framework}/{slug}/{version} "
                     f"returned HTTP {response.status}"

@@ -62,3 +62,39 @@ def test_does_not_treat_generic_supplement_as_a_checkpoint() -> None:
     assert not record.releases
     supplement = next(link for link in record.links if link.relation == "supplementary_material")
     assert supplement.crawl is False
+
+
+def test_includes_first_party_reissue_volumes_and_preserves_the_r_series_id() -> None:
+    index = b"""<a href="/v97">Volume 97</a><a href="/r6">Volume R6</a>"""
+    reissue = b"""<html><body>
+    <dt>Adaptive inference on general graphical models</dt>
+    <dd>Umut A. Acar; Proceedings of the 24th Conference on Uncertainty in Artificial
+    Intelligence, PMLR R6:1-8</dd>
+    <a href="acar08a.html">abs</a>
+    <a href="https://raw.githubusercontent.com/mlresearch/r6/main/assets/acar08a/acar08a.pdf">
+      Download PDF
+    </a>
+    </body></html>"""
+    client = QueueClient(index, VOLUME, reissue)
+    source = PmlrSourceAdapter(client=client)
+
+    page = source.fetch_page({})
+
+    assert client.calls == ["https://proceedings.mlr.press/", "https://proceedings.mlr.press/v97/"]
+    # The index is in newest-first order. Advance the frozen manifest to R6.
+    state = {
+        **page.next_state,
+        "volume_index": 1,
+        "paper_count": page.next_state["paper_count"],
+    }
+    reissue_page = source.fetch_page(state)
+    assert client.calls[-1] == "https://proceedings.mlr.press/r6/"
+    record = reissue_page.records[0]
+    assert record.source_record_id == "r6/acar08a"
+    assert record.canonical_url == "https://proceedings.mlr.press/r6/acar08a.html"
+    assert Identifier("pmlr", "r6/acar08a") in record.identifiers
+    assert record.raw["volume_id"] == "r6"
+    assert (
+        record.links[0].url
+        == "https://raw.githubusercontent.com/mlresearch/r6/main/assets/acar08a/acar08a.pdf"
+    )

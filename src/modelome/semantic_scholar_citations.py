@@ -105,7 +105,11 @@ class SemanticScholarCitationGraphAdapter:
 
         records = tuple(self._edge_record(row) for row in rows)
         next_value = payload.get("next")
-        if next_value in (None, 0):
+        if next_value is None or (
+            isinstance(next_value, int)
+            and not isinstance(next_value, bool)
+            and next_value == 0
+        ):
             next_offset = offset + len(rows)
             done = True
         else:

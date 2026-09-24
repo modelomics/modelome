@@ -133,6 +133,8 @@ def test_citations_use_cited_by_relation_and_keep_both_exact_endpoint_ids():
         {"offset": 1, "next": 2, "data": []},
         {"offset": 0, "next": 2, "data": [{"citedPaper": {}}]},
         {"offset": 0, "next": 1, "data": []},
+        {"offset": 0, "next": False, "data": []},
+        {"offset": 0, "next": 0.0, "data": []},
         {"offset": 0, "data": [{"citedPaper": {"paperId": "x", "url": "https://x.org"}}]},
     ],
 )

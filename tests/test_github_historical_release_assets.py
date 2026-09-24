@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from modelome.http import HttpResponse
+from modelome.http import HttpFailure, HttpResponse
 from modelome.sources.catalog import create_source
 from modelome.sources.github_historical_release_assets import (
     GitHubHistoricalReleaseAssetsSourceAdapter,
@@ -25,6 +25,24 @@ class RouteClient:
             status=200,
             headers=response_headers,
             body=json.dumps(body).encode(),
+            url=url,
+        )
+
+
+class RateLimitOnceClient:
+    def __init__(self, url: str, body: list[dict[str, Any]]) -> None:
+        self.url = url
+        self.body = body
+        self.calls: list[str] = []
+
+    def get(self, url: str, *, headers=None) -> HttpResponse:
+        self.calls.append(url)
+        if len(self.calls) == 1:
+            raise HttpFailure("simulated GitHub 429 after retry budget")
+        return HttpResponse(
+            status=200,
+            headers={},
+            body=json.dumps(self.body).encode(),
             url=url,
         )
 
@@ -291,6 +309,69 @@ def test_range_planner_supports_documented_page_and_item_caps() -> None:
     assert adapter.max_asset_pages_per_release == 100
     assert adapter.max_http_attempts == 3
     assert adapter.max_api_requests == plan.max_api_requests
+
+
+def test_planner_bounds_wider_release_scan_by_retry_inclusive_request_budget() -> None:
+    plan = plan_github_repository_id_ranges(
+        initial_since=10,
+        max_repository_id=12,
+        shard_count=1,
+        max_releases_per_repository=200,
+        max_release_pages_per_repository=2,
+        max_asset_pages_per_release=10,
+        max_http_attempts=4,
+        max_api_requests_per_range=16_020,
+    )[0]
+    adapter = GitHubHistoricalReleaseAssetsSourceAdapter(**plan.adapter_kwargs())
+
+    assert plan.max_releases_per_repository == 200
+    assert plan.max_page_requests == 4_005
+    assert plan.max_api_requests == adapter.max_api_requests == 16_020
+
+    repo_url = "https://api.github.com/repositories?per_page=100&since=10"
+    releases_url = "https://api.github.com/repos/lab/model/releases?per_page=100&page=1"
+    releases_next = "https://api.github.com/repos/lab/model/releases?per_page=100&page=2"
+    release_rows = [
+        {
+            "id": 1000 + index,
+            "tag_name": f"v{index}",
+            "name": "Model release",
+            "body": "",
+            "html_url": f"https://github.com/lab/model/releases/tag/v{index}",
+        }
+        for index in range(100)
+    ]
+    bounded_adapter = GitHubHistoricalReleaseAssetsSourceAdapter(
+        name="github-wider-range",
+        initial_since=10,
+        max_repository_id=12,
+        max_repositories=1,
+        max_releases_per_repository=200,
+        max_release_pages_per_repository=2,
+        client=RouteClient(
+            {
+                repo_url: ([{"id": 11, "full_name": "lab/model", "private": False}], {}),
+                releases_url: (release_rows, {"Link": f'<{releases_next}>; rel="next"'}),
+            }
+        ),
+    )
+    repository_page = bounded_adapter.fetch_page({})
+    selected_repo = bounded_adapter.fetch_page(repository_page.next_state)
+    release_page = bounded_adapter.fetch_page(selected_repo.next_state)
+    assert len(release_page.next_state["release_queue"]) == 100
+    assert release_page.next_state["release_next_url"] == releases_next
+
+    with pytest.raises(ValueError, match="above max_api_requests_per_range"):
+        plan_github_repository_id_ranges(
+            initial_since=10,
+            max_repository_id=12,
+            shard_count=1,
+            max_releases_per_repository=200,
+            max_release_pages_per_repository=2,
+            max_asset_pages_per_release=10,
+            max_http_attempts=4,
+            max_api_requests_per_range=16_019,
+        )
 
 
 @pytest.mark.parametrize(
@@ -699,3 +780,49 @@ def test_deleted_last_release_asset_advances_to_the_next_repository() -> None:
     assert page.complete is True
     assert client.calls.count(first_releases) == 1
     assert second_releases in client.calls
+
+
+def test_rate_limit_failure_leaves_asset_checkpoint_resumable() -> None:
+    asset_url = "https://api.github.com/repos/lab/model/releases/501/assets?per_page=100&page=1"
+    client = RateLimitOnceClient(
+        asset_url,
+        [
+            {
+                "id": 601,
+                "name": "resnet50.safetensors",
+                "browser_download_url": (
+                    "https://github.com/lab/model/releases/download/v1/resnet50.safetensors"
+                ),
+            }
+        ],
+    )
+    adapter = GitHubHistoricalReleaseAssetsSourceAdapter(
+        initial_since=100,
+        max_repository_id=200,
+        max_repositories=1,
+        client=client,
+    )
+    state: dict[str, Any] = {
+        "current_repo": {"id": 101, "full_name": "lab/model"},
+        "current_release": {
+            "id": 501,
+            "tag_name": "v1",
+            "name": "Model release",
+            "body": "Neural model checkpoint",
+            "html_url": "https://github.com/lab/model/releases/tag/v1",
+        },
+        "repo_queue": [],
+        "release_queue": [],
+        "repos_seen": 1,
+        "asset_page": 1,
+        "assets_seen": 0,
+    }
+    original_state = dict(state)
+
+    with pytest.raises(HttpFailure, match="429"):
+        adapter.fetch_page(state)
+    assert state == original_state
+
+    resumed = adapter.fetch_page(state)
+    assert resumed.records[0].source_record_id == "github-release-asset:101:501:601"
+    assert client.calls == [asset_url, asset_url]

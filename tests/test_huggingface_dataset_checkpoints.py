@@ -154,6 +154,15 @@ def test_dataset_listing_follows_provider_cursor_and_caps_files_with_incomplete_
     assert page.next_state["next_url"] == next_url
     assert page.records[0].raw["weight_files"] == ["a.safetensors"]
     assert page.records[0].raw["weight_files_complete"] is False
+    assert page.records[0].raw["omitted_weight_file_count"] == 1
+    assert page.advance_on_source_issues is True
+    assert page.issues[0].summary == {
+        "dataset_id": "dataset-owner/large-checkpoint-archive",
+        "file_inventory_status": "truncated",
+        "retained_weight_file_count": 1,
+        "omitted_weight_file_count": 1,
+        "max_checkpoint_files": 1,
+    }
 
 
 def test_dataset_detail_sha_drift_is_reported_and_does_not_admit_files() -> None:
@@ -254,6 +263,37 @@ def test_live_acronym_dataset_detail_contains_no_checkpoint_candidate() -> None:
     assert checked.records == ()
     assert checked.issues == ()
     assert checked.complete is True
+
+
+def test_live_keras_dataset_emits_sha_pinned_checkpoint_candidate() -> None:
+    repo_id = "aliakbar088/kerasplant"
+    revision = "7e6658b0221fd2b0708b759d6da8d57b097d4e0d"
+    client = _Client(
+        [{"id": repo_id, "sha": revision, "private": False, "gated": False}],
+        details={
+            f"https://huggingface.co/api/datasets/{repo_id}": {
+                "id": repo_id,
+                "sha": revision,
+                "private": False,
+                "gated": False,
+                "siblings": [{"rfilename": "Plant-Disease-Model.keras"}],
+            }
+        },
+    )
+    adapter = HuggingFaceDatasetCheckpointSourceAdapter(client=client)
+
+    queued = adapter.fetch_page({})
+    checked = adapter.fetch_page(queued.next_state)
+
+    assert queued.records == ()
+    assert checked.complete is True
+    assert checked.issues == ()
+    record = checked.records[0]
+    assert record.source_record_id == f"{repo_id}@{revision}"
+    assert record.raw["weight_files"] == ["Plant-Disease-Model.keras"]
+    assert [link.url for link in record.links] == [
+        f"https://huggingface.co/datasets/{repo_id}/resolve/{revision}/Plant-Disease-Model.keras"
+    ]
 
 
 def test_dataset_checkpoint_proposal_loads_through_catalog():

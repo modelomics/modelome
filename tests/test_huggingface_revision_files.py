@@ -133,6 +133,108 @@ def test_revision_weight_files_follow_tree_pagination_and_resume() -> None:
     assert len(client.calls) == 5
 
 
+def test_live_resnet18_listing_and_revision_trees_match_checkpoint_history() -> None:
+    """Snapshot of first-party Hub listing, refs, commits, and tree responses."""
+    repo = "microsoft/resnet-18"
+    latest = "65a5785d9156231087c481e0c7dd33a5ff6f7e3e"
+    snapshots = {
+        latest: ["model.safetensors", "pytorch_model.bin", "tf_model.h5"],
+        "f45a6faa12e0381f5620c5c8d7e916bca90f2c44": [
+            "model.safetensors",
+            "pytorch_model.bin",
+            "tf_model.h5",
+        ],
+        "2f536bd335677c6b111b3d103af458ef57a6145e": [
+            "pytorch_model.bin",
+            "tf_model.h5",
+        ],
+        "06959238e40d10272a27632d7458258a78a11840": ["pytorch_model.bin"],
+        "cb2984207d7196932d571bd7732a0a644b471372": ["pytorch_model.bin"],
+        "b84c5cd73e9544fa1b67d690748d13a4bdb29267": ["pytorch_model.bin"],
+        "e32f4f8ec69beca53a7ef46172b32363b480a335": ["pytorch_model.bin"],
+        "f66f0aca93e014a4f12dd56f097b26111a48551d": [],
+    }
+    catalog = "https://huggingface.co/api/models?catalog=1"
+    refs_url = f"https://huggingface.co/api/models/{repo}/refs"
+    commits_url = (
+        f"https://huggingface.co/api/models/{repo}/commits/refs%2Fheads%2Fmain"
+    )
+    routes = {
+        catalog: (
+            200,
+            [
+                {
+                    "id": repo,
+                    "sha": latest,
+                    "siblings": [
+                        {"rfilename": name} for name in snapshots[latest]
+                    ],
+                }
+            ],
+            {},
+        ),
+        refs_url: (
+            200,
+            {
+                "branches": [
+                    {
+                        "name": "main",
+                        "ref": "refs/heads/main",
+                        "targetCommit": latest,
+                    }
+                ],
+                "tags": [],
+                "converts": [],
+            },
+            {},
+        ),
+        commits_url: (
+            200,
+            [{"id": sha} for sha in snapshots],
+            {},
+        ),
+    }
+    for sha, filenames in snapshots.items():
+        tree_url = (
+            f"https://huggingface.co/api/models/{repo}/tree/{sha}"
+            "?recursive=true&expand=false"
+        )
+        routes[tree_url] = (
+            200,
+            [{"type": "file", "path": filename} for filename in filenames],
+            {},
+        )
+    adapter = HuggingFaceSourceAdapter(
+        client=_RouteClient(routes),
+        include_revisions=True,
+        include_revision_files=True,
+    )
+
+    listed = adapter.fetch_page({})
+    assert listed.records[0].releases[0].revision == latest
+    assert listed.records[0].releases[0].metadata["weight_files"] == snapshots[latest]
+    refs = adapter.fetch_page(listed.next_state)
+    commits = adapter.fetch_page(refs.next_state)
+    state = dict(commits.next_state)
+
+    observed: dict[str, list[str]] = {}
+    for _ in snapshots:
+        result = adapter.fetch_page(state)
+        assert len(result.records) == 1
+        record = result.records[0]
+        observed[record.releases[0].revision] = record.releases[0].metadata[
+            "weight_files"
+        ]
+        assert all(
+            f"/resolve/{record.releases[0].revision}/" in link.url
+            for link in record.links
+            if link.relation == "weights"
+        )
+        state = dict(result.next_state)
+
+    assert observed == snapshots
+
+
 def test_revision_tree_page_cap_marks_observed_files_incomplete() -> None:
     repo = "lab/revision-model"
     tree = f"https://huggingface.co/api/models/{repo}/tree/commit-a?recursive=true&expand=false"
@@ -145,6 +247,11 @@ def test_revision_tree_page_cap_marks_observed_files_incomplete() -> None:
         200,
         [{"type": "file", "path": "observed.safetensors"}],
         {"Link": f'<{following}>; rel="next"'},
+    )
+    routes[following] = (
+        200,
+        [{"type": "file", "path": "historical/late.safetensors"}],
+        {},
     )
     client = _RouteClient(routes)
     adapter = HuggingFaceSourceAdapter(
@@ -160,8 +267,28 @@ def test_revision_tree_page_cap_marks_observed_files_incomplete() -> None:
     assert result.complete is True
     assert record.releases[0].metadata["weight_files"] == ["observed.safetensors"]
     assert record.releases[0].metadata["weight_files_complete"] is False
+    assert "historical/late.safetensors" not in record.releases[0].metadata["weight_files"]
     assert len(client.calls) == 4
     assert following not in client.calls
+
+    # Raising the explicit per-commit cap retrieves the path on the later
+    # historical tree page and lets the release report a complete file list.
+    client.calls.clear()
+    larger_cap = HuggingFaceSourceAdapter(
+        client=client,
+        include_revisions=True,
+        include_revision_files=True,
+        max_revision_tree_pages=2,
+    )
+    larger_state = _drain_to_tree(larger_cap, {})
+    page_one = larger_cap.fetch_page(larger_state)
+    assert page_one.records == ()
+    page_two = larger_cap.fetch_page(page_one.next_state)
+    assert page_two.records[0].releases[0].metadata["weight_files"] == [
+        "historical/late.safetensors",
+        "observed.safetensors",
+    ]
+    assert page_two.records[0].releases[0].metadata["weight_files_complete"] is True
 
 
 def test_unavailable_historical_tree_does_not_block_later_revisions() -> None:
@@ -281,6 +408,68 @@ def test_overlong_weight_path_cannot_be_silently_reported_as_complete() -> None:
 
     assert record.releases[0].metadata["weight_files"] == ["model.safetensors"]
     assert record.releases[0].metadata["weight_files_complete"] is False
+
+
+def test_default_tree_cap_marks_weight_after_twenty_thousand_entries_partial() -> None:
+    repo = "lab/revision-model"
+    tree_base = f"https://huggingface.co/api/models/{repo}/tree/commit-a"
+    tree_urls = [
+        f"{tree_base}?recursive=true&expand=false",
+        *(
+            f"{tree_base}?cursor=page-{page}&expand=false&recursive=true"
+            for page in range(2, 22)
+        ),
+    ]
+    routes = _revision_routes(repo)
+    for page_index, url in enumerate(tree_urls[:-1]):
+        routes[url] = (
+            200,
+            [
+                {"type": "file", "path": f"docs/page-{page_index:02d}-file-{index:04d}.txt"}
+                for index in range(1000)
+            ],
+            {"Link": f'<{tree_urls[page_index + 1]}>; rel="next"'},
+        )
+    routes[tree_urls[-1]] = (
+        200,
+        [{"type": "file", "path": "historical/late.safetensors"}],
+        {},
+    )
+    client = _RouteClient(routes)
+    adapter = HuggingFaceSourceAdapter(
+        client=client,
+        include_revisions=True,
+        include_revision_files=True,
+    )
+
+    state = _drain_to_tree(adapter, {})
+    result = None
+    for _ in range(20):
+        result = adapter.fetch_page(state)
+        state = dict(result.next_state)
+    assert result is not None and result.records
+    partial = result.records[0].releases[0].metadata
+    assert partial["weight_files"] == []
+    assert partial["weight_files_complete"] is False
+    assert tree_urls[-1] not in client.calls
+
+    # Raising the configured finite page cap reaches the exact historical file.
+    client.calls.clear()
+    larger_cap = HuggingFaceSourceAdapter(
+        client=client,
+        include_revisions=True,
+        include_revision_files=True,
+        max_revision_tree_pages=21,
+    )
+    state = _drain_to_tree(larger_cap, {})
+    result = None
+    for _ in range(21):
+        result = larger_cap.fetch_page(state)
+        state = dict(result.next_state)
+    assert result is not None and result.records
+    complete = result.records[0].releases[0].metadata
+    assert complete["weight_files"] == ["historical/late.safetensors"]
+    assert complete["weight_files_complete"] is True
 
 
 def test_lfs_metadata_checkpoint_is_byte_bounded_and_truncation_is_explicit() -> None:

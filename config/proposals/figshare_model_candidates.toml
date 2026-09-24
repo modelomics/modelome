@@ -1,0 +1,24 @@
+# Resumable Figshare history traversal. The workflow stores one date cursor and
+# at most one active OAI token, then advances through adjacent one-day windows.
+# `from_date` and `until_date` bound the requested scan; `until_date` is exclusive.
+[[source]]
+name = "figshare-model-candidates-history"
+adapter = "figshare_model_candidates_workflow"
+enabled = false
+oai_url = "https://api.figshare.com/v2/oai"
+api_url = "https://api.figshare.com/v2/articles"
+from_date = "2011-01-01"
+until_date = "2027-01-01"
+window_days = 1
+entry_tags = ["provider:figshare", "kind:model-artifact-candidate"]
+schedule = "manual"
+max_response_bytes = 8388608
+
+# Figshare's observed OAI endpoint treats `until` as exclusive. Its opaque tokens
+# expire after 60 minutes. If a token expires, the current one-day window fails
+# clearly and can restart from its empty checkpoint without moving the date cursor.
+# OAI METS exposes current article versions. Detail requests read REST metadata
+# only. Admission requires explicit named weight/checkpoint evidence plus matching
+# OAI/REST filename and download URL; every emitted ModelHint remains a candidate.
+# This scans only the configured date range. It never fetches file bytes. The
+# workflow adapter needs catalog routing before this disabled proposal can load.

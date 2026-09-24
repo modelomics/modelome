@@ -74,6 +74,7 @@ def plan_github_repository_id_ranges(
     max_release_pages_per_repository: int = 10,
     max_asset_pages_per_release: int = 10,
     max_http_attempts: int = 4,
+    max_api_requests_per_range: int | None = None,
 ) -> tuple[GitHubRepositoryIdRangePlan, ...]:
     """Partition ``(initial_since, max_repository_id]`` into safe scan slices.
 
@@ -122,6 +123,15 @@ def plan_github_repository_id_ranges(
         maximum=100,
     )
     attempts = _integer(max_http_attempts, "max_http_attempts", minimum=1, maximum=10)
+    request_budget = (
+        None
+        if max_api_requests_per_range is None
+        else _integer(
+            max_api_requests_per_range,
+            "max_api_requests_per_range",
+            minimum=1,
+        )
+    )
 
     base_width, remainder = divmod(span, shard_count)
     cursor = lower
@@ -134,6 +144,13 @@ def plan_github_repository_id_ranges(
         page_requests = math.ceil(width / page_size) + width * (
             release_pages + max_releases * asset_pages
         )
+        api_requests = page_requests * attempts
+        if request_budget is not None and api_requests > request_budget:
+            raise ValueError(
+                f"planned range requires up to {api_requests} API requests, above "
+                f"max_api_requests_per_range {request_budget}; increase shard_count "
+                "or lower the scan caps"
+            )
         plans.append(
             GitHubRepositoryIdRangePlan(
                 name=f"{prefix}-{cursor + 1}-{end}",
@@ -147,7 +164,7 @@ def plan_github_repository_id_ranges(
                 max_asset_pages_per_release=asset_pages,
                 max_http_attempts=attempts,
                 max_page_requests=page_requests,
-                max_api_requests=page_requests * attempts,
+                max_api_requests=api_requests,
             )
         )
         cursor = end

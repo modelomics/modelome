@@ -1,0 +1,11 @@
+# First-party list used by Demucs' official remote pretrained model loader.
+# The manifest contains individual checkpoint files, not composed model bags.
+# Model URLs are constructed from the declared root and exact filenames.
+[[source]]
+name = "demucs-pretrained-checkpoints"
+adapter = "demucs_pretrained_registry"
+enabled = false
+entry_tags = ["field:audio-machine-learning", "task:music-source-separation", "ecosystem:demucs", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 1048576
+max_models = 100

@@ -1,0 +1,11 @@
+# OpenAI's archived consistency_models README declares twelve exact checkpoint files.
+[[source]]
+name = "openai-consistency-checkpoints"
+adapter = "openai_consistency_checkpoints"
+enabled = false
+entry_tags = ["field:generative-image-modeling", "ecosystem:openai", "model-family:consistency-models", "kind:checkpoint", "evidence:first-party-checkpoint-download-list"]
+repository = "openai/consistency_models"
+branch = "main"
+document_path = "README.md"
+max_response_bytes = 4194304
+max_checkpoints = 100

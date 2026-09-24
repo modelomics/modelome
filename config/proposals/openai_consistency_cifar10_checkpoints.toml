@@ -1,0 +1,11 @@
+# Ten direct checkpoint links in OpenAI's separate JAX CIFAR-10 consistency repo.
+[[source]]
+name = "openai-consistency-cifar10-checkpoints"
+adapter = "openai_consistency_cifar10_checkpoints"
+enabled = false
+entry_tags = ["field:generative-image-modeling", "ecosystem:openai", "model-family:consistency-models", "dataset:cifar-10", "kind:checkpoint", "evidence:first-party-checkpoint-download-list"]
+repository = "openai/consistency_models_cifar10"
+branch = "main"
+document_path = "README.md"
+max_response_bytes = 4194304
+max_checkpoints = 100

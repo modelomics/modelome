@@ -11,15 +11,17 @@ from modelome.sources.kaggle import KaggleModelsSourceAdapter
 
 
 class _Client:
-    def __init__(self, *payloads: Mapping[str, Any]) -> None:
+    def __init__(self, *payloads: Mapping[str, Any], statuses: tuple[int, ...] = ()) -> None:
         self.payloads = list(payloads)
+        self.statuses = list(statuses)
         self.calls: list[tuple[str, Mapping[str, Any]]] = []
 
     def get(self, url: str, *, params=None, headers=None) -> HttpResponse:
         self.calls.append((url, dict(params or {})))
         if not self.payloads:
             raise AssertionError("unexpected request")
-        return HttpResponse(200, {}, json.dumps(self.payloads.pop(0)).encode(), url)
+        status = self.statuses.pop(0) if self.statuses else 200
+        return HttpResponse(status, {}, json.dumps(self.payloads.pop(0)).encode(), url)
 
 
 def test_search_and_owner_filters_are_sent_and_part_of_checkpoint_identity() -> None:
@@ -245,6 +247,48 @@ def test_optional_null_version_and_file_collections_do_not_truncate_cursor_pages
     assert client.calls[3][1] == {"pageSize": 100, "pageToken": "more-versions"}
     assert client.calls[4][1] == {"pageSize": 100}
     assert client.calls[5][1] == {"pageSize": 100, "pageToken": "more-files"}
+
+
+def test_unauthorized_detail_and_file_manifests_preserve_public_listing_identity() -> None:
+    client = _Client(
+        {
+            "models": [
+                {
+                    "ref": "google/gemma",
+                    "instances": [
+                        {
+                            "id": 12,
+                            "slug": "2b",
+                            "framework": "PyTorch",
+                            "versionNumber": 3,
+                            "versionId": 103,
+                        }
+                    ],
+                }
+            ],
+            "totalResults": 1,
+        },
+        {},
+        {},
+        {},
+        statuses=(200, 403, 403, 403),
+    )
+
+    page = KaggleModelsSourceAdapter(
+        client=client,
+        include_all_versions=True,
+        include_version_files=True,
+    ).fetch_page({})
+
+    assert len(page.records) == 1
+    release = page.records[0].releases[0]
+    assert release.version == "3"
+    assert release.revision == "103"
+    assert release.metadata["files"] == ()
+    assert release.metadata["variation_inventory_status"] == "unavailable_unauthorized"
+    assert release.metadata["version_inventory_status"] == "unavailable_unauthorized"
+    assert release.metadata["file_manifest_status"] == "unavailable_unauthorized"
+    assert len(client.calls) == 4
 
 
 def test_version_file_metadata_requires_all_version_expansion() -> None:

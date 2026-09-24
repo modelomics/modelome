@@ -202,6 +202,63 @@ def test_garden_captures_nlp_experiment_matrix_pretrained_parameter_rows() -> No
     ]
 
 
+def test_garden_captures_movinets_base_stream_and_kinetics_400_artifacts() -> None:
+    markdown = "\n".join(
+        [
+            "### Kinetics 600",
+            "#### Base Models",
+            "| Model Name | Checkpoint | TF Hub SavedModel |",
+            "|---|---|---|",
+            (
+                "| MoViNet-A0-Base | [checkpoint](https://storage.googleapis.com/"
+                "tf_model_garden/vision/movinet/movinet_a0_base.tar.gz) | "
+                "[tfhub](https://tfhub.dev/tensorflow/movinet/a0/base/"
+                "kinetics-600/classification/) |"
+            ),
+            "#### Streaming Models",
+            "| Model Name | Checkpoint | TF Hub SavedModel |",
+            "|---|---|---|",
+            (
+                "| MoViNet-A0-Stream | [checkpoint](https://storage.googleapis.com/"
+                "tf_model_garden/vision/movinet/movinet_a0_stream.tar.gz) | "
+                "[tfhub](https://tfhub.dev/tensorflow/movinet/a0/stream/"
+                "kinetics-600/classification/) |"
+            ),
+            "### Kinetics 400",
+            "#### Base Models",
+            "| Model Name | Checkpoint |",
+            "|---|---|",
+            (
+                "| MoViNet-A0-Base | [checkpoint](https://storage.googleapis.com/"
+                "tf_model_garden/vision/movinet/movinet_a0_base_k400.tar.gz) |"
+            ),
+        ]
+    )
+    adapter = TensorFlowGardenSourceAdapter(client=Client(response(markdown)))
+
+    page = adapter.fetch_page({"revision": REVISION, "doc_index": 4})
+
+    assert [record.title for record in page.records] == [
+        "MoViNet-A0-Base",
+        "MoViNet-A0-Stream",
+        "MoViNet-A0-Base",
+    ]
+    assert page.records[0].releases[0].metadata["checkpoints"] == [
+        "https://storage.googleapis.com/tf_model_garden/vision/movinet/movinet_a0_base.tar.gz",
+        "https://tfhub.dev/tensorflow/movinet/a0/base/kinetics-600/classification/",
+    ]
+    assert page.records[1].releases[0].metadata["checkpoints"] == [
+        "https://storage.googleapis.com/tf_model_garden/vision/movinet/movinet_a0_stream.tar.gz",
+        "https://tfhub.dev/tensorflow/movinet/a0/stream/kinetics-600/classification/",
+    ]
+    assert page.records[2].releases[0].metadata["checkpoints"] == [
+        "https://storage.googleapis.com/tf_model_garden/vision/movinet/movinet_a0_base_k400.tar.gz"
+    ]
+    assert page.records[0].models[0].identifiers == page.records[2].models[0].identifiers
+    assert page.records[0].releases[0].identifiers != page.records[2].releases[0].identifiers
+    assert page.next_state["revision"] == REVISION
+
+
 def test_garden_checkpoint_change_adds_release_to_same_model() -> None:
     adapter = TensorFlowGardenSourceAdapter(client=Client())
     before = adapter._records(
@@ -333,9 +390,11 @@ def test_garden_resolves_first_party_config_initialization_checkpoint() -> None:
         init_checkpoint_modules='backbone',
     )
     """
-    config_client = Client(response(config))
+    movinet_readme = "| Model Name | Checkpoint |\n|---|---|\n"
+    config_client = Client(response(movinet_readme), response(config))
     adapter.client = config_client
-    config_page = adapter.fetch_page(document_page.next_state)
+    movinet_page = adapter.fetch_page(document_page.next_state)
+    config_page = adapter.fetch_page(movinet_page.next_state)
 
     assert config_page.complete is True
     assert len(config_page.records) == 1
@@ -351,6 +410,7 @@ def test_garden_resolves_first_party_config_initialization_checkpoint() -> None:
         "revision": REVISION,
     }
     assert config_client.calls == [
+        adapter.raw_url(REVISION, "official/projects/movinet/README.md"),
         adapter.raw_url(REVISION, "official/vision/configs/retinanet.py")
     ]
 
@@ -389,7 +449,7 @@ def test_garden_skips_ambiguous_linked_config_checkpoint_associations(
     config_page = adapter.fetch_page(
         {
             "revision": REVISION,
-            "doc_index": 4,
+            "doc_index": 5,
             "config_queue": queue,
             "config_index": 0,
         }

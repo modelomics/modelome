@@ -1,0 +1,29 @@
+# DigitalOcean's first-party Serverless Inference API lists currently
+# available hosted model IDs for the authenticated account. This is an
+# account-credential-gated availability snapshot, not a public anonymous model
+# census. The documented `data` array contains exact API IDs, owner, and
+# creation timestamp. It does not enumerate user-created dedicated deployments.
+# Primary sources:
+# https://docs.digitalocean.com/reference/api/reference/serverless-inference/
+# https://docs.digitalocean.com/products/inference/how-to/retrieve-available-models/
+[[source]]
+name = "digitalocean-serverless-models"
+adapter = "json_catalog"
+enabled = false
+activation_env = "DIGITALOCEAN_TOKEN"
+entry_tags = ["field:machine-learning", "ecosystem:digitalocean", "kind:hosted-model", "evidence:current-api-availability"]
+url = "https://inference.do-ai.run/v1/models"
+provider_namespace = "digitalocean:serverless-model"
+model_card_url_template = "https://docs.digitalocean.com/products/inference/how-to/retrieve-available-models/"
+model_page_crawl = false
+auth_env = "DIGITALOCEAN_TOKEN"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "data"
+id_path = "id"
+name_path = "id"
+created_path = "created"

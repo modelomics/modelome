@@ -1,0 +1,13 @@
+# The Deep Wetlands first-party README lists four Google Drive files: small and
+# large Sentinel-1 models trained on two year ranges.
+[[source]]
+name = "deep-wetlands-checkpoint-registry"
+adapter = "deep_wetlands_checkpoint_registry"
+enabled = false
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:deep-wetlands", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+max_response_bytes = 1048576
+
+[evidence]
+model_inventory = "https://github.com/melqkiades/deep-wetlands"
+checkpoint_scope = "Four README-declared Google Drive IDs, by model size and training years; no file bytes fetched"

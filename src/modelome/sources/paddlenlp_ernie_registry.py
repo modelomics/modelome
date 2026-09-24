@@ -1,4 +1,4 @@
-"""PaddleNLP's explicit ERNIE-family transformer checkpoint map."""
+"""PaddleNLP literal transformer-family checkpoint maps."""
 
 from __future__ import annotations
 
@@ -26,8 +26,9 @@ _COMMIT = re.compile(r"^[0-9a-f]{40}$")
 _MODEL_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 _REPOSITORY = "PaddlePaddle/PaddleNLP"
 _SOURCE_PATH = "paddlenlp/transformers/ernie/configuration.py"
-_INIT_NAME = "ERNIE_PRETRAINED_INIT_CONFIGURATION"
-_RESOURCE_NAME = "ERNIE_PRETRAINED_RESOURCE_FILES_MAP"
+_SOURCE_PATH_PATTERN = re.compile(
+    r"^paddlenlp/transformers/(?P<family>[a-z0-9_]+)/configuration\.py$"
+)
 _ALLOWED_HOSTS = frozenset({"bj.bcebos.com", "paddlenlp.bj.bcebos.com"})
 
 
@@ -59,11 +60,16 @@ def _literal_assignment(tree: ast.Module, name: str) -> tuple[dict[str, Any], as
     return value, assignment.value
 
 
-def _parse_registry(document: str) -> tuple[tuple[str, str, int], ...]:
+def _parse_registry(
+    document: str,
+    *,
+    init_name: str,
+    resource_name: str,
+) -> tuple[tuple[str, str, int], ...]:
     try:
         tree = ast.parse(document)
-        model_ids, _ = _literal_assignment(tree, _INIT_NAME)
-        resource_map, map_node = _literal_assignment(tree, _RESOURCE_NAME)
+        model_ids, _ = _literal_assignment(tree, init_name)
+        resource_map, map_node = _literal_assignment(tree, resource_name)
     except (SyntaxError, ValueError) as exc:
         raise ValueError(f"paddlenlp-ernie: invalid literal model registry: {exc}") from exc
     state_map = resource_map.get("model_state")
@@ -105,18 +111,18 @@ def _parse_registry(document: str) -> tuple[tuple[str, str, int], ...]:
             continue
         rows.append((model_id, canonicalize_url(url), entry_lines.get(model_id, 0)))
     if not rows:
-        raise ValueError("paddlenlp-ernie: no exact model-state checkpoint entries found")
+        raise ValueError("paddlenlp-transformer: no exact model-state checkpoint entries found")
     return tuple(sorted(rows))
 
 
 class PaddleNlpErnieRegistrySourceAdapter:
-    """Read literal ERNIE model IDs and direct checkpoint URLs without execution."""
+    """Read literal transformer model IDs and direct checkpoint URLs without execution."""
 
     disable_derived_extraction = True
     coverage_limitation = (
-        "Covers only PaddleNLP's literal ERNIE-family model_state URL map whose IDs also "
-        "appear in its pretrained initialization map. It does not execute Python, resolve "
-        "aliases through imports, or infer other transformer-family resources."
+        "Covers only the configured PaddleNLP transformer family's literal model_state URL "
+        "map whose IDs also appear in its pretrained initialization map. It does not execute "
+        "Python, resolve aliases through imports, or infer other transformer-family resources."
     )
 
     def __init__(
@@ -126,14 +132,24 @@ class PaddleNlpErnieRegistrySourceAdapter:
         repository: str = _REPOSITORY,
         branch: str = "develop",
         source_path: str = _SOURCE_PATH,
+        provider_namespace: str = "paddlenlp:transformer-model",
         max_response_bytes: int = 4 * 1024 * 1024,
         client: HttpClient | Any | None = None,
         clock: Clock = _utcnow,
     ) -> None:
         if not isinstance(name, str) or not name.strip():
             raise ValueError("source name is required")
-        if repository != _REPOSITORY or source_path != _SOURCE_PATH:
-            raise ValueError("repository and source_path must identify PaddleNLP's ERNIE registry")
+        family_match = _SOURCE_PATH_PATTERN.fullmatch(source_path)
+        if repository != _REPOSITORY or family_match is None:
+            raise ValueError(
+                "repository and source_path must identify a PaddleNLP transformer config"
+            )
+        family = family_match.group("family")
+        prefix = family.upper() + "_"
+        init_name = f"{prefix}PRETRAINED_INIT_CONFIGURATION"
+        resource_name = f"{prefix}PRETRAINED_RESOURCE_FILES_MAP"
+        if not isinstance(provider_namespace, str) or not provider_namespace.strip():
+            raise ValueError("provider_namespace is required")
         if not isinstance(branch, str) or not branch.strip():
             raise ValueError("branch is required")
         if (
@@ -146,6 +162,10 @@ class PaddleNlpErnieRegistrySourceAdapter:
         self.repository = repository
         self.branch = branch.strip()
         self.source_path = source_path
+        self.family = family
+        self.provider_namespace = provider_namespace.strip()
+        self.init_name = init_name
+        self.resource_name = resource_name
         self.max_response_bytes = max_response_bytes
         self.client = client or HttpClient(max_response_bytes=max_response_bytes)
         self.clock = clock
@@ -155,6 +175,7 @@ class PaddleNlpErnieRegistrySourceAdapter:
                 "repository": repository,
                 "branch": self.branch,
                 "source_path": source_path,
+                "provider_namespace": self.provider_namespace,
                 "max_response_bytes": max_response_bytes,
                 "admission": "model_state URLs intersecting literal pretrained model IDs",
             }
@@ -216,7 +237,9 @@ class PaddleNlpErnieRegistrySourceAdapter:
             raise ValueError(
                 f"{self.name}: source document exceeds {self.max_response_bytes} bytes"
             )
-        rows = _parse_registry(response.text())
+        rows = _parse_registry(
+            response.text(), init_name=self.init_name, resource_name=self.resource_name
+        )
         records = tuple(self._record(row, revision, response.body) for row in rows)
         next_state = {
             "completed_revision": revision,
@@ -235,11 +258,11 @@ class PaddleNlpErnieRegistrySourceAdapter:
 
     def _record(self, row: tuple[str, str, int], revision: str, source: bytes) -> SourceRecord:
         model_id, artifact_url, line = row
-        identifier = Identifier("paddlenlp:transformer-model", model_id)
+        identifier = Identifier(self.provider_namespace, model_id)
         local_id = f"model:{content_hash(model_id)[:24]}"
         source_url = self.blob_url(revision)
         return SourceRecord(
-            source_record_id=f"paddlenlp-ernie:{model_id}",
+            source_record_id=f"paddlenlp-transformer:{self.family}:{model_id}",
             kind=ArtifactKind.WEIGHTS,
             canonical_url=artifact_url,
             title=f"PaddleNLP {model_id} pretrained transformer weights",

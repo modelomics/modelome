@@ -1263,6 +1263,24 @@ class HuggingFaceDatasetCheckpointSourceAdapter(HuggingFaceSourceAdapter):
                 record = self._checkpoint_record(payload)
                 if record is not None:
                     records = (record,)
+                    if record.raw.get("weight_files_complete") is False:
+                        omitted_files = record.raw.get("omitted_weight_file_count", 0)
+                        issues = (
+                            SourceIssue(
+                                source_record_id=f"{repo_id}@{expected_sha}",
+                                stage="source_normalize",
+                                error="dataset checkpoint file inventory exceeded configured limit",
+                                summary={
+                                    "dataset_id": repo_id,
+                                    "file_inventory_status": "truncated",
+                                    "retained_weight_file_count": len(
+                                        record.raw.get("weight_files", [])
+                                    ),
+                                    "omitted_weight_file_count": omitted_files,
+                                    "max_checkpoint_files": self.max_checkpoint_files,
+                                },
+                            ),
+                        )
 
         remaining = [dict(value) for value in queue[1:] if isinstance(value, Mapping)]
         base_state = dict(state.get("dataset_base_state") or {})
@@ -1348,15 +1366,15 @@ class HuggingFaceDatasetCheckpointSourceAdapter(HuggingFaceSourceAdapter):
             for sibling in siblings
             if isinstance(sibling, Mapping) and _text(sibling.get("rfilename"))
         }
-        weight_files = sorted(
+        candidate_weight_files = sorted(
             filename
             for filename in _safe_weight_file_candidates(tuple(filenames))
             if _is_weight_file(filename, tuple(filenames))
         )
-        if not weight_files:
+        if not candidate_weight_files:
             return None
-        complete = len(weight_files) <= self.max_checkpoint_files
-        weight_files = weight_files[: self.max_checkpoint_files]
+        complete = len(candidate_weight_files) <= self.max_checkpoint_files
+        weight_files = candidate_weight_files[: self.max_checkpoint_files]
         encoded_id = quote(repo_id, safe="/")
         dataset_url = canonicalize_url(f"https://huggingface.co/datasets/{encoded_id}")
         model_local_id = f"{repo_id}#dataset-checkpoint-bundle"
@@ -1381,6 +1399,7 @@ class HuggingFaceDatasetCheckpointSourceAdapter(HuggingFaceSourceAdapter):
             "gated": item.get("gated") is True,
             "weight_files": weight_files,
             "weight_files_complete": complete,
+            "omitted_weight_file_count": len(candidate_weight_files) - len(weight_files),
             "tags": list(tags),
         }
         return SourceRecord(

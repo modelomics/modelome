@@ -1,0 +1,16 @@
+# fal's public model gallery exposes exact endpoint IDs on stable model detail
+# pages and reports the result range and total for the current gallery page.
+# This adapter records provider endpoints as documented models only; it makes
+# no reusable-weight/checkpoint claim and does not call inference endpoints.
+[[source]]
+name = "fal-model-gallery"
+adapter = "fal_model_gallery"
+enabled = false
+entry_tags = ["ecosystem:fal", "kind:hosted-model-endpoint"]
+url = "https://fal.ai/explore/search"
+provider_namespace = "fal:endpoint"
+schedule = "daily"
+page_size = 24
+max_pages = 1000
+max_anchors = 10000
+max_response_bytes = 8388608

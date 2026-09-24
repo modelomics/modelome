@@ -354,10 +354,14 @@ def test_evaluation_model_links_do_not_treat_github_or_dataset_urls_as_model_ids
         _evaluation_model_identifier_from_url("https://www.kaggle.com/datasets/example/models")
         is None
     )
-    assert (
-        _evaluation_model_identifier_from_url("https://modelscope.cn/datasets/example/data")
-        is None
-    )
+    for unrelated_url in (
+        "https://modelscope.cn/datasets/example/data",
+        "https://huggingface.co/datasets/example/model-files",
+        "https://huggingface.co/spaces/example/model-demo",
+        "https://github.com/example/model/releases/download/v1/model.safetensors",
+        "https://figshare.com/ndownloader/files/123456",
+    ):
+        assert _evaluation_model_identifier_from_url(unrelated_url) is None
     assert _evaluation_model_identifier_from_url(
         "https://doi.org/10.5281/zenodo.12345"
     ) == Identifier("zenodo:record", "12345")
@@ -408,7 +412,7 @@ def test_evaluation_model_links_project_exact_modelscope_model_identity() -> Non
         "paper_title": "ModelScope Published Model paper",
         "model_links": [
             {
-                "url": "https://modelscope.cn/models/example/published-model/resolve/master/model.safetensors",
+                "url": "https://modelscope.cn/api/v1/models/example/published-model/repo?Revision=master&FilePath=model.safetensors",
                 "title": "ModelScope weights",
             }
         ],
@@ -431,6 +435,14 @@ def test_evaluation_model_links_project_exact_modelscope_model_identity() -> Non
     assert linked_model.confidence == 0.65
     model_link = next(link for link in records[0].links if link.relation == "model_artifact")
     assert model_link.model_local_ids == (linked_model.local_id,)
+
+
+def test_evaluation_modelscope_model_page_url_projects_same_exact_identity() -> None:
+    from modelome.sources.paperswithcode import _evaluation_model_identifier_from_url
+
+    assert _evaluation_model_identifier_from_url(
+        "https://modelscope.cn/models/example/published-model/resolve/master/model.safetensors"
+    ) == Identifier("modelscope:model", "example/published-model")
 
 
 def test_evaluation_model_links_project_exact_civitai_model_version() -> None:
@@ -478,3 +490,37 @@ def test_evaluation_model_page_links_project_civitai_model_identity() -> None:
         _evaluation_model_identifier_from_url("https://civitai.com/api/download/images/123")
         is None
     )
+
+
+def test_evaluation_fal_and_figshare_links_remain_unjoined_artifact_urls() -> None:
+    from modelome.sources.paperswithcode import _evaluation_records
+
+    row = {
+        "model_name": "Hosted Demo",
+        "paper_url": "https://arxiv.org/abs/2401.12345",
+        "paper_title": "Hosted Demo paper",
+        "model_links": [
+            {"url": "https://fal.ai/models/fal-ai/demo/model-25", "title": "Hosted endpoint"},
+            {
+                "url": "https://ndownloader.figshare.com/files/33947432",
+                "title": "Checkpoint file",
+            },
+        ],
+    }
+    records, rejected, _ = _evaluation_records(
+        [{"task": "Classification", "datasets": [{"dataset": "Example", "sota": {"rows": [row]}}]}],
+        revision="c" * 40,
+        data_path="data/train.parquet",
+        dataset_id="pwc-archive/evaluation-tables",
+        license="CC-BY-SA-4.0",
+        max_model_rows=10,
+    )
+
+    assert rejected == {}
+    artifact_links = [link for link in records[0].links if link.relation == "model_artifact"]
+    assert {link.url for link in artifact_links} == {
+        "https://fal.ai/models/fal-ai/demo/model-25",
+        "https://ndownloader.figshare.com/files/33947432",
+    }
+    assert all(link.model_local_ids == () for link in artifact_links)
+    assert len(records[0].models) == 1

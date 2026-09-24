@@ -1055,12 +1055,14 @@ def _evaluation_model_identifier_from_url(value: str) -> Identifier | None:
         and _KAGGLE_VERSION.fullmatch(path_segments[1])
     ):
         return Identifier("zenodo:record", path_segments[1])
-    if (
-        host in {"modelscope.cn", "www.modelscope.cn"}
-        and len(path_segments) >= 3
-        and path_segments[0] == "models"
-    ):
-        owner, model = (unquote(segment) for segment in path_segments[1:3])
+    modelscope_parts: list[str] | None = None
+    if host in {"modelscope.cn", "www.modelscope.cn"}:
+        if len(path_segments) >= 3 and path_segments[0] == "models":
+            modelscope_parts = path_segments[1:3]
+        elif len(path_segments) >= 5 and path_segments[:3] == ["api", "v1", "models"]:
+            modelscope_parts = path_segments[3:5]
+    if modelscope_parts is not None:
+        owner, model = (unquote(segment) for segment in modelscope_parts)
         if (
             owner
             and model

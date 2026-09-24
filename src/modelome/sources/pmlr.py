@@ -108,14 +108,14 @@ class PmlrSourceAdapter:
             for kind, label, href in parser.events:
                 if kind != "anchor":
                     continue
-                # The live index emits links such as `/v339` without the slash;
-                # the web server redirects these to `/v339/`.
-                match = re.fullmatch(r"/v(\d+)/?", urlsplit(urljoin(self.index_url, href)).path)
+                # The live index also lists its separate reissue series at /rN.
+                match = re.fullmatch(r"/([vr]\d+)/?", urlsplit(urljoin(self.index_url, href)).path)
                 if match:
+                    volume_id = match.group(1)
                     volumes.append(
                         {
-                            "id": match.group(1),
-                            "url": f"{self.index_url.rstrip('/')}/v{match.group(1)}/",
+                            "id": volume_id,
+                            "url": f"{self.index_url.rstrip('/')}/{volume_id}/",
                             "title": label,
                         }
                     )
@@ -205,7 +205,7 @@ def _record(
 ) -> SourceRecord | None:
     url = urljoin(volume["url"], abs_href)
     path = urlsplit(url).path
-    match = re.fullmatch(r"/v(\d+)/([A-Za-z0-9_-]+)\.html", path)
+    match = re.fullmatch(r"/(v\d+|r\d+)/([A-Za-z0-9_-]+)\.html", path)
     if not match or match.group(1) != volume["id"]:
         return None
     paper_id = match.group(2)
@@ -232,17 +232,17 @@ def _record(
         if _https(u)
     )
     return SourceRecord(
-        source_record_id=f"v{volume['id']}/{paper_id}",
+        source_record_id=f"{volume['id']}/{paper_id}",
         kind=ArtifactKind.PAPER,
         canonical_url=canonical,
         title=title,
         raw={
-            "volume_id": f"v{volume['id']}",
+            "volume_id": volume["id"],
             "paper_id": paper_id,
             "volume_title": volume.get("title", ""),
             "declared_links": [{"relation": rel, "url": href} for rel, href in raw_links],
         },
-        identifiers=(Identifier("pmlr", f"v{volume['id']}/{paper_id}"),),
+        identifiers=(Identifier("pmlr", f"{volume['id']}/{paper_id}"),),
         links=links,
     )
 
@@ -274,11 +274,13 @@ def _validated_volumes(value: Any, maximum: int, source: str) -> list[dict[str, 
         vol_id, url = item.get("id"), item.get("url")
         if (
             not isinstance(vol_id, str)
-            or not re.fullmatch(r"\d+", vol_id)
+            or not re.fullmatch(r"(?:v|r)?\d+", vol_id)
             or not isinstance(url, str)
             or not _https(url)
         ):
             raise ValueError(f"{source}: invalid volume checkpoint")
+        if vol_id.isdigit():
+            vol_id = f"v{vol_id}"
         result.append({"id": vol_id, "url": url, "title": str(item.get("title", ""))})
     return result
 

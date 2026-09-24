@@ -1,0 +1,11 @@
+# Public Spaces listing with SHA-matched detail siblings for checkpoint candidates.
+[[source]]
+name = "huggingface-spaces-checkpoints"
+adapter = "huggingface_spaces_checkpoints"
+enabled = false
+entry_tags = ["ecosystem:huggingface", "kind:space-checkpoint-candidate"]
+url = "https://huggingface.co/api/spaces"
+schedule = "weekly"
+page_size = 10
+max_response_bytes = 16777216
+max_checkpoint_files = 10000

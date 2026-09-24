@@ -143,6 +143,9 @@ def test_fixture_model_names_are_not_runtime_seed_constants() -> None:
             "src/modelome/sources/robotics_registry_v3.py",
             "src/modelome/sources/transformer_m_checkpoints.py",
             "src/modelome/sources/paddlenlp_ernie_registry.py",
+            "src/modelome/sources/paddlenlp_albert_registry.py",
+            "src/modelome/sources/paddlenlp_xlm_registry.py",
+            "src/modelome/sources/msst_pretrained_models.py",
         },
         "U-Net": {
             "src/modelome/sources/cellpose_registry.py",

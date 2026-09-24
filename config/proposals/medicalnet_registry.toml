@@ -1,0 +1,17 @@
+# MedicalNet's first-party README names 11 pretrained 3D ResNet checkpoint
+# members and links a single Google Drive ZIP archive. Member URLs are unknown.
+[[source]]
+name = "medicalnet-pretrained-checkpoints"
+adapter = "medicalnet_registry"
+enabled = false
+entry_tags = ["field:medical-imaging", "ecosystem:medicalnet", "kind:pretrained-checkpoints"]
+repository = "Tencent/MedicalNet"
+branch = "master"
+source_path = "README.md"
+max_response_bytes = 2097152
+max_entries = 100
+
+[evidence]
+readme = "https://github.com/Tencent/MedicalNet/blob/master/README.md"
+archive = "https://drive.google.com/file/d/13tnSvXY7oDIEloNFiGTsjUIYfS3g3BfG/view?usp=sharing"
+scope = "Eleven checkpoint filenames listed by the project and shared archive handle; no unlisted archive content"
