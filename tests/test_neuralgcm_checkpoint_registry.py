@@ -22,13 +22,16 @@ TABLE = "\n".join(
         "Available on Google Cloud Storage at `gs://neuralgcm/models/`.",
         "| Reference | Model Name | Path |",
         "| -- | -- | -- |",
-        "| [NeuralGCM weather and climate]("
+        "| [NeuralGCMs for weather and climate]("
         "https://www.nature.com/articles/s41586-024-07744-y) | "
         "0.7° deterministic | `v1/deterministic_0_7_deg.pkl` |",
         "| | 1.4° deterministic | `v1/deterministic_1_4_deg.pkl` |",
+        "| | 2.8° deterministic | `v1/deterministic_2_8_deg.pkl` |",
         "| | 1.4° stochastic | `v1/stochastic_1_4_deg.pkl` |",
-        "| [NeuralGCM precipitation](https://arxiv.org/abs/2412.11973) | "
+        "| [NeuralGCMs optimized to predict satellite-based precipitation observations]("
+        "https://arxiv.org/abs/2412.11973) | "
         "2.8° stochastic (precipitation) | `v1_precip/stochastic_precip_2_8_deg.pkl` |",
+        "| | 2.8° stochastic (evaporation) | `v1_precip/stochastic_evap_2_8_deg.pkl` |",
     )
 )
 
@@ -63,7 +66,7 @@ def test_first_party_neuralgcm_inventory_emits_exact_declared_objects() -> None:
 
     page = adapter.fetch_page({})
 
-    assert page.authoritative_snapshot and page.upstream_count == 4
+    assert page.authoritative_snapshot and page.upstream_count == 6
     record = page.records[0]
     assert record.identifiers == (
         Identifier("neuralgcm:checkpoint", "v1/deterministic_0_7_deg.pkl"),
@@ -75,7 +78,13 @@ def test_first_party_neuralgcm_inventory_emits_exact_declared_objects() -> None:
         for link in record.links
     )
     assert page.records[3].releases[0].metadata["checkpoint_handle"] == (
+        "v1/stochastic_1_4_deg.pkl"
+    )
+    assert page.records[4].releases[0].metadata["checkpoint_handle"] == (
         "v1_precip/stochastic_precip_2_8_deg.pkl"
+    )
+    assert page.records[5].releases[0].metadata["checkpoint_handle"] == (
+        "v1_precip/stochastic_evap_2_8_deg.pkl"
     )
     assert client.urls[1].endswith(f"/{REV}/docs/checkpoints.md")
 

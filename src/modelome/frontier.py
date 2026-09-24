@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -53,6 +54,7 @@ _ENUMERATED_HOSTS = {
     "openalex.org",
     "www.openalex.org",
 }
+_TEXT_MENTION_LOCATOR = re.compile(r"^text:\d+-\d+$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,7 +125,7 @@ class FrontierCrawler:
                 depth = int(item.get("depth") or 0)
                 declared_weight_url = url in declared_weight_urls
                 if depth > max_depth or not (
-                    _worth_fetching(url)
+                    _worth_fetching(url, declared_weight=declared_weight_url)
                     or (
                         declared_weight_url
                         and _is_reference_only_checkpoint_url(url)
@@ -279,6 +281,7 @@ def _declared_weight_urls(database: Database, items: list[dict[str, Any]]) -> se
         for row in database.table_rows("url_discoveries")
         if str(row.get("url_id")) in url_by_id
         and str(row.get("relation", "")).casefold() in {"weights", "checkpoint"}
+        and not _TEXT_MENTION_LOCATOR.fullmatch(str(row.get("locator") or ""))
     }
 
 
@@ -292,6 +295,37 @@ def _is_extensionless_github_release_asset(url: str) -> bool:
         and segments[2:4] == ["releases", "download"]
         and bool(segments[5])
         and not PurePosixPath(segments[5]).suffix
+    )
+
+
+def _is_gitlab_release_asset(url: str) -> bool:
+    parts = urlsplit(url)
+    if (
+        parts.scheme.casefold() != "https"
+        or (parts.hostname or "").casefold() != "gitlab.com"
+    ):
+        return False
+    segments = [segment for segment in parts.path.split("/") if segment]
+    return any(
+        segments[index] == "-"
+        and segments[index + 1] == "releases"
+        and bool(segments[index + 2])
+        and segments[index + 3] == "downloads"
+        and index + 4 < len(segments)
+        for index in range(max(0, len(segments) - 4))
+    )
+
+
+def _is_huggingface_versioned_file(url: str) -> bool:
+    parts = urlsplit(url)
+    identifier = identifier_from_url(url)
+    segments = [segment for segment in parts.path.split("/") if segment]
+    return bool(
+        identifier
+        and identifier.namespace == "huggingface:model"
+        and len(segments) >= 5
+        and segments[2].casefold() in {"raw", "resolve"}
+        and bool(segments[-1])
     )
 
 
@@ -318,30 +352,42 @@ def _is_openreview_attachment(url: str) -> bool:
 
 
 def _is_reference_only_checkpoint_url(url: str) -> bool:
-    return _is_extensionless_github_release_asset(url) or _is_openreview_checkpoint_attachment(url)
+    return (
+        _is_extensionless_github_release_asset(url)
+        or _is_gitlab_release_asset(url)
+        or _is_huggingface_versioned_file(url)
+        or _is_openreview_checkpoint_attachment(url)
+    )
 
 
-def _worth_fetching(url: str) -> bool:
+def _worth_fetching(url: str, *, declared_weight: bool = False) -> bool:
     parts = urlsplit(url)
     host = (parts.hostname or "").casefold()
     if host in _ENUMERATED_HOSTS:
         return False
     suffix = PurePosixPath(parts.path).suffix.casefold()
-    if suffix in _BINARY_SUFFIXES and suffix not in REFERENCE_WEIGHT_SUFFIXES:
+    declared_checkpoint_url = declared_weight and _is_reference_only_checkpoint_url(url)
+    if (
+        suffix in _BINARY_SUFFIXES
+        and suffix not in REFERENCE_WEIGHT_SUFFIXES
+        and not declared_checkpoint_url
+    ):
         return False
     identifier = identifier_from_url(url)
     # The Hub enumerator already captures the model endpoint and metadata.
     if identifier and identifier.namespace == "huggingface:model":
         segments = [segment.casefold() for segment in parts.path.split("/") if segment]
-        is_versioned_file = len(segments) >= 5 and segments[2] in {"raw", "resolve"}
+        is_versioned_file = _is_huggingface_versioned_file(url)
         if not is_versioned_file:
             return False
         filename = segments[-1]
         # Hub model pages are enumerated elsewhere, but a source-declared
         # resolve/raw checkpoint URL is a distinct, useful artifact. Preserve
         # the existing README exception and admit only known reference weights.
-        return filename == "readme.md" or PurePosixPath(filename).suffix in (
-            REFERENCE_WEIGHT_SUFFIXES
+        return (
+            filename == "readme.md"
+            or PurePosixPath(filename).suffix in REFERENCE_WEIGHT_SUFFIXES
+            or declared_weight
         )
     return True
 

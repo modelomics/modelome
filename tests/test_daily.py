@@ -9,6 +9,7 @@ from modelome.artifact_relation_runtime import ArtifactRelationOutcome
 from modelome.bootstrap import BootstrapOutcome
 from modelome.bulk import BulkError, BulkOutcome
 from modelome.daily import run_daily
+from modelome.europe_pmc_bootstrap import EuropePmcBootstrapOutcome
 from modelome.frontier import FrontierOutcome
 from modelome.gharchive_projection import GhArchiveProjectionOutcome
 from modelome.lake import ParquetLandingZone, ReleaseReceipt
@@ -16,6 +17,7 @@ from modelome.pipeline import SyncOutcome
 from modelome.pmc_bootstrap import PmcBootstrapOutcome
 from modelome.projection_runtime import ProjectionOutcome
 from modelome.sources.arxiv import ArxivSourceAdapter
+from modelome.sources.europe_pmc import EuropePmcSourceAdapter
 from modelome.sources.gharchive import GhArchiveSourceAdapter
 from modelome.sources.pmc import PmcSourceAdapter
 from modelome.sources.pubmed import PubMedBulkSourceAdapter
@@ -346,6 +348,53 @@ def test_daily_bootstraps_complete_pmc_history(
             status="complete",
             run_id=1,
             stats={"complete": True, "errors": []},
+        ),
+    )
+
+
+def test_daily_bootstraps_europe_pmc_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    europe_pmc = EuropePmcSourceAdapter(client=object())
+    sources = {europe_pmc.name: europe_pmc}
+    captured: dict[str, object] = {}
+
+    class FakeSyncEngine:
+        def __init__(self, database, configured_sources):
+            assert configured_sources is sources
+
+        def sync(self, **kwargs):
+            return []
+
+    def bootstrap(database, source, **kwargs):
+        captured.update(kwargs)
+        captured["source"] = source
+        return EuropePmcBootstrapOutcome(
+            source="europe-pmc:bootstrap",
+            status="partial",
+            run_id=1,
+            stats={"complete": False, "errors": []},
+        )
+
+    monkeypatch.setattr("modelome.daily.SyncEngine", FakeSyncEngine)
+    monkeypatch.setattr("modelome.daily.run_europe_pmc_bootstrap", bootstrap)
+
+    outcome = run_daily(
+        Database(tmp_path / "store"),
+        ParquetLandingZone(tmp_path / "lake"),
+        sources,
+        bootstrap_max_pages=17,
+        frontier=False,
+        artifact_relations=False,
+    )
+
+    assert captured == {"source": europe_pmc, "max_pages": 17}
+    assert outcome.bootstraps == (
+        EuropePmcBootstrapOutcome(
+            source="europe-pmc:bootstrap",
+            status="partial",
+            run_id=1,
+            stats={"complete": False, "errors": []},
         ),
     )
 

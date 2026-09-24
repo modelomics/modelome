@@ -158,14 +158,21 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
     links: list[Link] = []
     instance_pids: list[dict[str, str]] = []
     code_repository_items = _indexed_safe_urls(payload.get("codeRepositoryUrl"))
-    documentation_items = _indexed_safe_urls(payload.get("documentationUrl"))
+    # Graph v10 documents plural ``documentationUrls``; older payloads use
+    # singular ``documentationUrl``. Keep the originating field in locators.
+    documentation_items = _indexed_named_safe_urls(
+        (
+            ("documentationUrls", payload.get("documentationUrls")),
+            ("documentationUrl", payload.get("documentationUrl")),
+        )
+    )
     code_repository_urls = tuple(url for _, url in code_repository_items)
     documentation_urls = tuple(url for _, url in documentation_items)
     for _, url in code_repository_items:
         links.append(Link(url, relation="code_repository", locator="codeRepositoryUrl"))
-    for index, url in documentation_items:
+    for locator, url in documentation_items:
         links.append(
-            Link(url, relation="documentation", locator=f"documentationUrl[{index}]")
+            Link(url, relation="documentation", locator=locator)
         )
 
     instances = _sequence(payload.get("instances")) or _sequence(payload.get("instance"))
@@ -354,6 +361,16 @@ def _indexed_safe_urls(value: Any) -> tuple[tuple[int, str], ...]:
         if url is not None:
             urls.append((index, url))
     return tuple(urls)
+
+
+def _indexed_named_safe_urls(
+    fields: tuple[tuple[str, Any], ...],
+) -> tuple[tuple[str, str], ...]:
+    return tuple(
+        (f"{field}[{index}]", url)
+        for field, value in fields
+        for index, url in _indexed_safe_urls(value)
+    )
 
 
 def _pid_url(scheme: str, value: str) -> str | None:

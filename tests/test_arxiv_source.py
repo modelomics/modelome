@@ -56,6 +56,22 @@ def xml_response(value: str) -> HttpResponse:
     )
 
 
+def identify_response(*, earliest: str = "1991-01-01", deleted: str = "persistent") -> HttpResponse:
+    return xml_response(
+        f"""<?xml version="1.0" encoding="UTF-8"?>
+<OAI-PMH xmlns="{OAI_NAMESPACE}">
+  <Identify>
+    <repositoryName>arXiv</repositoryName>
+    <baseURL>https://oaipmh.arxiv.org/oai</baseURL>
+    <protocolVersion>2.0</protocolVersion>
+    <earliestDatestamp>{earliest}</earliestDatestamp>
+    <deletedRecord>{deleted}</deletedRecord>
+    <granularity>YYYY-MM-DD</granularity>
+  </Identify>
+</OAI-PMH>"""
+    )
+
+
 def oai_response(body: str) -> str:
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <OAI-PMH xmlns="{OAI_NAMESPACE}" xmlns:raw="{RAW_NAMESPACE}">
@@ -94,8 +110,19 @@ def raw_record(
 </record>"""
 
 
+def deleted_record(arxiv_id: str, datestamp: str) -> str:
+    return f"""
+<record>
+  <header status="deleted">
+    <identifier>oai:arXiv.org:{arxiv_id}</identifier>
+    <datestamp>{datestamp}</datestamp>
+  </header>
+</record>"""
+
+
 def test_oai_source_resumes_token_and_preserves_complete_record_evidence() -> None:
     client = QueuedClient(
+        identify_response(),
         fixture_response("arxiv_oai_page1.xml"),
         fixture_response("arxiv_oai_page2.xml"),
     )
@@ -113,16 +140,17 @@ def test_oai_source_resumes_token_and_preserves_complete_record_evidence() -> No
     assert first.upstream_count == 3
     assert first.next_state["raw_items_seen"] == 2
     assert first.next_state["scan_total"] == 3
-    assert first.next_state["window_start"] == "2026-08-25"
+    assert first.next_state["window_start"] == "1991-01-01"
     assert first.next_state["window_end"] == "2026-08-31"
     assert first.next_state["token_expires_at"] == "2026-09-02T12:00:00Z"
-    assert client.calls[0][1] == {
+    assert client.calls[0][1] == {"verb": "Identify"}
+    assert client.calls[1][1] == {
         "verb": "ListRecords",
         "metadataPrefix": "arXivRaw",
-        "from": "2026-08-25",
+        "from": "1991-01-01",
         "until": "2026-08-31",
     }
-    assert client.calls[1][1] == {
+    assert client.calls[2][1] == {
         "verb": "ListRecords",
         "resumptionToken": "opaque-token-page-2==",
     }
@@ -169,6 +197,58 @@ def test_oai_source_resumes_token_and_preserves_complete_record_evidence() -> No
     assert deleted.modified_at == "2026-08-31"
     assert deleted.text == ""
     assert deleted.identifiers == (Identifier("arxiv", "2608.00003"),)
+
+
+def test_clean_bootstrap_harvests_old_persistent_tombstones_and_resumes() -> None:
+    old_tombstone = deleted_record("hep-th/9901001", "2001-03-15")
+    first = oai_response(
+        f'<ListRecords>{old_tombstone}'
+        '<resumptionToken completeListSize="2" cursor="0">bootstrap-page-2</resumptionToken>'
+        "</ListRecords>"
+    )
+    second = oai_response(
+        f'<ListRecords>{raw_record("2608.00001")}'
+        '<resumptionToken completeListSize="2" cursor="1" />'
+        "</ListRecords>"
+    )
+    incremental = oai_response(
+        '<error code="noRecordsMatch">No matching records in this date range</error>'
+    )
+    client = QueuedClient(
+        identify_response(), xml_response(first), xml_response(second), xml_response(incremental)
+    )
+    adapter = ArxivSourceAdapter(client=client, clock=lambda: NOW)
+
+    first_page = adapter.fetch_page({})
+    second_page = adapter.fetch_page(first_page.next_state)
+    incremental_page = adapter.fetch_page(second_page.next_state)
+
+    assert first_page.complete is False
+    assert first_page.next_state["window_start"] == "1991-01-01"
+    tombstone = first_page.records[0]
+    assert tombstone.source_record_id == "hep-th/9901001"
+    assert tombstone.deleted is True
+    assert tombstone.modified_at == "2001-03-15"
+    assert second_page.complete is True
+    assert second_page.next_state["watermark"] == "2026-08-31"
+    assert client.calls[0][1] == {"verb": "Identify"}
+    assert client.calls[1][1] == {
+        "verb": "ListRecords",
+        "metadataPrefix": "arXivRaw",
+        "from": "1991-01-01",
+        "until": "2026-08-31",
+    }
+    assert client.calls[2][1] == {
+        "verb": "ListRecords",
+        "resumptionToken": "bootstrap-page-2",
+    }
+    assert incremental_page.complete is True
+    assert client.calls[3][1] == {
+        "verb": "ListRecords",
+        "metadataPrefix": "arXivRaw",
+        "from": "2026-08-30",
+        "until": "2026-08-31",
+    }
 
 
 def test_oai_daily_window_replays_configured_closed_days() -> None:
@@ -222,7 +302,7 @@ def test_oai_quarantines_malformed_record_and_replays_page(tmp_path: Path) -> No
         f"<ListRecords>{raw_record()}"
         '<resumptionToken completeListSize="1" cursor="0" /></ListRecords>'
     )
-    client = QueuedClient(xml_response(malformed), xml_response(corrected))
+    client = QueuedClient(identify_response(), xml_response(malformed), xml_response(corrected))
     current_time = [NOW]
     source = ArxivSourceAdapter(
         client=client,
@@ -239,11 +319,11 @@ def test_oai_quarantines_malformed_record_and_replays_page(tmp_path: Path) -> No
     retried = engine.sync()[0]
 
     assert failed.status == "failed"
-    assert held_state["window_start"] == "2026-08-31"
+    assert held_state["window_start"] == "1991-01-01"
     assert held_state["window_end"] == "2026-08-31"
     assert held_state["raw_items_seen"] == 0
     assert retried.status == "complete"
-    assert client.calls[1][1] == client.calls[0][1]
+    assert client.calls[2][1] == client.calls[1][1]
     dead_letter = database.list_dead_letters("arxiv")[0]
     assert dead_letter["stage"] == "source_normalize"
     assert "invalid arXiv version" in dead_letter["error"]
@@ -255,7 +335,7 @@ def test_oai_detects_truncation_before_complete_list_size() -> None:
         '<resumptionToken completeListSize="2" cursor="0" /></ListRecords>'
     )
     adapter = ArxivSourceAdapter(
-        client=QueuedClient(xml_response(response)),
+        client=QueuedClient(identify_response(), xml_response(response)),
         clock=lambda: NOW,
         initial_lookback_days=1,
     )
@@ -325,7 +405,8 @@ def test_oai_bad_resumption_token_restarts_same_frozen_window() -> None:
 def test_oai_rejects_unsafe_or_malformed_xml() -> None:
     unsafe = b'<?xml version="1.0"?><!DOCTYPE x [<!ENTITY y "boom">]><x>&y;</x>'
     client = QueuedClient(
-        HttpResponse(200, {}, unsafe, "https://oaipmh.arxiv.org/oai")
+        identify_response(),
+        HttpResponse(200, {}, unsafe, "https://oaipmh.arxiv.org/oai"),
     )
     adapter = ArxivSourceAdapter(client=client, clock=lambda: NOW)
 
@@ -355,7 +436,7 @@ def test_oai_rejects_metadata_id_mismatch_as_record_issue() -> None:
         f"<ListRecords>{mismatched}<resumptionToken /></ListRecords>"
     )
     adapter = ArxivSourceAdapter(
-        client=QueuedClient(xml_response(response)),
+        client=QueuedClient(identify_response(), xml_response(response)),
         clock=lambda: NOW,
     )
 

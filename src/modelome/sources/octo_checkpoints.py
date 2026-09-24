@@ -27,8 +27,9 @@ _SHA = re.compile(r"^[0-9a-f]{40}$")
 _HEADING = re.compile(r"^(?P<level>#{1,6})\s+(?P<title>.+?)\s*$")
 _LINK = re.compile(r"\[(?P<label>[^\]]+)\]\((?P<url>https?://[^)\s]+)\)")
 _MODEL_URL = re.compile(
-    r"^https://huggingface\.co/rail-berkeley/(?P<slug>octo-(?:base|small))$"
+    r"^https://huggingface\.co/rail-berkeley/(?P<slug>octo-(?:base|small)(?:-1\.5)?)$"
 )
+_VERSIONED_REF = re.compile(r"\bhf://rail-berkeley/(?P<slug>octo-(?:base|small)-1\.5)\b")
 
 
 def _utcnow() -> datetime:
@@ -40,9 +41,9 @@ class OctoCheckpointSourceAdapter:
 
     disable_derived_extraction = True
     coverage_limitation = (
-        "Covers only Octo-Base and Octo-Small in the official repository's "
-        "Checkpoints table; it does not include community fine-tunes or other "
-        "Octo versions."
+        "Covers Octo-Base and Octo-Small in the official Checkpoints table and "
+        "the explicit Octo 1.5 refs in official load examples; it does not "
+        "include community fine-tunes or other Octo variants."
     )
 
     def __init__(
@@ -74,7 +75,7 @@ class OctoCheckpointSourceAdapter:
                 "document": _DOCUMENT,
                 "max_response_bytes": max_response_bytes,
                 "max_entries": max_entries,
-                "admission": "exact HF links from the Checkpoints table",
+            "admission": "exact checkpoint table links plus explicit 1.5 refs",
             }
         )
 
@@ -209,6 +210,14 @@ def _parse_checkpoints(
                 active = True
                 section_level = level
             continue
+        for ref in _VERSIONED_REF.finditer(line):
+            slug = ref.group("slug")
+            name = "Octo-Base 1.5" if "base" in slug else "Octo-Small 1.5"
+            size = "93M Params" if "base" in slug else "27M Params"
+            url = f"https://huggingface.co/rail-berkeley/{slug}"
+            entries[url] = (name, size, url, line_number)
+            if len(entries) > maximum:
+                raise ValueError(f"{source}: checkpoint inventory exceeds {maximum} entries")
         if not active or "|" not in line:
             continue
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]

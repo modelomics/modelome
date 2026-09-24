@@ -27,7 +27,7 @@ Clock = Callable[[], datetime]
 
 _COMMIT = re.compile(r"^[0-9a-f]{40}$")
 _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-_SAFE_MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,255}$")
+_SAFE_MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_./-]{0,255}$")
 
 
 def _utcnow() -> datetime:
@@ -47,14 +47,15 @@ class PaddleClasModelRegistrySourceAdapter:
     """Enumerate literal PaddleClas inference-model declarations at one commit.
 
     ``paddleclas.py`` is the upstream command-line registry that maps public
-    model names to archive URL templates.  This adapter parses only the literal
-    ImageNet-series and PULC lists paired with their literal templates.  It
-    neither imports PaddleClas nor follows/downloads a model archive.
+    model names to archive URL templates. This adapter parses its literal
+    ImageNet-series and PULC lists paired with their templates, and resolves
+    the ShiTu selector to the literal archive handles used by its runtime
+    downloader. It neither imports PaddleClas nor follows/downloads an archive.
     """
 
     disable_derived_extraction = True
     coverage_limitation = (
-        "Covers only ImageNet-series and PULC inference models explicitly declared "
+        "Covers ImageNet-series, PULC, and ShiTu inference models explicitly declared "
         "by PaddleClas's public static registry at one commit. It does not execute "
         "PaddleClas, infer undocumented models, verify archive availability, or "
         "download checkpoints."
@@ -89,8 +90,8 @@ class PaddleClasModelRegistrySourceAdapter:
                 "max_response_bytes": self.max_response_bytes,
                 "max_entries": self.max_entries,
                 "admission": (
-                    "literal ImageNet-series or PULC model paired with a literal URL "
-                    "template"
+                    "literal ImageNet-series/PULC entries or SHITU runtime archive "
+                    "handles paired with literal URL templates"
                 ),
             }
         )
@@ -102,8 +103,7 @@ class PaddleClasModelRegistrySourceAdapter:
     @property
     def commit_url(self) -> str:
         return (
-            f"https://api.github.com/repos/{self.repository}/commits/"
-            f"{quote(self.branch, safe='')}"
+            f"https://api.github.com/repos/{self.repository}/commits/{quote(self.branch, safe='')}"
         )
 
     def raw_url(self, revision: str) -> str:
@@ -276,9 +276,7 @@ def _parse_source(source: str, name: str, path: str) -> tuple[_ModelEntry, ...]:
                         family=family,
                         name=model,
                         url_template=imn_template,
-                        locator=(
-                            f"{path}:IMN_MODEL_SERIES[{family!r}][{index}]"
-                        ),
+                        locator=(f"{path}:IMN_MODEL_SERIES[{family!r}][{index}]"),
                         source=name,
                     )
                 )
@@ -298,10 +296,26 @@ def _parse_source(source: str, name: str, path: str) -> tuple[_ModelEntry, ...]:
                 )
             )
 
+    shitu_template = _url_template(assignments.get("SHITU_MODEL_BASE_DOWNLOAD_URL"), name)
+    shitu_models = _literal_string_list(assignments.get("SHITU_MODELS"), name)
+    if shitu_template is not None and shitu_models is not None:
+        if len(shitu_models) != 1:
+            raise ValueError(f"{name}: expected one top-level SHITU selector")
+        selector = shitu_models[0]
+        for archive_name, line_number in _shitu_archive_handles(tree, name):
+            entries.append(
+                _entry(
+                    catalog="SHITU",
+                    family=selector,
+                    name=archive_name,
+                    url_template=shitu_template,
+                    locator=f"{path}:line:{line_number} (SHITU selector {selector})",
+                    source=name,
+                )
+            )
+
     if not entries:
-        raise ValueError(
-            f"{name}: source contains neither a literal IMN nor PULC model registry"
-        )
+        raise ValueError(f"{name}: source contains no supported literal inference model registry")
     seen = set()
     for entry in entries:
         key = (entry.catalog, entry.name)
@@ -320,6 +334,37 @@ def _literal_assignments(tree: ast.Module) -> dict[str, ast.AST]:
         if isinstance(target, ast.Name):
             result[target.id] = statement.value
     return result
+
+
+def _shitu_archive_handles(tree: ast.Module, source: str) -> tuple[tuple[str, int], ...]:
+    """Read the exact archive handles passed to runtime's SHITU downloader."""
+    functions = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "_check_input_model"
+    ]
+    if len(functions) != 1:
+        raise ValueError(f"{source}: expected one _check_input_model function for SHITU handles")
+
+    handles: list[tuple[str, int]] = []
+    for node in ast.walk(functions[0]):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            continue
+        if node.func.id != "check_model_file" or not node.args:
+            continue
+        model_type = node.args[0]
+        if not isinstance(model_type, ast.Constant) or model_type.value != "shitu":
+            continue
+        if len(node.args) < 2:
+            raise ValueError(f"{source}: SHITU download call lacks an archive handle")
+        handle = node.args[1]
+        if not isinstance(handle, ast.Constant) or not isinstance(handle.value, str):
+            raise ValueError(f"{source}: SHITU archive handles must be literal strings")
+        handles.append((handle.value, node.lineno))
+    if not handles:
+        raise ValueError(f"{source}: runtime declares no literal SHITU archive handles")
+    return tuple(dict.fromkeys(handles))
 
 
 def _literal_string_list_dict(
@@ -373,7 +418,9 @@ def _entry(
     locator: str,
     source: str,
 ) -> _ModelEntry:
-    if not _SAFE_MODEL_NAME.fullmatch(name):
+    if not _SAFE_MODEL_NAME.fullmatch(name) or any(
+        part in {"", ".", ".."} for part in name.split("/")
+    ):
         raise ValueError(f"{source}: invalid static model name {name!r}")
     return _ModelEntry(
         catalog=catalog,
@@ -385,7 +432,7 @@ def _entry(
 
 
 def _render_url_template(template: str, model_name: str, source: str) -> str:
-    rendered = template.format(quote(model_name, safe=""))
+    rendered = template.format(quote(model_name, safe="/"))
     parsed = urlsplit(rendered)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError(f"{source}: rendered model archive URL is not an HTTP URL")
@@ -401,9 +448,7 @@ def _catalog_counts(entries: tuple[_ModelEntry, ...]) -> dict[str, int]:
 
 def _required_literal_string(node: ast.AST | None, source: str, field: str) -> str:
     value = (
-        node.value.strip()
-        if isinstance(node, ast.Constant) and isinstance(node.value, str)
-        else ""
+        node.value.strip() if isinstance(node, ast.Constant) and isinstance(node.value, str) else ""
     )
     if not value:
         raise ValueError(f"{source}: {field} must be a non-empty literal string")

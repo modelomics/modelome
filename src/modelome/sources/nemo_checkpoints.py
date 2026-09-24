@@ -37,7 +37,8 @@ _NGC_COLLECTION = re.compile(
     r"^https://ngc\.nvidia\.com/catalog/models/nvidia:(?P<name>[A-Za-z0-9_.-]+)$"
 )
 _NGC_TEAM = re.compile(
-    r"^https://catalog\.ngc\.nvidia\.com/orgs/nvidia/teams/nemo/models/"
+    r"^https://(?:catalog\.nvidia\.com|catalog\.ngc\.nvidia\.com)/"
+    r"orgs/nvidia/teams/nemo/models/"
     r"(?P<name>[A-Za-z0-9_.-]+)$"
 )
 _SAFE_MODEL_NAME = re.compile(r"^[^\x00-\x1f]{1,512}$")

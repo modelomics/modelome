@@ -4,8 +4,6 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
-import pytest
-
 from modelome.http import HttpResponse
 from modelome.sources.kaggle import KaggleModelsSourceAdapter
 
@@ -68,12 +66,45 @@ def test_resume_preserves_search_and_owner_scope() -> None:
     }
 
 
-def test_incomplete_page_sequence_raises_instead_of_marking_scan_complete() -> None:
-    client = _Client({"models": [{"ref": "google/first"}], "totalResults": 2})
+def test_incomplete_page_sequence_restarts_instead_of_marking_scan_complete() -> None:
+    client = _Client(
+        {"models": [{"ref": "google/first"}], "totalResults": 2},
+        {"models": [{"ref": "google/first"}], "totalResults": 1},
+    )
     adapter = KaggleModelsSourceAdapter(client=client)
 
-    with pytest.raises(ValueError, match="before the provider-reported total"):
-        adapter.fetch_page({})
+    incomplete = adapter.fetch_page({})
+    assert not incomplete.complete
+    assert incomplete.issues[0].stage == "source_pagination"
+    assert incomplete.retry_state == {}
+    assert incomplete.next_state == {}
+
+    restarted = adapter.fetch_page(incomplete.retry_state)
+    assert restarted.complete
+    assert client.calls[1][1] == {"sortBy": "createTime", "pageSize": 100}
+
+
+def test_model_list_rejects_total_drift_between_pages() -> None:
+    client = _Client(
+        {
+            "models": [{"ref": "google/first"}],
+            "nextPageToken": "next",
+            "totalResults": 2,
+        },
+        {"models": [{"ref": "google/second"}], "totalResults": 3},
+        {"models": [{"ref": "google/first"}], "nextPageToken": "stable", "totalResults": 3},
+    )
+    adapter = KaggleModelsSourceAdapter(client=client)
+
+    first = adapter.fetch_page({})
+    drift = adapter.fetch_page(first.next_state)
+    assert not drift.complete
+    assert drift.issues[0].stage == "source_pagination"
+    assert "provider total changed during paginated scan" in drift.issues[0].error
+    assert drift.retry_state == {}
+
+    adapter.fetch_page(drift.retry_state)
+    assert client.calls[2][1] == {"sortBy": "createTime", "pageSize": 100}
 
 
 def test_model_list_pagination_cycle_fails_instead_of_rereading_pages() -> None:
@@ -81,14 +112,19 @@ def test_model_list_pagination_cycle_fails_instead_of_rereading_pages() -> None:
         {"models": [{"ref": "google/first"}], "nextPageToken": "first"},
         {"models": [{"ref": "google/second"}], "nextPageToken": "second"},
         {"models": [{"ref": "google/third"}], "nextPageToken": "first"},
+        {"models": [{"ref": "google/first"}]},
     )
     adapter = KaggleModelsSourceAdapter(client=client)
 
     first = adapter.fetch_page({})
     second = adapter.fetch_page(first.next_state)
 
-    with pytest.raises(ValueError, match="pagination token did not advance"):
-        adapter.fetch_page(second.next_state)
+    cycle = adapter.fetch_page(second.next_state)
+    assert cycle.issues[0].stage == "source_pagination"
+    assert cycle.retry_state == {}
+
+    adapter.fetch_page(cycle.retry_state)
+    assert client.calls[3][1] == {"sortBy": "createTime", "pageSize": 100}
 
 
 def test_malformed_model_is_reported_without_dropping_valid_models() -> None:
@@ -139,6 +175,7 @@ def test_optional_version_expansion_paginates_all_releases_and_builds_version_li
             ],
             "totalResults": 1,
         },
+        {"instances": [{"id": 12, "slug": "2b", "framework": "PyTorch", "versionNumber": 3}]},
         {
             "versionList": {
                 "versions": [
@@ -216,6 +253,10 @@ def test_optional_version_expansion_paginates_all_releases_and_builds_version_li
     }
     assert client.calls[1:] == [
         (
+            "https://www.kaggle.com/api/v1/models/google/gemma/list",
+            {"pageSize": 2},
+        ),
+        (
             "https://www.kaggle.com/api/v1/models/google/gemma/PyTorch/2b/list",
             {"pageSize": 2},
         ),
@@ -237,6 +278,7 @@ def test_version_pagination_cycle_fails_instead_of_returning_partial_releases() 
             ],
             "totalResults": 1,
         },
+        {"instances": [{"slug": "2b", "framework": "PyTorch"}]},
         {"versionList": {"versions": []}, "nextPageToken": "first"},
         {"versionList": {"versions": []}, "nextPageToken": "second"},
         {"versionList": {"versions": []}, "nextPageToken": "first"},
@@ -265,17 +307,18 @@ def test_all_versions_are_scoped_and_paginated_independently_per_variation() -> 
                             "framework": "PyTorch",
                             "versionNumber": 2,
                         },
-                        {
-                            "id": 13,
-                            "slug": "7b",
-                            "framework": "PyTorch",
-                            "versionNumber": 1,
-                        },
                     ],
                 }
             ],
             "totalResults": 1,
         },
+        {
+            "instances": [
+                {"id": 12, "slug": "2b", "framework": "PyTorch", "versionNumber": 2}
+            ],
+            "nextPageToken": "more-variations",
+        },
+        {"instances": [{"id": 13, "slug": "7b", "framework": "PyTorch", "versionNumber": 1}]},
         {
             "versionList": {
                 "versions": [
@@ -333,6 +376,14 @@ def test_all_versions_are_scoped_and_paginated_independently_per_variation() -> 
     assert [release.revision for release in releases] == ["101", "102", "201"]
     assert client.calls[1:] == [
         (
+            "https://www.kaggle.com/api/v1/models/google/gemma/list",
+            {"pageSize": 1},
+        ),
+        (
+            "https://www.kaggle.com/api/v1/models/google/gemma/list",
+            {"pageSize": 1, "pageToken": "more-variations"},
+        ),
+        (
             "https://www.kaggle.com/api/v1/models/google/gemma/PyTorch/2b/list",
             {"pageSize": 1},
         ),
@@ -360,6 +411,7 @@ def test_version_rows_for_another_variation_are_rejected() -> None:
             ],
             "totalResults": 1,
         },
+        {"instances": [{"id": 12, "slug": "2b", "framework": "PyTorch"}]},
         {
             "versionList": {
                 "versions": [

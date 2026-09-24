@@ -1,0 +1,25 @@
+# Cohere's public deprecation history retains exact Rerank v2 API IDs, their
+# shutdown dates, and the documented replacement. This lifecycle page adds
+# dated historical evidence beyond the active Cohere model overview; the rows
+# do not imply present availability.
+# Primary source: https://docs.cohere.com/docs/deprecations
+[[source]]
+name = "cohere-rerank-model-lifecycle"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:cohere", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history"]
+url = "https://docs.cohere.com/docs/deprecations"
+provider_namespace = "cohere:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Shutdown Date \| Deprecated Model \| Deprecated Model Price \| Recommended Replacement$'
+name_column = 1
+identity_column = 1
+identity_source = "id"
+require_url = false

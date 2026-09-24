@@ -48,6 +48,20 @@ def _archive() -> bytes:
     return output.getvalue()
 
 
+def _archive_with_indirect_enum() -> bytes:
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w") as package:
+        package.writestr(
+            f"torchgeo-{_REVISION}/torchgeo/models/swin.py",
+            "from torchvision.models._api import Weights, WeightsEnum\n\n"
+            "class SwinBackbone_Weights(WeightsEnum):\n"
+            "    pass\n\n"
+            "class Swin_T_Weights(SwinBackbone_Weights):\n"
+            "    CITYSCAPES_SEMSEG = Weights(url='https://weights.example.test/swin-t.pth')\n",
+        )
+    return output.getvalue()
+
+
 def test_torchgeo_weight_enum_records_exact_declared_checkpoint_url() -> None:
     client = _QueuedClient(_response({"sha": _REVISION}), _response(_archive()))
     adapter = TorchGeoWeightRegistrySourceAdapter(
@@ -70,3 +84,20 @@ def test_torchgeo_weight_enum_records_exact_declared_checkpoint_url() -> None:
         for link in record.links
     )
     assert client.calls[1].endswith(f"/archive/{_REVISION}.zip")
+
+
+def test_torchgeo_weight_registry_includes_enum_derived_from_abstract_base() -> None:
+    client = _QueuedClient(_response({"sha": _REVISION}), _response(_archive_with_indirect_enum()))
+    adapter = TorchGeoWeightRegistrySourceAdapter(client=client)
+
+    page = adapter.fetch_page({})
+
+    assert page.upstream_count == 1
+    record = page.records[0]
+    assert record.source_record_id == "torchgeo-weight-enum:Swin_T_Weights"
+    assert record.releases[0].version == "CITYSCAPES_SEMSEG"
+    assert any(
+        link.relation == "weights"
+        and link.url == "https://weights.example.test/swin-t.pth"
+        for link in record.links
+    )

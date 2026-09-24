@@ -361,9 +361,24 @@ def _parse_weight_enums(source: str, path: str, name: str) -> tuple[_WeightEnum,
         tree = ast.parse(source, filename=path)
     except SyntaxError as error:
         raise ValueError(f"{name}: cannot parse {path}: {error.msg}") from error
+    classes = [node for node in tree.body if isinstance(node, ast.ClassDef)]
+    # Some repositories define abstract weight-enum bases and derive concrete
+    # model enums from them (TorchGeo's SwinBackbone_Weights is one example).
+    # Resolve that inheritance chain syntactically so child enums are not lost.
+    enum_names = {"WeightsEnum"}
+    changed = True
+    while changed:
+        changed = False
+        for node in classes:
+            if node.name in enum_names:
+                continue
+            if any(_node_name(base) in enum_names for base in node.bases):
+                enum_names.add(node.name)
+                changed = True
+
     enums = []
-    for node in tree.body:
-        if not isinstance(node, ast.ClassDef) or not _is_weights_enum(node):
+    for node in classes:
+        if node.name not in enum_names or node.name == "WeightsEnum":
             continue
         members = _weight_members(node, path, name)
         if members:
@@ -376,10 +391,6 @@ def _parse_weight_enums(source: str, path: str, name: str) -> tuple[_WeightEnum,
                 )
             )
     return tuple(enums)
-
-
-def _is_weights_enum(node: ast.ClassDef) -> bool:
-    return any(_node_name(base) == "WeightsEnum" for base in node.bases)
 
 
 def _weight_members(

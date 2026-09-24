@@ -65,10 +65,11 @@ class ArxivSourceAdapter:
         self.clock = clock
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "arxiv-oai-arxivraw-v1",
+                "adapter": "arxiv-oai-arxivraw-v2-complete-bootstrap",
                 "url": self.url,
                 "artifact_kind": self.artifact_kind.value,
                 "initial_lookback_days": self.initial_lookback_days,
+                "bootstrap": "identify-earliest-datestamp",
                 "overlap_days": self.overlap_days,
             }
         )
@@ -141,10 +142,23 @@ class ArxivSourceAdapter:
         now = _as_utc(self.clock())
         closed_through = now.date() - timedelta(days=1)
         prior_watermark = _optional_date(state.get("watermark"), "watermark", self.name)
+        bootstrap_start = None
+        if (
+            prior_watermark is None
+            and state.get("window_start") is None
+            and state.get("window_end") is None
+            and "resumption_token" not in state
+        ):
+            # A clean live stream must begin at the repository's declared
+            # lower bound so persistent deletion headers predating the normal
+            # incremental lookback are observed as well.
+            identity = self.identify()
+            bootstrap_start = date.fromisoformat(identity.earliest_datestamp[:10])
         window_start, window_end, frozen = self._window(
             state,
             prior_watermark=prior_watermark,
             closed_through=closed_through,
+            bootstrap_start=bootstrap_start,
         )
         token = _state_token(state, frozen=frozen, source=self.name)
         raw_items_seen = _state_count(state, "raw_items_seen", self.name) or 0
@@ -396,6 +410,7 @@ class ArxivSourceAdapter:
         *,
         prior_watermark: date | None,
         closed_through: date,
+        bootstrap_start: date | None = None,
     ) -> tuple[date, date, bool]:
         raw_start = state.get("window_start")
         raw_end = state.get("window_end")
@@ -415,8 +430,11 @@ class ArxivSourceAdapter:
                 f"{self.name}: resumption-token checkpoint is missing its frozen window"
             )
         if prior_watermark is None:
-            lookback = max(self.initial_lookback_days, 1)
-            window_start = closed_through - timedelta(days=lookback - 1)
+            if bootstrap_start is not None:
+                window_start = bootstrap_start
+            else:
+                lookback = max(self.initial_lookback_days, 1)
+                window_start = closed_through - timedelta(days=lookback - 1)
         else:
             if prior_watermark > closed_through:
                 raise ValueError(f"{self.name}: watermark is later than the last closed UTC day")

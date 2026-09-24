@@ -27,7 +27,11 @@ _SHA = re.compile(r"^[0-9a-f]{40}$")
 _HEADING = re.compile(r"^(?P<level>#{1,6})\s+(?P<title>.+?)\s*$")
 _LINK = re.compile(r"\[(?P<label>[^\]]+)\]\((?P<url>https?://[^)\s]+)\)")
 _MODEL_URL = re.compile(r"^https://huggingface\.co/openvla/(?P<slug>[a-z0-9][a-z0-9-]*)$")
-_ALLOWED_SECTIONS = {"pretrained vlas", "launching libero evaluations"}
+_ALLOWED_SECTIONS = {
+    "pretrained vlas",
+    "fully fine-tuning openvla",
+    "launching libero evaluations",
+}
 
 
 def _utcnow() -> datetime:
@@ -40,8 +44,9 @@ class OpenVLACheckpointSourceAdapter:
     disable_derived_extraction = True
     coverage_limitation = (
         "Covers only direct OpenVLA Hugging Face refs in the official README's "
-        "Pretrained VLAs and Launching LIBERO Evaluations sections. It does not "
-        "enumerate third-party fine-tunes or training-run checkpoints."
+        "Pretrained VLAs, Fully Fine-Tuning OpenVLA, and Launching LIBERO "
+        "Evaluations sections. It does not enumerate third-party fine-tunes or "
+        "training-run checkpoints."
     )
 
     def __init__(

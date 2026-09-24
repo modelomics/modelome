@@ -142,6 +142,7 @@ class GhArchiveRepositoryProjector:
         max_event_rows: int = 100_000,
         max_repositories: int = 20_000,
         max_release_asset_candidates: int = 2_000,
+        max_release_assets_per_event: int = 1_000,
         arrow_batch_size: int = 8_192,
     ) -> GhArchiveProjectionPage:
         release = _required_text(release, "release")
@@ -154,6 +155,12 @@ class GhArchiveRepositoryProjector:
         )
         if max_release_asset_candidates < 100:
             raise ValueError("max_release_asset_candidates must be at least 100")
+        max_release_assets_per_event = _bounded_integer(
+            max_release_assets_per_event,
+            "max_release_assets_per_event",
+            minimum=1,
+            maximum=10_000,
+        )
         arrow_batch_size = _positive_integer(arrow_batch_size, "arrow_batch_size")
         receipt = self._release(release)
         if start_row > receipt.row_count:
@@ -188,7 +195,11 @@ class GhArchiveRepositoryProjector:
                 if examined >= max_event_rows:
                     stopped = True
                     break
-                candidate = _candidate(row, expected_release=release)
+                candidate = _candidate(
+                    row,
+                    expected_release=release,
+                    max_release_assets=max_release_assets_per_event,
+                )
                 if (
                     candidate.repository_id not in candidates
                     and len(candidates) >= max_repositories
@@ -256,6 +267,7 @@ def run_gharchive_repository_projection(
     max_event_rows: int = 100_000,
     max_repositories: int = 20_000,
     max_release_asset_candidates: int = 2_000,
+    max_release_assets_per_event: int = 1_000,
     arrow_batch_size: int = 8_192,
 ) -> GhArchiveProjectionOutcome:
     """Publish one bounded projection page and enqueue exact GitHub URLs.
@@ -314,6 +326,7 @@ def run_gharchive_repository_projection(
             max_event_rows=max_event_rows,
             max_repositories=max_repositories,
             max_release_asset_candidates=max_release_asset_candidates,
+            max_release_assets_per_event=max_release_assets_per_event,
             arrow_batch_size=arrow_batch_size,
         )
         next_state = {
@@ -397,6 +410,7 @@ def _candidate(
     row: Mapping[str, Any],
     *,
     expected_release: str,
+    max_release_assets: int = 1_000,
 ) -> GhArchiveRepositoryCandidate:
     source_record_id = _required_text(row.get("source_record_id"), "source_record_id")
     if not source_record_id.startswith("gharchive:event:"):
@@ -473,7 +487,10 @@ def _candidate(
                     "candidate_scope": "gharchive-event-release-asset",
                 },
             )
-            for record in project_github_release_assets(event_source_record)
+            for record in project_github_release_assets(
+                event_source_record,
+                max_assets=max_release_assets,
+            )
         )
     return GhArchiveRepositoryCandidate(
         repository_id=repository_id,
@@ -592,6 +609,20 @@ def _nonnegative_integer(value: Any, label: str) -> int:
         raise TypeError(f"{label} must be an integer")
     if value < 0:
         raise ValueError(f"{label} must be nonnegative")
+    return value
+
+
+def _bounded_integer(
+    value: Any,
+    label: str,
+    *,
+    minimum: int,
+    maximum: int,
+) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{label} must be an integer")
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{label} must be an integer from {minimum} to {maximum}")
     return value
 
 

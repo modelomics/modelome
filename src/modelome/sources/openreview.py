@@ -161,20 +161,46 @@ class OpenReviewSourceAdapter:
             state, now=now, prior_watermark=prior_watermark
         )
         after = _state_after(state, self.name)
+        offset = _state_count(state, "offset", self.name) or 0
         raw_items_seen = _state_count(state, "raw_items_seen", self.name) or 0
         scan_total = _state_count(state, "scan_total", self.name)
         last_tmdate_ms = _state_timestamp_ms(state, "last_tmdate_ms", self.name)
         cursor_hashes = _state_cursor_hashes(state.get("seen_after_hashes"), self.name)
-        if after and scan_total is None:
-            raise ValueError(f"{self.name}: after cursor checkpoint is missing scan_total")
-        if after and content_hash(after) not in cursor_hashes:
-            raise ValueError(
-                f"{self.name}: checkpoint after cursor is absent from seen_after_hashes"
-            )
-        if not after and (
-            raw_items_seen or scan_total is not None or last_tmdate_ms is not None or cursor_hashes
-        ):
-            raise ValueError(f"{self.name}: first-page checkpoint contains pagination state")
+        if stage == "v1":
+            if after:
+                # Older checkpoints used the v2 cursor on both stages. API v1
+                # has no `after` parameter, so safely replay its frozen window
+                # from offset zero when resuming one of those checkpoints.
+                after = ""
+                offset = 0
+                raw_items_seen = 0
+                scan_total = None
+                last_tmdate_ms = None
+                cursor_hashes = ()
+            if cursor_hashes:
+                raise ValueError(f"{self.name}: v1 checkpoints cannot use an after cursor")
+            if offset != raw_items_seen:
+                raise ValueError(f"{self.name}: v1 offset does not match raw_items_seen")
+            if offset and scan_total is None:
+                raise ValueError(f"{self.name}: v1 offset checkpoint is missing scan_total")
+            if not offset and (scan_total is not None or last_tmdate_ms is not None):
+                raise ValueError(f"{self.name}: first-page checkpoint contains pagination state")
+        else:
+            if offset:
+                raise ValueError(f"{self.name}: v2 checkpoints cannot use offset pagination")
+            if after and scan_total is None:
+                raise ValueError(f"{self.name}: after cursor checkpoint is missing scan_total")
+            if after and content_hash(after) not in cursor_hashes:
+                raise ValueError(
+                    f"{self.name}: checkpoint after cursor is absent from seen_after_hashes"
+                )
+            if not after and (
+                raw_items_seen
+                or scan_total is not None
+                or last_tmdate_ms is not None
+                or cursor_hashes
+            ):
+                raise ValueError(f"{self.name}: first-page checkpoint contains pagination state")
 
         page_retry_state = self._page_state(
             stage=stage,
@@ -187,6 +213,7 @@ class OpenReviewSourceAdapter:
             scan_total=scan_total,
             last_tmdate_ms=last_tmdate_ms,
             cursor_hashes=cursor_hashes,
+            offset=offset,
         )
         restart_state = self._page_state(
             stage=stage,
@@ -199,6 +226,7 @@ class OpenReviewSourceAdapter:
             scan_total=None,
             last_tmdate_ms=None,
             cursor_hashes=(),
+            offset=0,
         )
 
         params: dict[str, str | int] = {
@@ -206,13 +234,15 @@ class OpenReviewSourceAdapter:
             "sort": "tmdate:asc",
             "trash": "true",
         }
-        if not after:
+        if (stage == "v1" and offset == 0) or (stage == "v2" and not after):
             params["count"] = "true"
         if stage == "v2":
             params["mintmdate"] = _to_millis(window_start)
+        elif offset:
+            params["offset"] = offset
         if self.include_revision_details:
             params["details"] = "revisions"
-        if after:
+        if stage == "v2" and after:
             params["after"] = after
 
         response: HttpResponse = self.client.get(
@@ -241,7 +271,8 @@ class OpenReviewSourceAdapter:
                 received=len(raw_notes),
             )
         response_count = _optional_count(payload.get("count"), "response.count", self.name)
-        if not after and response_count is None:
+        first_page = (stage == "v1" and offset == 0) or (stage == "v2" and not after)
+        if first_page and response_count is None:
             raise ValueError(f"{self.name}: first page is missing response.count")
         if response_count is not None and response_count < len(raw_notes):
             return self._pagination_failure(
@@ -344,7 +375,14 @@ class OpenReviewSourceAdapter:
                 retry_state=page_retry_state,
             )
 
-        stream_complete = boundary_reached or len(raw_notes) < self.page_size
+        stream_complete = boundary_reached or not raw_notes
+        if (
+            not stream_complete
+            and len(raw_notes) < self.page_size
+            and scan_total is not None
+            and raw_items_seen >= scan_total
+        ):
+            stream_complete = True
         if stream_complete:
             if stage == "v1":
                 next_state = self._page_state(
@@ -358,6 +396,7 @@ class OpenReviewSourceAdapter:
                     scan_total=None,
                     last_tmdate_ms=None,
                     cursor_hashes=(),
+                    offset=0,
                 )
                 return SourcePage(
                     records=tuple(records),
@@ -377,47 +416,63 @@ class OpenReviewSourceAdapter:
                 retry_state=page_retry_state,
             )
 
-        next_after = _required_bounded_text(
-            raw_notes[-1].get("id") if isinstance(raw_notes[-1], Mapping) else None,
-            "last note id",
-            self.name,
-            _MAX_CURSOR_LENGTH,
-        )
-        next_hash = content_hash(next_after)
-        if next_after == previous_page_cursor or next_hash in cursor_hashes:
-            return self._pagination_failure(
+        if stage == "v1":
+            next_state = self._page_state(
                 stage=stage,
-                retry_state=restart_state,
-                error=f"after cursor cycle detected at {next_after!r}",
-                received=len(raw_notes),
-                records=records,
-                upstream_count=scan_total,
+                after="",
+                window_start=window_start,
+                window_end=window_end,
+                started_at=started_at,
+                prior_watermark=prior_watermark,
+                raw_items_seen=raw_items_seen,
+                scan_total=scan_total,
+                last_tmdate_ms=observed,
+                cursor_hashes=(),
+                offset=raw_items_seen,
             )
-        next_hashes = (*cursor_hashes, next_hash)
-        if len(next_hashes) > _MAX_STATE_CURSOR_HASHES:
-            return self._pagination_failure(
+        else:
+            next_after = _required_bounded_text(
+                raw_notes[-1].get("id") if isinstance(raw_notes[-1], Mapping) else None,
+                "last note id",
+                self.name,
+                _MAX_CURSOR_LENGTH,
+            )
+            next_hash = content_hash(next_after)
+            if next_after == previous_page_cursor or next_hash in cursor_hashes:
+                return self._pagination_failure(
+                    stage=stage,
+                    retry_state=restart_state,
+                    error=f"after cursor cycle detected at {next_after!r}",
+                    received=len(raw_notes),
+                    records=records,
+                    upstream_count=scan_total,
+                )
+            next_hashes = (*cursor_hashes, next_hash)
+            if len(next_hashes) > _MAX_STATE_CURSOR_HASHES:
+                return self._pagination_failure(
+                    stage=stage,
+                    retry_state=restart_state,
+                    error=(
+                        "cursor history exceeded its bounded state capacity; increase page_size "
+                        "or split this source into an explicit historical bootstrap"
+                    ),
+                    received=len(raw_notes),
+                    records=records,
+                    upstream_count=scan_total,
+                )
+            next_state = self._page_state(
                 stage=stage,
-                retry_state=restart_state,
-                error=(
-                    "cursor history exceeded its bounded state capacity; increase page_size "
-                    "or split this source into an explicit historical bootstrap"
-                ),
-                received=len(raw_notes),
-                records=records,
-                upstream_count=scan_total,
+                after=next_after,
+                window_start=window_start,
+                window_end=window_end,
+                started_at=started_at,
+                prior_watermark=prior_watermark,
+                raw_items_seen=raw_items_seen,
+                scan_total=scan_total,
+                last_tmdate_ms=observed,
+                cursor_hashes=next_hashes,
+                offset=0,
             )
-        next_state = self._page_state(
-            stage=stage,
-            after=next_after,
-            window_start=window_start,
-            window_end=window_end,
-            started_at=started_at,
-            prior_watermark=prior_watermark,
-            raw_items_seen=raw_items_seen,
-            scan_total=scan_total,
-            last_tmdate_ms=observed,
-            cursor_hashes=next_hashes,
-        )
         return SourcePage(
             records=tuple(records),
             next_state=next_state,
@@ -458,6 +513,7 @@ class OpenReviewSourceAdapter:
             key in state
             for key in (
                 "after",
+                "offset",
                 "raw_items_seen",
                 "last_tmdate_ms",
                 "seen_after_hashes",
@@ -488,6 +544,7 @@ class OpenReviewSourceAdapter:
         scan_total: int | None,
         last_tmdate_ms: int | None,
         cursor_hashes: Sequence[str],
+        offset: int,
     ) -> dict[str, Any]:
         result: dict[str, Any] = {
             "stage": stage,
@@ -497,7 +554,16 @@ class OpenReviewSourceAdapter:
         }
         if prior_watermark is not None:
             result["watermark"] = _isoformat(prior_watermark)
-        if after:
+        if stage == "v1" and offset:
+            result.update(
+                {
+                    "offset": offset,
+                    "raw_items_seen": raw_items_seen,
+                    "scan_total": scan_total,
+                    "last_tmdate_ms": last_tmdate_ms,
+                }
+            )
+        elif stage == "v2" and after:
             result.update(
                 {
                     "after": after,

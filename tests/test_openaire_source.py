@@ -202,6 +202,40 @@ def test_full_release_enumerates_every_upstream_partition_without_filtering() ->
     assert all(call[2] is not None for call in client.calls)
 
 
+def test_large_relation_manifest_pages_preserve_every_exact_shard_identity() -> None:
+    files = [
+        _file(f"product_Cites_{index}.tar")
+        for index in range(1, 81)
+    ] + [
+        _file(f"product_IsRelatedTo_{index}.tar")
+        for index in range(1, 26)
+    ] + [
+        _file(f"product_IsSourceOf_{index}.tar")
+        for index in range(1, 14)
+    ]
+    pages = _scan_all(_adapter(_client(_release(files=files)), page_size=11))
+
+    shards = [record for page in pages[1:] for record in page.records]
+    assert len(shards) == len(files)
+    assert {record.raw["file_key"] for record in shards} == {
+        item["key"] for item in files
+    }
+    assert len({record.source_record_id for record in shards}) == len(files)
+    assert {
+        record.source_record_id
+        for record in shards
+        if record.raw["entity_partition"] == "product_Cites"
+    } == {
+        f"openaire-graph:file:{RELEASE_ID}:{quote(f'product_Cites_{index}.tar', safe='')}"
+        for index in range(1, 81)
+    }
+    assert [len(page.records) for page in pages[1:]] == [11] * 10 + [8]
+    assert len(pages) == 1 + (len(files) + 10) // 11
+    assert pages[-1].complete is True
+    assert pages[-1].upstream_count == len(files) + 1
+    assert pages[-1].next_state["file_count"] == len(files)
+
+
 def test_unknown_future_partition_is_preserved_from_upstream_filename_metadata() -> None:
     payload = _release(files=[_file("quantum_biomed_neural_objects_17.tar")])
     pages = _scan_all(_adapter(_client(payload)))

@@ -8,6 +8,7 @@ from modelome.bootstrap import DEFAULT_BOOTSTRAP_MAX_PAGES, BootstrapOutcome
 from modelome.bulk import BulkError, BulkOutcome
 from modelome.cli import main
 from modelome.daily import DailyOutcome
+from modelome.europe_pmc_bootstrap import EuropePmcBootstrapOutcome
 from modelome.frontier import FrontierOutcome
 from modelome.lake import LakeRecord, ParquetLandingZone, ReleaseReceipt
 from modelome.models import ArtifactKind, Identifier, ModelHint, SourceRecord
@@ -936,6 +937,44 @@ def test_bootstrap_command_discovers_complete_pmc_history(
         "max_pages": 7,
         "namespace": None,
     }
+
+
+def test_bootstrap_command_discovers_europe_pmc_history(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    source = EuropePmcSourceAdapter(client=object())
+    captured = {}
+
+    def run_bootstrap(database, adapter, **kwargs):
+        captured.update(kwargs)
+        captured["adapter"] = adapter
+        return EuropePmcBootstrapOutcome(
+            source="europe-pmc:bootstrap",
+            status="partial",
+            run_id=1,
+            stats={"pages": 5},
+        )
+
+    monkeypatch.setattr("modelome.cli.load_sources", lambda path: {"europe-pmc": source})
+    monkeypatch.setattr("modelome.cli.run_europe_pmc_bootstrap", run_bootstrap)
+
+    code, output = invoke(
+        [
+            "--store",
+            str(tmp_path / "store"),
+            "--json",
+            "bootstrap",
+            "--source",
+            "europe-pmc",
+            "--max-pages",
+            "5",
+        ],
+        capsys,
+    )
+
+    assert code == 0
+    assert json.loads(output.out)["status"] == "partial"
+    assert captured == {"adapter": source, "max_pages": 5, "namespace": None}
 
 
 def test_bootstrap_rejects_sources_without_a_complete_baseline(

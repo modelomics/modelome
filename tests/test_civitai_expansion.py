@@ -4,7 +4,7 @@ import json
 from urllib.parse import parse_qs, urlsplit
 
 from modelome.http import HttpResponse
-from modelome.models import Identifier
+from modelome.models import Identifier, ModelStatus
 from modelome.sources.civitai import CivitaiModelsSourceAdapter
 
 
@@ -143,3 +143,41 @@ def test_next_page_keeps_unfiltered_public_scan_scope_when_provider_omits_params
     assert params["limit"] == ["100"]
     assert params["sort"] == ["Newest"]
     assert params["nsfw"] == ["true"]
+
+
+def test_archived_models_remain_documented_without_implying_weights_are_available() -> None:
+    endpoint = "https://civitai.com/api/v1/models"
+    client = _QueueClient(
+        _response(
+            {
+                "items": [
+                    {
+                        "id": 99,
+                        "name": "Archived checkpoint",
+                        "mode": "Archived",
+                        "modelVersions": [
+                            {
+                                "id": 100,
+                                "name": "v1",
+                                "status": "Published",
+                                "files": [],
+                            }
+                        ],
+                    }
+                ],
+                "metadata": {},
+            },
+            endpoint,
+        )
+    )
+
+    page = CivitaiModelsSourceAdapter(client=client).fetch_page({})
+
+    model = page.records[0].models[0]
+    release = page.records[0].releases[0]
+    assert model.status is ModelStatus.DOCUMENTED
+    assert release.metadata["model_mode"] == "Archived"
+    assert release.metadata["files"] == ()
+    assert "unpublished or moderator-only historical versions" in (
+        CivitaiModelsSourceAdapter.coverage_limitation
+    )

@@ -557,4 +557,170 @@ def _isoformat(value: datetime) -> str:
     return _as_utc(value).isoformat().replace("+00:00", "Z")
 
 
-__all__ = ["EuropePmcSourceAdapter"]
+class EuropePmcBootstrapSource:
+    """Resumable historical crawl in closed, monthly UPDATE_DATE windows.
+
+    Europe PMC does not publish an earliest UPDATE_DATE bound. The inclusive
+    lower bound is explicit and defaults to a conservative 1900-01-01 floor.
+    Each month uses the adapter's cursor/total checks.
+    """
+
+    def __init__(
+        self,
+        adapter: EuropePmcSourceAdapter,
+        *,
+        earliest_update_date: date = date(1900, 1, 1),
+        namespace: str | None = None,
+    ) -> None:
+        if not isinstance(adapter, EuropePmcSourceAdapter):
+            raise TypeError("adapter must be a EuropePmcSourceAdapter")
+        if not isinstance(earliest_update_date, date) or isinstance(
+            earliest_update_date, datetime
+        ):
+            raise TypeError("earliest_update_date must be a date")
+        self.adapter = adapter
+        self.earliest_update_date = earliest_update_date
+        self.name = (namespace or f"{adapter.name}:bootstrap").strip()
+        if not self.name or self.name == adapter.name:
+            raise ValueError("bootstrap namespace must differ from daily source")
+        self.artifact_source = adapter.name
+        self.checkpoint_signature = content_hash(
+            {
+                "workflow": "europe-pmc-update-date-bootstrap-v1",
+                "adapter_checkpoint_signature": adapter.checkpoint_signature,
+                "artifact_source": self.artifact_source,
+                "namespace": self.name,
+                "earliest_update_date": earliest_update_date.isoformat(),
+                "chunking": "calendar-months-v1",
+            }
+        )
+
+    def is_complete(self, state: Mapping[str, Any]) -> bool:
+        if not state:
+            return False
+        self._descriptor(state)
+        complete = state.get("bootstrap_complete", False)
+        if not isinstance(complete, bool):
+            raise ValueError(f"{self.name}: bootstrap_complete must be boolean")
+        if complete:
+            _required_datetime(state.get("completed_at"), "completed_at", self.name)
+        return complete
+
+    def fetch_page(self, state: Mapping[str, Any]) -> SourcePage:
+        if self.is_complete(state):
+            raise RuntimeError(f"{self.name}: completed bootstrap must not be fetched again")
+        descriptor = self._descriptor(state) if state else self._start_descriptor()
+        inner = descriptor["adapter_state"]
+        chunk_start = _required_date(descriptor["chunk_start"], "chunk_start", self.name)
+        chunk_end = _required_date(descriptor["chunk_end"], "chunk_end", self.name)
+        adapter_state = dict(inner)
+        adapter_state["window_start"] = chunk_start.isoformat()
+        adapter_state["window_end"] = chunk_end.isoformat()
+        page = self.adapter.fetch_page(adapter_state)
+
+        if page.complete and not page.issues:
+            next_start = chunk_end + timedelta(days=1)
+            if next_start > _required_date(descriptor["window_end"], "window_end", self.name):
+                return SourcePage(
+                    records=page.records,
+                    next_state={
+                        "bootstrap": descriptor,
+                        "bootstrap_complete": True,
+                        "completed_at": _isoformat(self.adapter.clock()),
+                    },
+                    complete=True,
+                    upstream_count=page.upstream_count,
+                )
+            next_descriptor = dict(descriptor)
+            next_descriptor["chunk_start"] = next_start.isoformat()
+            next_descriptor["chunk_end"] = _europe_pmc_month_end(
+                next_start, descriptor["window_end"]
+            )
+            next_descriptor["adapter_state"] = {}
+            return SourcePage(
+                records=page.records,
+                next_state={"bootstrap": next_descriptor, "bootstrap_complete": False},
+                complete=False,
+                upstream_count=page.upstream_count,
+            )
+
+        next_descriptor = dict(descriptor)
+        next_descriptor["adapter_state"] = dict(page.next_state)
+        retry_descriptor = dict(descriptor)
+        retry_descriptor["adapter_state"] = dict(page.retry_state or page.next_state)
+        return SourcePage(
+            records=page.records,
+            next_state={"bootstrap": next_descriptor, "bootstrap_complete": False},
+            complete=False,
+            upstream_count=page.upstream_count,
+            issues=page.issues,
+            retry_state={"bootstrap": retry_descriptor, "bootstrap_complete": False},
+        )
+
+    def _start_descriptor(self) -> dict[str, Any]:
+        start = self.earliest_update_date
+        end = _as_utc(self.adapter.clock()).date() - timedelta(days=1)
+        if start > end:
+            raise ValueError(f"{self.name}: earliest_update_date is later than yesterday")
+        return {
+            "version": 1,
+            "workflow_checkpoint_signature": self.checkpoint_signature,
+            "adapter_checkpoint_signature": self.adapter.checkpoint_signature,
+            "window_start": start.isoformat(),
+            "window_end": end.isoformat(),
+            "chunk_start": start.isoformat(),
+            "chunk_end": _europe_pmc_month_end(start, end.isoformat()),
+            "adapter_state": {},
+        }
+
+    def _descriptor(self, state: Mapping[str, Any]) -> dict[str, Any]:
+        raw = state.get("bootstrap")
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"{self.name}: bootstrap checkpoint is missing its descriptor")
+        descriptor = dict(raw)
+        if descriptor.get("version") != 1:
+            raise ValueError(f"{self.name}: unsupported bootstrap checkpoint version")
+        if descriptor.get("workflow_checkpoint_signature") != self.checkpoint_signature:
+            raise ValueError(f"{self.name}: checkpoint belongs to a different bootstrap config")
+        if descriptor.get("adapter_checkpoint_signature") != self.adapter.checkpoint_signature:
+            raise ValueError(f"{self.name}: checkpoint belongs to a different Europe PMC adapter")
+        start = _required_date(descriptor.get("window_start"), "window_start", self.name)
+        end = _required_date(descriptor.get("window_end"), "window_end", self.name)
+        chunk_start = _required_date(descriptor.get("chunk_start"), "chunk_start", self.name)
+        chunk_end = _required_date(descriptor.get("chunk_end"), "chunk_end", self.name)
+        if start != self.earliest_update_date or end < start:
+            raise ValueError(f"{self.name}: invalid frozen bootstrap boundaries")
+        if chunk_start < start or chunk_end > end or chunk_end < chunk_start:
+            raise ValueError(f"{self.name}: invalid current bootstrap chunk")
+        if chunk_end.isoformat() != _europe_pmc_month_end(chunk_start, end.isoformat()):
+            raise ValueError(f"{self.name}: current chunk does not end at its month boundary")
+        inner = descriptor.get("adapter_state")
+        if not isinstance(inner, Mapping):
+            raise ValueError(f"{self.name}: adapter_state must be an object")
+        if inner and (
+            inner.get("window_start") != chunk_start.isoformat()
+            or inner.get("window_end") != chunk_end.isoformat()
+        ):
+            raise ValueError(f"{self.name}: adapter checkpoint does not match current chunk")
+        return descriptor
+
+
+def _europe_pmc_month_end(start: date, final_day: str) -> str:
+    following_month = date(start.year + (start.month == 12), start.month % 12 + 1, 1)
+    return min(following_month - timedelta(days=1), date.fromisoformat(final_day)).isoformat()
+
+
+def _required_datetime(value: Any, field: str, source: str) -> datetime:
+    text = _text(value)
+    if not text:
+        raise ValueError(f"{source}: {field} is required")
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError(f"{source}: invalid {field}: {value!r}") from None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{source}: {field} must include a timezone")
+    return parsed.astimezone(UTC)
+
+
+__all__ = ["EuropePmcBootstrapSource", "EuropePmcSourceAdapter"]

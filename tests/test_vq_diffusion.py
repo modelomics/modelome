@@ -21,6 +21,7 @@ wget https://github.com/tzco/storage/releases/download/vqdiffusion/coco_pretrain
 wget https://github.com/tzco/storage/releases/download/vqdiffusion/coco_pretrained_ab
 cat coco_pretrained_* > coco_pretrained.pth
 wget https://github.com/tzco/storage/releases/download/vqdiffusion/ithq_vqvae.pth
+wget https://github.com/tzco/storage/releases/download/vqdiffusion/ViT-B-32.pt
 """
 
 
@@ -58,8 +59,8 @@ def test_vq_diffusion_preserves_all_exact_urls_for_each_checkpoint() -> None:
 
     assert page.complete is True
     assert page.authoritative_snapshot is True
-    assert page.upstream_count == 2
-    sharded, standalone = page.records
+    assert page.upstream_count == 3
+    sharded, standalone, clip = page.records
     assert sharded.models[0].identifiers == (
         Identifier("microsoft:vq-diffusion", "coco_pretrained"),
     )
@@ -70,6 +71,12 @@ def test_vq_diffusion_preserves_all_exact_urls_for_each_checkpoint() -> None:
     assert sharded.releases[0].metadata["weight_asset_count"] == 2
     assert standalone.releases[0].metadata["weight_urls"] == [
         "https://github.com/tzco/storage/releases/download/vqdiffusion/ithq_vqvae.pth",
+    ]
+    assert clip.models[0].identifiers == (
+        Identifier("microsoft:vq-diffusion", "ViT-B-32"),
+    )
+    assert clip.releases[0].metadata["weight_urls"] == [
+        "https://github.com/tzco/storage/releases/download/vqdiffusion/ViT-B-32.pt",
     ]
     assert f"/{_REVISION}/vqdiffusion_download_checkpoints.sh" in client.calls[1]
 

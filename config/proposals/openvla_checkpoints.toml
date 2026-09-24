@@ -13,6 +13,7 @@ max_entries = 20
 # Primary inventory: https://github.com/openvla/openvla/blob/main/README.md
 # Base refs: https://huggingface.co/openvla/openvla-7b
 # https://huggingface.co/openvla/openvla-v01-7b
+# Prismatic-compatible full-finetuning base: https://huggingface.co/openvla/openvla-7b-prismatic
 # LIBERO fine-tunes: https://huggingface.co/openvla/openvla-7b-finetuned-libero-spatial
 # https://huggingface.co/openvla/openvla-7b-finetuned-libero-object
 # https://huggingface.co/openvla/openvla-7b-finetuned-libero-goal

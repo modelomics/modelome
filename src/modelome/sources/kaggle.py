@@ -109,7 +109,12 @@ class KaggleModelsSourceAdapter:
             raise ValueError(f"{self.name}: response models must be a list")
         raw_items_seen = (raw_items_seen or 0) + len(items)
         response_total = _optional_nonnegative_int(payload.get("totalResults"))
-        if response_total is not None:
+        total_drift = (
+            response_total is not None
+            and scan_total is not None
+            and response_total != scan_total
+        )
+        if response_total is not None and not total_drift:
             scan_total = max(scan_total or 0, response_total)
 
         records: list[SourceRecord] = []
@@ -136,11 +141,29 @@ class KaggleModelsSourceAdapter:
         if next_token is not None and (
             next_token == token or next_token in seen_tokens
         ):
-            raise ValueError(f"{self.name}: pagination token did not advance")
+            return self._restart_page(
+                records,
+                issues,
+                state,
+                "pagination token did not advance",
+                response_total if response_total is not None else scan_total,
+            )
+        if total_drift:
+            return self._restart_page(
+                records,
+                issues,
+                state,
+                f"provider total changed during paginated scan ({scan_total} to {response_total})",
+                response_total,
+            )
         if next_token is None and scan_total is not None and raw_items_seen < scan_total:
-            raise ValueError(
-                f"{self.name}: pagination ended after {raw_items_seen} model(s), "
-                f"before the provider-reported total of {scan_total}"
+            return self._restart_page(
+                records,
+                issues,
+                state,
+                f"pagination ended after {raw_items_seen} model(s), "
+                f"before the provider-reported total of {scan_total}",
+                response_total if response_total is not None else scan_total,
             )
         next_state: dict[str, Any] = {}
         if next_token is not None:
@@ -161,6 +184,30 @@ class KaggleModelsSourceAdapter:
             complete=next_token is None,
             upstream_count=response_total if response_total is not None else scan_total,
             issues=tuple(issues),
+        )
+
+    def _restart_page(
+        self,
+        records: Sequence[SourceRecord],
+        issues: Sequence[SourceIssue],
+        state: Mapping[str, Any],
+        error: str,
+        upstream_count: int | None,
+    ) -> SourcePage:
+        issue_id = content_hash({"state": dict(state), "error": error})[:32]
+        issue = SourceIssue(
+            source_record_id=f"{self.name}:pagination:{issue_id}",
+            stage="source_pagination",
+            error=f"{self.name}: {error}; restarting the scan from page one",
+            summary={"prior_state": dict(state), "restart_state": {}},
+        )
+        return SourcePage(
+            records=tuple(records),
+            next_state={},
+            complete=False,
+            upstream_count=upstream_count,
+            issues=tuple((*issues, issue)),
+            retry_state={},
         )
 
     def _record(self, item: Any, index: int) -> SourceRecord:
@@ -214,7 +261,10 @@ class KaggleModelsSourceAdapter:
 
         releases: list[ReleaseHint] = []
         relations: list[ModelRelationHint] = []
-        for instance_index, instance in enumerate(_sequence(item.get("instances"))):
+        instances = _sequence(item.get("instances"))
+        if self.include_all_versions:
+            instances = self._model_instances(model_ref, instances)
+        for instance_index, instance in enumerate(instances):
             if not isinstance(instance, Mapping):
                 continue
             version_items = (
@@ -261,6 +311,74 @@ class KaggleModelsSourceAdapter:
             model_relations=tuple(relations),
             releases=tuple(releases),
         )
+
+    def _model_instances(
+        self,
+        model_ref: str,
+        embedded: Sequence[Any],
+    ) -> tuple[Any, ...]:
+        """Page the first-party variation listing and merge embedded summaries."""
+        owner, separator, model_slug = model_ref.partition("/")
+        if not separator or not owner or not model_slug:
+            raise ValueError(f"invalid Kaggle model ref for variation lookup: {model_ref!r}")
+        parts = urlsplit(self.url)
+        path = "/".join(quote(part, safe="") for part in (owner, model_slug))
+        url = f"{parts.scheme}://{parts.netloc}/api/v1/models/{path}/list"
+        token: str | None = None
+        seen_tokens: set[str] = set()
+        listed: list[Mapping[str, Any]] = []
+        while True:
+            params: dict[str, str | int] = {"pageSize": self.page_size}
+            if token is not None:
+                params["pageToken"] = token
+            response: HttpResponse = self.client.get(
+                url,
+                params=params,
+                headers={"Accept": "application/json"},
+            )
+            if response.status != 200:
+                raise ValueError(
+                    f"{self.name}: variations for {model_ref} returned HTTP {response.status}"
+                )
+            if len(response.body) > 4 * 1024 * 1024:
+                raise ValueError(f"{self.name}: model variations response is too large")
+            payload = response.json()
+            if not isinstance(payload, Mapping):
+                raise ValueError(f"{self.name}: model variations response is not an object")
+            page_instances = payload.get("instances")
+            if not _is_sequence(page_instances):
+                raise ValueError(f"{self.name}: model variations are not a list")
+            if any(
+                value is not None and not isinstance(value, Mapping)
+                for value in page_instances
+            ):
+                raise ValueError(f"{self.name}: model variation row is not an object")
+            listed.extend(value for value in page_instances if isinstance(value, Mapping))
+            next_token = _optional_text(
+                payload.get("nextPageToken", payload.get("next_page_token"))
+            )
+            if next_token is None:
+                break
+            if next_token in seen_tokens or next_token == token:
+                raise ValueError(f"{self.name}: variation pagination token did not advance")
+            seen_tokens.add(next_token)
+            token = next_token
+
+        # The public model listing embeds a latest-instance summary, while the
+        # dedicated endpoint is cursor-paginated. Merge by variation identity so
+        # fields present only in the embedded summary survive.
+        merged: dict[tuple[str, str], dict[str, Any]] = {}
+        for instance in (*embedded, *listed):
+            if not isinstance(instance, Mapping):
+                continue
+            framework = _optional_text(instance.get("framework")) or "unspecified"
+            slug = _optional_text(instance.get("slug"))
+            if slug is None:
+                key = ("id", _optional_text(instance.get("id")) or content_hash(dict(instance)))
+            else:
+                key = (framework, slug)
+            merged[key] = {**merged.get(key, {}), **instance}
+        return tuple(merged.values())
 
     def _instance(
         self,

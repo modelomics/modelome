@@ -15,6 +15,7 @@ from modelome.models import (
     Identifier,
     Link,
     ModelHint,
+    ModelRelationHint,
     ModelStatus,
     ReleaseHint,
     SourceIssue,
@@ -575,6 +576,26 @@ class BioImageIoSourceAdapter:
             status=ModelStatus.RELEASED,
             locator="$.artifact.manifest.name",
         )
+        model_relations: tuple[ModelRelationHint, ...] = ()
+        parent = manifest.get("parent")
+        if isinstance(parent, Mapping):
+            parent_id = _optional_text(parent.get("id"), _MAX_ID_CHARS)
+            if parent_id:
+                parent_locator = "$.artifact.manifest.parent.id"
+                model_relations = (
+                    ModelRelationHint(
+                        subject_local_id=local_model_id,
+                        predicate="derived_from",
+                        target=ModelHint(
+                            local_id=f"{control.source_record_id}#parent:{parent_id}",
+                            name=parent_id,
+                            identifiers=(Identifier("bioimageio:model", parent_id),),
+                            status=ModelStatus.DOCUMENTED,
+                            locator=parent_locator,
+                        ),
+                        locator=parent_locator,
+                    ),
+                )
         release_identifiers = (
             (
                 Identifier(
@@ -656,6 +677,7 @@ class BioImageIoSourceAdapter:
             identifiers=artifact_identifiers,
             links=_unique_links(links, self.max_links, self.name),
             models=(model,),
+            model_relations=model_relations,
             releases=releases,
         )
 

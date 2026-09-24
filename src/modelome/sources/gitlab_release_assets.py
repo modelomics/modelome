@@ -33,6 +33,7 @@ _CHECKPOINT_SUFFIXES = (
     ".ggml",
     ".onnx",
     ".pt",
+    ".pte",
     ".pth",
     ".ckpt",
     ".bin",

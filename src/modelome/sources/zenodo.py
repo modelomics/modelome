@@ -30,7 +30,7 @@ _MAX_PAGE_SIZE = 1_000
 # upper bound and must be clamped to the public API's documented limit.
 _ANONYMOUS_MAX_PAGE_SIZE = 25
 _CHECKPOINT_FILENAME = re.compile(
-    r"(?:^|[._-])(?:checkpoint|ckpt|model|model_weights|weights)(?:[._-]|$)",
+    r"(?:^|[._-])(?:checkpoint|ckpt|model|model_weights|pretrain(?:ed)?|weights)(?:[._-]|$)",
     re.IGNORECASE,
 )
 _MODEL_WEIGHT_SUFFIX = re.compile(

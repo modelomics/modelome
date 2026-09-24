@@ -10,6 +10,7 @@ from typing import Any
 
 from modelome.config import default_source_catalog
 from modelome.http import HttpClient
+from modelome.semantic_scholar_citations import SemanticScholarCitationGraphAdapter
 from modelome.sources.acl_anthology import AclAnthologySourceAdapter
 from modelome.sources.admet_ai_checkpoint_registry import ADMETAICheckpointRegistrySourceAdapter
 from modelome.sources.aggregator_registry import OpenMLFlowRegistrySourceAdapter
@@ -27,6 +28,7 @@ from modelome.sources.biorxiv import BioRxivPublicationSourceAdapter, BioRxivSou
 from modelome.sources.biorxiv_jats_supplementary import (
     BioRxivJatsSupplementSourceAdapter,
 )
+from modelome.sources.bpemb_registry import BPEmbPretrainedVectorRegistrySourceAdapter
 from modelome.sources.cellpose_registry import CellposeRegistrySourceAdapter
 from modelome.sources.chem_ml_extra import (
     ChempropCheMeleonCheckpointSourceAdapter,
@@ -77,6 +79,7 @@ from modelome.sources.line_checkpoint_card_catalog import (
 from modelome.sources.mace_foundation_registry import (
     MaceFoundationCheckpointRegistrySourceAdapter,
 )
+from modelome.sources.mace_omol_checkpoint import MaceOmolCheckpointSourceAdapter
 from modelome.sources.mace_registry import MaceOff23CheckpointRegistrySourceAdapter
 from modelome.sources.markdown_checkpoint_list import MarkdownCheckpointListSourceAdapter
 from modelome.sources.markdown_model_card_list import MarkdownModelCardListSourceAdapter
@@ -254,6 +257,20 @@ def create_source(
     injected: dict[str, Any] = {"client": client or HttpClient()}
     if clock is not None:
         injected["clock"] = clock
+
+    if adapter == "semantic_scholar_citation_graph":
+        return SemanticScholarCitationGraphAdapter(
+            name=name,
+            paper_id=_required_text(expanded, "paper_id"),
+            paper_url=_required_text(expanded, "paper_url"),
+            paper_title=_required_text(expanded, "paper_title"),
+            direction=_text(expanded.get("direction")) or "references",
+            page_size=_integer(expanded.get("page_size"), 1_000),
+            max_records=_integer(expanded.get("max_records"), 9_999),
+            api_key=_credential(expanded, environment, defaults=("S2_API_KEY",)) or None,
+            url=_text(expanded.get("url")) or "https://api.semanticscholar.org/graph/v1",
+            client=injected["client"],
+        )
 
     if adapter == "pubmed_bulk":
         return PubMedBulkSourceAdapter(
@@ -961,6 +978,7 @@ def create_source(
             "fairseq_pretrained_language_models",
             "mace_off23_checkpoint_registry",
             "mace_foundation_checkpoint_registry",
+            "mace_omol_checkpoint",
             "neuralgcm_checkpoint_registry",
             "pangu_weather_checkpoint_registry",
             "paddlex_model_list",
@@ -990,6 +1008,7 @@ def create_source(
             "kaldi_model_index",
             "galaxea_vla_checkpoints",
             "gpt4all_model_catalog",
+            "bpemb_pretrained_vector_registry",
         }
         else _required_text(expanded, "url")
     )
@@ -1681,6 +1700,16 @@ def create_source(
             **injected,
         )
 
+    if adapter == "mace_omol_checkpoint":
+        return MaceOmolCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
     if adapter == "neuralgcm_checkpoint_registry":
         return NeuralGCMCheckpointRegistrySourceAdapter(
             name=name,
@@ -2058,6 +2087,19 @@ def create_source(
             branch=_text(expanded.get("branch")) or "master",
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
             max_entries=_integer(expanded.get("max_entries"), 10_000),
+            **injected,
+        )
+
+    if adapter == "bpemb_pretrained_vector_registry":
+        return BPEmbPretrainedVectorRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 10_000),
+            max_languages=_integer(expanded.get("max_languages"), 300),
+            languages_per_page=_integer(expanded.get("languages_per_page"), 10),
             **injected,
         )
 

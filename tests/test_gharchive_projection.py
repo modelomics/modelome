@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from modelome.frontier import FrontierCrawler
 from modelome.gharchive_bulk import GhArchiveEventBulkLoader
 from modelome.gharchive_projection import (
@@ -346,6 +348,55 @@ def test_runtime_checkpoint_prevents_skipping_busy_hour(tmp_path: Path) -> None:
         "https://github.com/lab/one",
         "https://github.com/lab/two",
     ]
+
+
+def test_release_event_over_api_page_size_does_not_stall_later_rows(
+    tmp_path: Path,
+) -> None:
+    oversized = _release_event("r-large", 450, "lab/many-release-assets", 1)
+    assets = oversized["payload"]["release"]["assets"]
+    assets.extend(
+        {
+            "id": 10_000 + index,
+            "name": f"documentation-{index}.txt",
+            "content_type": "text/plain",
+            "size": 32,
+            "browser_download_url": (
+                "https://github.com/lab/many-release-assets/releases/download/"
+                f"v1.0.0/documentation-{index}.txt"
+            ),
+        }
+        for index in range(101)
+    )
+    lake = _sealed_lake(
+        tmp_path,
+        oversized,
+        _event("after-large-release", 451, "lab/after-large-release", 2),
+    )
+    database = Database(tmp_path / "store")
+    database.initialize()
+
+    outcome = run_gharchive_repository_projection(database, lake, release=HOUR)
+
+    assert outcome.status == "complete"
+    assert outcome.rows_examined == 2
+    assert outcome.repositories == 2
+    assert outcome.next_row == outcome.total_rows == 2
+    assert {row["source_record_id"] for row in database.table_rows("artifacts")} == {
+        "github-repository-id:450",
+        "github-release-asset:450:1150:1250",
+        "github-repository-id:451",
+    }
+
+
+def test_projector_rejects_unbounded_release_asset_limit(tmp_path: Path) -> None:
+    lake = _sealed_lake(tmp_path, _event("51", 601, "lab/one", 1))
+
+    with pytest.raises(ValueError, match="max_release_assets_per_event"):
+        GhArchiveRepositoryProjector(lake).page(
+            HOUR,
+            max_release_assets_per_event=10_001,
+        )
 
 
 class CodeOnlyRepositoryFetcher:

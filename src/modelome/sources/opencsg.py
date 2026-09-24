@@ -76,12 +76,18 @@ class OpenCsgModelsSourceAdapter:
             params={"page": page_number, "per": self.page_size, "sort": self.sort_by},
             headers={"Accept": "application/json"},
         )
+        if response.status != 200:
+            raise ValueError(f"{self.name}: catalog returned HTTP {response.status}")
         payload = response.json()
         if not isinstance(payload, Mapping):
             raise ValueError(f"{self.name}: expected a JSON object from {response.url}")
         items = payload.get("data")
         if not _is_sequence(items):
             raise ValueError(f"{self.name}: response data must be a list")
+        if len(items) > self.page_size:
+            raise ValueError(
+                f"{self.name}: response returned {len(items)} rows for page size {self.page_size}"
+            )
         response_total = _optional_nonnegative_int(payload.get("total"))
         if scan_total is not None and response_total is not None and response_total != scan_total:
             raise ValueError(
@@ -108,8 +114,7 @@ class OpenCsgModelsSourceAdapter:
                 issues.append(
                     SourceIssue(
                         source_record_id=(
-                            record_id
-                            or f"{self.name}:malformed:{content_hash(raw)[:32]}"
+                            record_id or f"{self.name}:malformed:{content_hash(raw)[:32]}"
                         ),
                         stage="source_normalize",
                         error=f"{type(error).__name__}: {error}",
@@ -149,9 +154,7 @@ class OpenCsgModelsSourceAdapter:
             raise ValueError(f"catalog item {index} path must contain namespace and name")
         model_url = _model_url(model_path, item.get("url"))
         title = (
-            _optional_text(item.get("nickname"))
-            or _optional_text(item.get("name"))
-            or model_path
+            _optional_text(item.get("nickname")) or _optional_text(item.get("name")) or model_path
         )
         model_local_id = f"{model_path}#model"
         model_identifier = Identifier("opencsg:model", model_path)
@@ -235,9 +238,7 @@ class OpenCsgModelsSourceAdapter:
                     local_id=f"{model_path}#revision:{revision}",
                     model_local_id=model_local_id,
                     revision=revision,
-                    identifiers=(
-                        Identifier("opencsg:revision", f"{model_path}@{revision}"),
-                    ),
+                    identifiers=(Identifier("opencsg:revision", f"{model_path}@{revision}"),),
                     locator="$.revision",
                 ),
             )
@@ -263,9 +264,7 @@ def _model_url(model_path: str, value: Any) -> str:
     supplied = _optional_web_url(value, "https://opencsg.com")
     if supplied:
         return supplied
-    return canonicalize_url(
-        f"https://opencsg.com/models/{quote(model_path, safe='/')}"
-    )
+    return canonicalize_url(f"https://opencsg.com/models/{quote(model_path, safe='/')}")
 
 
 def _clone_url(value: Any, base_url: str) -> str | None:

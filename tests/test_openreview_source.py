@@ -240,20 +240,20 @@ def test_daily_overlap_rescans_v1_fully_and_bounds_v2_by_modification_time() -> 
     assert second.next_state["watermark"] == "2026-09-03T11:55:00Z"
 
 
-def test_after_cursor_resumes_without_offset_and_requires_terminal_probe() -> None:
+def test_v2_after_cursor_resumes_without_offset_and_requires_terminal_probe() -> None:
     client = QueueClient(
         response(
             [
-                v1_note("paper-a", modified="2026-09-01T01:00:00Z"),
-                v1_note("paper-b", modified="2026-09-01T02:00:00Z"),
+                v2_note("paper-a", modified="2026-09-01T01:00:00Z"),
+                v2_note("paper-b", modified="2026-09-01T02:00:00Z"),
             ],
             count=3,
         ),
-        {"notes": [v1_note("paper-c", modified="2026-09-01T03:00:00Z")]},
+        {"notes": [v2_note("paper-c", modified="2026-09-01T03:00:00Z")]},
     )
     source = adapter(client, page_size=2)
 
-    first = source.fetch_page({})
+    first = source.fetch_page(v2_state())
     second = source.fetch_page(first.next_state)
 
     assert first.complete is False
@@ -264,13 +264,99 @@ def test_after_cursor_resumes_without_offset_and_requires_terminal_probe() -> No
     assert "offset" not in client.calls[1][1]
     assert client.calls[1][1]["after"] == "paper-b"
     assert "count" not in client.calls[1][1]
-    assert second.complete is False
-    assert second.next_state["stage"] == "v2"
+    assert second.complete is True
+    assert second.next_state["watermark"] == "2026-09-03T11:55:00Z"
     assert [record.source_record_id for record in (*first.records, *second.records)] == [
         "paper-a",
         "paper-b",
         "paper-c",
     ]
+
+
+def test_v1_uses_documented_offset_pagination() -> None:
+    client = QueueClient(
+        response(
+            [
+                v1_note("legacy-a", modified="2026-09-01T01:00:00Z"),
+                v1_note("legacy-b", modified="2026-09-01T02:00:00Z"),
+            ],
+            count=3,
+        ),
+        {"notes": [v1_note("legacy-c", modified="2026-09-01T03:00:00Z")]},
+    )
+    source = adapter(client, page_size=2)
+
+    first = source.fetch_page({})
+    second = source.fetch_page(first.next_state)
+
+    assert first.next_state["offset"] == 2
+    assert first.next_state["raw_items_seen"] == 2
+    assert "after" not in first.next_state
+    assert client.calls[1][1]["offset"] == 2
+    assert "after" not in client.calls[1][1]
+    assert "count" not in client.calls[1][1]
+    assert second.next_state["stage"] == "v2"
+    assert [record.source_record_id for record in (*first.records, *second.records)] == [
+        "legacy-a",
+        "legacy-b",
+        "legacy-c",
+    ]
+
+
+@pytest.mark.parametrize("stage", ["v1", "v2"])
+def test_short_nonempty_page_continues_when_count_has_unseen_notes(stage: str) -> None:
+    make_note = v1_note if stage == "v1" else v2_note
+    client = QueueClient(
+        response([make_note("short-page-a", modified="2026-09-01T01:00:00Z")], count=3),
+        response(
+            [
+                make_note("short-page-b", modified="2026-09-01T02:00:00Z"),
+                make_note("short-page-c", modified="2026-09-01T03:00:00Z"),
+            ]
+        ),
+    )
+    initial_state = {} if stage == "v1" else v2_state()
+    first, second = adapter(client, page_size=3).fetch_page(initial_state), None
+    second = adapter(client, page_size=3).fetch_page(first.next_state)
+
+    assert first.complete is False
+    if stage == "v1":
+        assert first.next_state["offset"] == 1
+        assert client.calls[1][1]["offset"] == 1
+        assert "after" not in client.calls[1][1]
+        assert second.next_state["stage"] == "v2"
+    else:
+        assert first.next_state["after"] == "short-page-a"
+        assert client.calls[1][1]["after"] == "short-page-a"
+        assert "offset" not in client.calls[1][1]
+        assert second.complete is True
+    assert [record.source_record_id for record in (*first.records, *second.records)] == [
+        "short-page-a",
+        "short-page-b",
+        "short-page-c",
+    ]
+
+
+def test_legacy_v1_after_checkpoint_restarts_the_frozen_window() -> None:
+    legacy_state = {
+        "stage": "v1",
+        "window_start": "1970-01-01T00:00:00Z",
+        "window_end": "2026-09-03T11:55:00Z",
+        "started_at": "2026-09-03T12:00:00Z",
+        "after": "legacy-cursor",
+        "raw_items_seen": 2,
+        "scan_total": 3,
+        "last_tmdate_ms": millis("2026-09-01T02:00:00Z"),
+        "seen_after_hashes": [content_hash("legacy-cursor")],
+    }
+    client = QueueClient(response([v1_note("replayed")], count=1))
+
+    page = adapter(client, page_size=10).fetch_page(legacy_state)
+
+    assert "after" not in client.calls[0][1]
+    assert "offset" not in client.calls[0][1]
+    assert client.calls[0][1]["count"] == "true"
+    assert page.records[0].source_record_id == "replayed"
 
 
 def test_client_side_frozen_upper_boundary_stops_an_append_only_scan() -> None:
@@ -438,23 +524,19 @@ def test_page_size_overrun_and_after_cursor_cycles_restart_the_stream() -> None:
     assert overrun.issues[0].stage == "source_pagination"
     assert "above configured page_size" in overrun.issues[0].error
 
-    cycle_state = {
-        "stage": "v1",
-        "window_start": "1970-01-01T00:00:00Z",
-        "window_end": "2026-09-03T11:55:00Z",
-        "started_at": "2026-09-03T12:00:00Z",
-        "after": "repeat",
-        "raw_items_seen": 2,
-        "scan_total": 4,
-        "last_tmdate_ms": millis("2026-09-01T00:00:00Z"),
-        "seen_after_hashes": [content_hash("repeat")],
-    }
+    cycle_state = v2_state(
+        after="repeat",
+        raw_items_seen=2,
+        scan_total=4,
+        last_tmdate_ms=millis("2026-09-01T00:00:00Z"),
+        seen_after_hashes=[content_hash("repeat")],
+    )
     cycle = adapter(
         QueueClient(
             response(
                 [
-                    v1_note("new", modified="2026-09-01T01:00:00Z"),
-                    v1_note("repeat", modified="2026-09-01T02:00:00Z"),
+                    v2_note("new", modified="2026-09-01T01:00:00Z"),
+                    v2_note("repeat", modified="2026-09-01T02:00:00Z"),
                 ],
                 count=4,
             )
@@ -464,7 +546,7 @@ def test_page_size_overrun_and_after_cursor_cycles_restart_the_stream() -> None:
     assert cycle.issues[0].stage == "source_pagination"
     assert "cursor cycle" in cycle.issues[0].error
     assert cycle.retry_state == {
-        "stage": "v1",
+        "stage": "v2",
         "window_start": "1970-01-01T00:00:00Z",
         "window_end": "2026-09-03T11:55:00Z",
         "started_at": "2026-09-03T12:00:00Z",
@@ -477,18 +559,17 @@ def test_timestamp_order_drift_and_v2_lower_bound_violations_restart() -> None:
         "window_start": "1970-01-01T00:00:00Z",
         "window_end": "2026-09-03T11:55:00Z",
         "started_at": "2026-09-03T12:00:00Z",
-        "after": "paper-b",
+        "offset": 2,
         "raw_items_seen": 2,
         "scan_total": 3,
         "last_tmdate_ms": millis("2026-09-02T12:00:00Z"),
-        "seen_after_hashes": [content_hash("paper-b")],
     }
     drift = adapter(QueueClient(response([v1_note("older")], count=3)), page_size=10).fetch_page(
         resumed
     )
     assert drift.issues[0].stage == "source_pagination"
     assert "order moved backward" in drift.issues[0].error
-    assert "after" not in drift.retry_state
+    assert "offset" not in drift.retry_state
 
     below = adapter(
         QueueClient(

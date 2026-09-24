@@ -123,6 +123,7 @@ class ZenodoOaiModelCandidatesSourceAdapter:
             params=params,
             headers={"Accept": "application/xml, text/xml;q=0.9"},
         )
+        response_received_at = self.clock()
         if response.status != 200:
             raise ValueError(f"{self.name}: OAI-PMH returned HTTP {response.status}")
         if len(response.body) > self.max_response_bytes:
@@ -166,7 +167,10 @@ class ZenodoOaiModelCandidatesSourceAdapter:
                 raise ValueError(f"{self.name}: OAI-PMH repeated its resumption token")
             next_state = {
                 "resumption_token": next_token,
-                "token_issued_at": _isoformat(self.clock()),
+                # The token is already aging while we parse potentially large
+                # pages. Timestamp it at response receipt so processing time
+                # cannot make the checkpoint look younger than it is.
+                "token_issued_at": _isoformat(response_received_at),
                 "pages_seen": pages_seen,
                 "records_seen": records_seen,
                 "candidates_seen": candidates_seen,

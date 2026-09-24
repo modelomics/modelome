@@ -43,6 +43,7 @@ from modelome.entry_seed_export import (
     export_current_entry_seeds,
     source_tags_from_configs,
 )
+from modelome.europe_pmc_bootstrap import run_europe_pmc_bootstrap
 from modelome.export import export_public_metadata
 from modelome.frontier import FrontierCrawler
 from modelome.institutional import ingest_institutional_text
@@ -929,6 +930,13 @@ def _dispatch(args: argparse.Namespace) -> int:
                 )
             elif isinstance(source, PmcSourceAdapter):
                 outcome = run_pmc_bootstrap(
+                    store,
+                    source,
+                    max_pages=args.max_pages,
+                    namespace=args.namespace,
+                )
+            elif isinstance(source, EuropePmcSourceAdapter):
+                outcome = run_europe_pmc_bootstrap(
                     store,
                     source,
                     max_pages=args.max_pages,

@@ -82,7 +82,12 @@ def _potential_weight_file(filename: str) -> bool:
 
 
 def _safe_repo_filename(value: str) -> bool:
-    if not value or len(value) > 1024 or value.startswith("/") or "\\" in value:
+    if not value or value.startswith("/") or "\\" in value:
+        return False
+    try:
+        if len(value.encode("utf-8")) > 1024:
+            return False
+    except UnicodeEncodeError:
         return False
     if any(ord(char) < 32 for char in value):
         return False
@@ -98,17 +103,30 @@ def _safe_weight_file_candidates(values: Sequence[Any]) -> set[str]:
 
 
 def _revision_commit_payload(commit: Mapping[str, Any]) -> dict[str, Any]:
+    def bounded_text(value: Any, limit: int) -> str | None:
+        text = _text(value)
+        if not text:
+            return None
+        return text[:limit]
+
+    authors = []
+    for author in _sequence(commit.get("authors")):
+        if not isinstance(author, Mapping):
+            continue
+        projected = {}
+        for key in ("username", "name"):
+            value = bounded_text(author.get(key), 256)
+            if value:
+                projected[key] = value
+        if projected and len(authors) < 100:
+            authors.append(projected)
     return {
         "id": _text(commit.get("id") or commit.get("commit_id")),
-        "date": _text(commit.get("date")) or None,
-        "created_at": _text(commit.get("created_at")) or None,
-        "title": _text(commit.get("title")) or None,
-        "message": _text(commit.get("message")) or None,
-        "authors": [
-            dict(author)
-            for author in _sequence(commit.get("authors"))
-            if isinstance(author, Mapping)
-        ],
+        "date": bounded_text(commit.get("date"), 128),
+        "created_at": bounded_text(commit.get("created_at"), 128),
+        "title": bounded_text(commit.get("title"), 512),
+        "message": bounded_text(commit.get("message"), 4096),
+        "authors": authors,
     }
 
 
@@ -148,6 +166,7 @@ class HuggingFaceSourceAdapter:
         include_revisions: bool = False,
         include_revision_files: bool = False,
         max_revision_tree_pages: int = 20,
+        max_revision_weight_file_state_bytes: int = 262_144,
         client: HttpClient | Any | None = None,
         clock: Clock = _utcnow,
     ) -> None:
@@ -169,6 +188,10 @@ class HuggingFaceSourceAdapter:
         self.max_revision_tree_pages = _positive_int(
             max_revision_tree_pages, "max_revision_tree_pages"
         )
+        self.max_revision_weight_file_state_bytes = _positive_int(
+            max_revision_weight_file_state_bytes,
+            "max_revision_weight_file_state_bytes",
+        )
         self.client = client or HttpClient(max_response_bytes=self.max_response_bytes)
         self.clock = clock
         self.checkpoint_signature = content_hash(
@@ -184,6 +207,7 @@ class HuggingFaceSourceAdapter:
                 "include_revisions": self.include_revisions,
                 "include_revision_files": self.include_revision_files,
                 "max_revision_tree_pages": self.max_revision_tree_pages,
+                "max_revision_weight_file_state_bytes": self.max_revision_weight_file_state_bytes,
             }
         )
 
@@ -425,6 +449,8 @@ class HuggingFaceSourceAdapter:
             filenames = {
                 *_safe_weight_file_candidates(_sequence(task.get("weight_candidates"))),
             }
+            candidate_bytes = sum(len(filename.encode("utf-8")) for filename in filenames)
+            candidates_truncated = task.get("weight_candidates_truncated") is True
             page_count = (_state_count(task, "page_count") or 0) + 1
             inaccessible = response.status in {401, 403, 404}
             if inaccessible:
@@ -439,8 +465,20 @@ class HuggingFaceSourceAdapter:
                     if not isinstance(entry, Mapping) or entry.get("type", "file") != "file":
                         continue
                     path = _text(entry.get("path") or entry.get("rfilename"))
-                    if _safe_repo_filename(path) and _potential_weight_file(path):
-                        filenames.add(path)
+                    if (
+                        _safe_repo_filename(path)
+                        and _potential_weight_file(path)
+                        and path not in filenames
+                    ):
+                        path_bytes = len(path.encode("utf-8"))
+                        if (
+                            candidate_bytes + path_bytes
+                            <= self.max_revision_weight_file_state_bytes
+                        ):
+                            filenames.add(path)
+                            candidate_bytes += path_bytes
+                        else:
+                            candidates_truncated = True
                 following = _link_relation(_header(response.headers, "link"), "next")
             complete = (
                 inaccessible
@@ -459,7 +497,9 @@ class HuggingFaceSourceAdapter:
                     repo_id,
                     commit,
                     weight_files=weight_files,
-                    weight_files_complete=following is None and not inaccessible,
+                    weight_files_complete=(
+                        following is None and not inaccessible and not candidates_truncated
+                    ),
                 )
                 tree_queue.pop(0)
                 item["tree_queue"] = tree_queue
@@ -469,6 +509,8 @@ class HuggingFaceSourceAdapter:
             task["next_url"] = self._safe_next_url(following, response.url or url)
             task["page_count"] = page_count
             task["weight_candidates"] = sorted(filenames)
+            if candidates_truncated:
+                task["weight_candidates_truncated"] = True
             item["tree_queue"] = [task, *tree_queue[1:]]
             return self._revision_page_result(state, queue, ())
 
@@ -665,6 +707,24 @@ class HuggingFaceSourceAdapter:
                 )
                 if identifier := identifier_from_url(url):
                     identifiers.append(identifier)
+
+        if isinstance(card_data, Mapping):
+            card_data_locator = "$.cardData" if "cardData" in item else "$.card_data"
+            for index, value in enumerate(_sequence(card_data.get("datasets"))):
+                dataset_id = _hub_repo_id(value)
+                if not dataset_id:
+                    continue
+                dataset_url = canonicalize_url(
+                    "https://huggingface.co/datasets/" + quote(dataset_id, safe="/")
+                )
+                links.append(
+                    Link(
+                        dataset_url,
+                        relation="dataset",
+                        locator=f"{card_data_locator}.datasets[{index}]",
+                    )
+                )
+                identifiers.append(Identifier("huggingface:dataset", dataset_id))
 
         commit_sha = _text(item.get("sha"))
         revision = commit_sha or "main"
@@ -864,6 +924,23 @@ def _identifier_from_tag(tag: str) -> Identifier | None:
     if namespace == "doi":
         return Identifier("doi", value.strip().casefold())
     return None
+
+
+def _hub_repo_id(value: Any) -> str | None:
+    """Accept only an explicit owner/repo identifier for a Hub dataset."""
+
+    candidate = _text(value)
+    parts = candidate.split("/")
+    if len(parts) != 2 or any(not part or part in {".", ".."} for part in parts):
+        return None
+    if any(
+        character.isspace()
+        or ord(character) < 0x20
+        or character in "\\?#"
+        for character in candidate
+    ):
+        return None
+    return candidate
 
 
 def _declared_reference_relation(url: str) -> str:

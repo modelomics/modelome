@@ -129,14 +129,8 @@ def test_chunked_scan_advances_by_snapshot_row_without_reusing_paper_claims() ->
     rows = _rows()
     payload = _parquet(rows)
     client = QueuedClient(
-        *(
-            response
-            for _ in range(3)
-            for response in (
-                _response(_metadata(), "https://huggingface.co/api/datasets/pwc-archive/links"),
-                _response(payload, "https://cas-bridge.xethub.hf.co/data.parquet"),
-            )
-        )
+        _response(_metadata(), "https://huggingface.co/api/datasets/pwc-archive/links"),
+        *(_response(payload, "https://cas-bridge.xethub.hf.co/data.parquet") for _ in range(3)),
     )
     source = PapersWithCodeLinksSourceAdapter(
         client=client,
@@ -176,14 +170,11 @@ def test_links_adapter_discovers_and_scans_all_configured_file_shards() -> None:
     )
     rows = _rows()[:2]
     client = QueuedClient(
+        _response(metadata, "https://huggingface.co/api/datasets/pwc-archive/links"),
         *(
-            response
+            _response(_parquet([row]), "https://cas-bridge.xethub.hf.co/data.parquet")
             for row in rows
-            for response in (
-                _response(metadata, "https://huggingface.co/api/datasets/pwc-archive/links"),
-                _response(_parquet([row]), "https://cas-bridge.xethub.hf.co/data.parquet"),
-            )
-        )
+        ),
     )
     source = PapersWithCodeLinksSourceAdapter(client=client, clock=lambda: _NOW)
 
@@ -196,6 +187,68 @@ def test_links_adapter_discovers_and_scans_all_configured_file_shards() -> None:
     assert first.next_state["shard_index"] == 1
     assert second.complete is True
     assert second.next_state["completed_snapshot_revision"] == revision
+
+
+def test_links_adapter_migrates_legacy_shard_cursor_on_same_revision() -> None:
+    revision = "d" * 40
+    paths = [
+        "data/train-00000-of-00002.parquet",
+        "data/train-00001-of-00002.parquet",
+    ]
+    metadata = (
+        b'{"id":"pwc-archive/links-between-paper-and-code","sha":"'
+        + revision.encode()
+        + b'","siblings":['
+        + b",".join(b'{"rfilename":"' + path.encode() + b'"}' for path in paths)
+        + b"]}"
+    )
+    client = QueuedClient(
+        _response(metadata, "https://huggingface.co/api/datasets/pwc-archive/links"),
+        _response(_parquet([_rows()[1]]), "https://cas-bridge.xethub.hf.co/data.parquet"),
+    )
+    source = PapersWithCodeLinksSourceAdapter(client=client, clock=lambda: _NOW)
+
+    page = source.fetch_page({"snapshot_revision": revision, "shard_index": 1})
+
+    assert page.complete is True
+    assert page.next_state["dataset_url"].endswith(paths[1])
+    assert page.next_state["completed_snapshot_revision"] == revision
+
+
+def test_links_adapter_finishes_pinned_shards_before_resolving_new_manifest() -> None:
+    revision_a = "a" * 40
+    revision_b = "b" * 40
+    shard_paths = [
+        "data/train-00000-of-00002.parquet",
+        "data/train-00001-of-00002.parquet",
+    ]
+
+    def metadata(revision: str, paths: list[str]) -> bytes:
+        siblings = b",".join(b'{"rfilename":"' + path.encode() + b'"}' for path in paths)
+        return (
+            b'{"id":"pwc-archive/links-between-paper-and-code","sha":"'
+            + revision.encode()
+            + b'","siblings":[' + siblings + b"]}"
+        )
+
+    client = QueuedClient(
+        _response(metadata(revision_a, shard_paths), "https://huggingface.co/api/datasets/pwc-archive/links"),
+        _response(_parquet([_rows()[0]]), "https://cas-bridge.xethub.hf.co/links-a0.parquet"),
+        _response(_parquet([_rows()[1]]), "https://cas-bridge.xethub.hf.co/links-a1.parquet"),
+        _response(metadata(revision_b, ["data/train-00000-of-00001.parquet"]), "https://huggingface.co/api/datasets/pwc-archive/links"),
+        _response(_parquet([_rows()[2]]), "https://cas-bridge.xethub.hf.co/links-b0.parquet"),
+    )
+    source = PapersWithCodeLinksSourceAdapter(client=client, clock=lambda: _NOW)
+
+    first = source.fetch_page({})
+    second = source.fetch_page(first.next_state)
+    third = source.fetch_page(second.next_state)
+
+    assert first.next_state["snapshot_revision"] == revision_a
+    assert second.next_state["snapshot_revision"] == revision_a
+    assert second.next_state["completed_snapshot_revision"] == revision_a
+    assert third.next_state["snapshot_revision"] == revision_b
+    assert third.next_state["completed_snapshot_revision"] == revision_b
 
 
 def test_only_arxiv_verified_nonspam_methods_become_documented_models() -> None:
@@ -295,14 +348,11 @@ def test_validated_methods_adapter_discovers_and_scans_all_file_shards() -> None
         },
     ]
     client = QueuedClient(
+        _response(metadata, "https://huggingface.co/api/datasets/pwc-archive/methods"),
         *(
-            response
+            _response(_parquet([row]), "https://cas-bridge.xethub.hf.co/methods.parquet")
             for row in method_rows
-            for response in (
-                _response(metadata, "https://huggingface.co/api/datasets/pwc-archive/methods"),
-                _response(_parquet([row]), "https://cas-bridge.xethub.hf.co/methods.parquet"),
-            )
-        )
+        ),
     )
     source = PapersWithCodeValidatedMethodsSourceAdapter(
         name="method-candidates",
@@ -322,6 +372,37 @@ def test_validated_methods_adapter_discovers_and_scans_all_file_shards() -> None
     assert second.next_state["completed_snapshot_revision"] == revision
     assert second.next_state["candidate_count"] == 2
     assert second.authoritative_snapshot is False
+
+
+def test_validated_methods_adapter_migrates_legacy_shard_cursor_on_same_revision() -> None:
+    revision = "e" * 40
+    paths = [
+        "data/train-00000-of-00002.parquet",
+        "data/train-00001-of-00002.parquet",
+    ]
+    metadata = (
+        b'{"id":"pwc-archive/methods","sha":"'
+        + revision.encode()
+        + b'","siblings":['
+        + b",".join(b'{"rfilename":"' + path.encode() + b'"}' for path in paths)
+        + b"]}"
+    )
+    client = QueuedClient(
+        _response(metadata, "https://huggingface.co/api/datasets/pwc-archive/methods"),
+        _response(_parquet([_method_rows()[0]]), "https://cas-bridge.xethub.hf.co/data.parquet"),
+    )
+    source = PapersWithCodeValidatedMethodsSourceAdapter(
+        name="method-candidates",
+        client=client,
+        clock=lambda: _NOW,
+        admission="paper_candidate",
+    )
+
+    page = source.fetch_page({"snapshot_revision": revision, "shard_index": 1})
+
+    assert page.complete is True
+    assert page.next_state["dataset_url"].endswith(paths[1])
+    assert page.next_state["completed_snapshot_revision"] == revision
 
 
 def test_paper_linked_methods_without_an_arxiv_source_remain_lower_confidence_candidates() -> None:

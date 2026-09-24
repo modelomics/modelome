@@ -129,19 +129,31 @@ class PapersWithCodeLinksSourceAdapter:
         )
 
     def fetch_page(self, state: Mapping[str, Any]) -> SourcePage:
-        metadata_response: HttpResponse = self.client.get(
-            self.metadata_url, headers={"Accept": "application/json"}
-        )
-        metadata = metadata_response.json()
-        if not isinstance(metadata, Mapping):
-            raise ValueError(f"{self.name}: dataset metadata is not an object")
-        revision, data_paths = _snapshot_data_paths(
-            metadata, self.dataset_id, self.data_path, self.name
-        )
         prior_revision = _text(state.get("snapshot_revision"))
-        shard_index = (
-            _nonnegative_int(state.get("shard_index", 0)) if revision == prior_revision else 0
+        prior_paths = _safe_data_paths(state.get("data_paths"))
+        resume_snapshot = bool(
+            prior_revision and prior_paths and not _text(state.get("completed_snapshot_revision"))
         )
+        if resume_snapshot:
+            revision, data_paths = prior_revision, prior_paths
+            shard_index = _nonnegative_int(state.get("shard_index", 0))
+        else:
+            metadata_response: HttpResponse = self.client.get(
+                self.metadata_url, headers={"Accept": "application/json"}
+            )
+            metadata = metadata_response.json()
+            if not isinstance(metadata, Mapping):
+                raise ValueError(f"{self.name}: dataset metadata is not an object")
+            revision, data_paths = _snapshot_data_paths(
+                metadata, self.dataset_id, self.data_path, self.name
+            )
+            # Older persisted checkpoints predate data_paths. Their shard cursor
+            # remains valid only when the manifest resolves to the same revision.
+            shard_index = (
+                _nonnegative_int(state.get("shard_index", 0))
+                if revision == prior_revision
+                else 0
+            )
         checked_at = _isoformat(self.clock())
         if revision == _text(state.get("completed_snapshot_revision")):
             return SourcePage(
@@ -363,19 +375,31 @@ class PapersWithCodeValidatedMethodsSourceAdapter:
         )
 
     def fetch_page(self, state: Mapping[str, Any]) -> SourcePage:
-        metadata_response: HttpResponse = self.client.get(
-            self.metadata_url, headers={"Accept": "application/json"}
-        )
-        metadata = metadata_response.json()
-        if not isinstance(metadata, Mapping):
-            raise ValueError(f"{self.name}: dataset metadata is not an object")
-        revision, data_paths = _snapshot_data_paths(
-            metadata, self.dataset_id, self.data_path, self.name
-        )
         prior_revision = _text(state.get("snapshot_revision"))
-        shard_index = (
-            _nonnegative_int(state.get("shard_index", 0)) if revision == prior_revision else 0
+        prior_paths = _safe_data_paths(state.get("data_paths"))
+        resume_snapshot = bool(
+            prior_revision and prior_paths and not _text(state.get("completed_snapshot_revision"))
         )
+        if resume_snapshot:
+            revision, data_paths = prior_revision, prior_paths
+            shard_index = _nonnegative_int(state.get("shard_index", 0))
+        else:
+            metadata_response: HttpResponse = self.client.get(
+                self.metadata_url, headers={"Accept": "application/json"}
+            )
+            metadata = metadata_response.json()
+            if not isinstance(metadata, Mapping):
+                raise ValueError(f"{self.name}: dataset metadata is not an object")
+            revision, data_paths = _snapshot_data_paths(
+                metadata, self.dataset_id, self.data_path, self.name
+            )
+            # Older persisted checkpoints predate data_paths. Their shard cursor
+            # remains valid only when the manifest resolves to the same revision.
+            shard_index = (
+                _nonnegative_int(state.get("shard_index", 0))
+                if revision == prior_revision
+                else 0
+            )
         checked_at = _isoformat(self.clock())
         if revision == _text(state.get("completed_snapshot_revision")):
             return SourcePage(

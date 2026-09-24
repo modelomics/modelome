@@ -312,6 +312,64 @@ def test_imported_checkpoint_evidence_does_not_become_identity_join_key() -> Non
     )
 
 
+def test_mirror_and_paper_resource_reconciliation_is_seed_order_independent() -> None:
+    first = _seed(
+        "source-a-record",
+        [{"namespace": "provider:model", "value": "model-a"}],
+    )
+    first["source"] = "source-a"
+    first["identifiers"] = [{"namespace": "doi", "value": "10.1000/order-check"}]
+    first["model_relations"] = [
+        {
+            "subject_local_id": "model",
+            "predicate": "mirrors",
+            "target": {
+                "local_id": "mirror",
+                "name": "Mirrored model",
+                "identifiers": [{"namespace": "provider:model", "value": "model-b"}],
+            },
+        }
+    ]
+    second = _seed(
+        "source-b-record",
+        [{"namespace": "provider:model", "value": "model-b"}],
+    )
+    second["source"] = "source-b"
+    second["links"] = [
+        {"url": "https://weights.example/order-checkpoint.bin", "relation": "checkpoint"}
+    ]
+    third = _seed(
+        "source-c-record",
+        [{"namespace": "provider:model", "value": "model-c"}],
+    )
+    third["source"] = "source-c"
+    third["links"] = [
+        {"url": "https://weights.example/order-checkpoint.bin", "relation": "checkpoint"}
+    ]
+    evidence = {
+        "source": "paper-resource-index",
+        "source_record_id": "paper-resource-index:10.1000/order-check",
+        "canonical_url": "https://example.org/paper-resource-index",
+        "title": "Paper resource index",
+        "kind": "paper",
+        "identifiers": [{"namespace": "doi", "value": "10.1000/order-check"}],
+        "links": [
+            {
+                "url": "https://example.org/model-checkpoint.bin",
+                "relation": "model_artifact",
+            }
+        ],
+        "models": [],
+    }
+
+    forward = build_entries([first, second, third, evidence])
+    reverse = build_entries([evidence, third, second, first])
+
+    assert forward.manifest() == reverse.manifest()
+    assert len(forward.entries) == 1
+    assert len(forward.entries[0].members) == 3
+
+
 def test_entry_seed_does_not_assign_paper_checkpoint_to_multiple_models() -> None:
     paper_record = _seed(
         "paper-record",

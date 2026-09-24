@@ -171,3 +171,38 @@ def test_checkpoint_catalog_fails_closed_when_no_direct_card_rows_exist() -> Non
 
     with pytest.raises(ValueError, match="no direct checkpoint-card rows"):
         adapter.fetch_page({})
+
+
+def test_checkpoint_catalog_parses_official_speech_classification_rows() -> None:
+    # The first-party Speech Classification checkpoint page uses the
+    # Model Name / Model Base Class / Model Card table shape and the current
+    # catalog.nvidia.com host (rather than the older ngc.nvidia.com host).
+    body = """
+    <table>
+      <tr><th>Model Name</th><th>Model Base Class</th><th>Model Card</th></tr>
+      <tr>
+        <td>langid_ambernet</td><td>EncDecSpeakerLabelModel</td>
+        <td><a href="https://catalog.nvidia.com/orgs/nvidia/teams/nemo/models/langid_ambernet">NGC</a></td>
+      </tr>
+    </table>
+    """
+    adapter = NemoCheckpointCatalogSourceAdapter(
+        name="nemo-speech-classification-checkpoints",
+        url=(
+            "https://docs.nvidia.com/nemo-framework/user-guide/latest/"
+            "nemotoolkit/asr/speech_classification/results.html"
+        ),
+        client=_QueuedClient(_response(body)),
+    )
+
+    page = adapter.fetch_page({})
+
+    assert page.upstream_count == 1
+    record = page.records[0]
+    assert record.title == "langid_ambernet"
+    assert record.canonical_url == (
+        "https://catalog.nvidia.com/orgs/nvidia/teams/nemo/models/langid_ambernet"
+    )
+    assert record.models[0].identifiers[-1] == Identifier(
+        "ngc:model", "nvidia/nemo/langid_ambernet"
+    )

@@ -170,6 +170,38 @@ def test_garden_captures_first_party_nlp_experiment_checkpoint_without_sentencep
     ]
 
 
+def test_garden_captures_nlp_experiment_matrix_pretrained_parameter_rows() -> None:
+    markdown = "\n".join(
+        [
+            "| NAME | EXPERIMENT | TASK_CONFIG | MODEL_CONFIG | EXRTRA_PARAMS |",
+            "|---|---|---|---|---|",
+            (
+                "| BERT-base GLUE/MNLI-matched finetune | exp | task.yaml | model.yaml | "
+                "task.hub_module_url=https://tfhub.dev/tensorflow/"
+                "bert_en_uncased_L-12_H-768_A-12/4 |"
+            ),
+            (
+                "| BERT-base SQuAD v1.1 finetune | exp | task.yaml | model.yaml | "
+                "task.init_checkpoint=gs://tf_model_garden/nlp/bert/uncased/bert_model.ckpt |"
+            ),
+        ]
+    )
+    adapter = TensorFlowGardenSourceAdapter(client=Client(response(markdown)))
+
+    page = adapter.fetch_page({"revision": REVISION, "doc_index": 2})
+
+    assert [record.title for record in page.records] == [
+        "BERT-base GLUE/MNLI-matched finetune",
+        "BERT-base SQuAD v1.1 finetune",
+    ]
+    assert page.records[0].releases[0].metadata["checkpoints"] == [
+        "https://tfhub.dev/tensorflow/bert_en_uncased_L-12_H-768_A-12/4"
+    ]
+    assert page.records[1].releases[0].metadata["checkpoints"] == [
+        "https://storage.googleapis.com/tf_model_garden/nlp/bert/uncased/bert_model.ckpt"
+    ]
+
+
 def test_garden_checkpoint_change_adds_release_to_same_model() -> None:
     adapter = TensorFlowGardenSourceAdapter(client=Client())
     before = adapter._records(
@@ -396,3 +428,15 @@ def test_garden_reads_parenthesized_multiline_python_checkpoint_literal() -> Non
     assert _declared_config_checkpoints(
         "task.init_checkpoint=(prefix + 'gs://bucket/ckpt')\n"
     ) == ()
+
+
+def test_garden_reads_official_hub_module_url_from_python_or_yaml_config() -> None:
+    from modelome.sources.tensorflow_garden import _declared_config_checkpoints
+
+    hub_url = "https://tfhub.dev/tensorflow/bert_en_uncased_L-12_H-768_A-12/3"
+    assert _declared_config_checkpoints(f"task.hub_module_url='{hub_url}'\n") == (
+        (hub_url, None),
+    )
+    assert _declared_config_checkpoints(f"task:\n  hub_module_url: '{hub_url}'\n") == (
+        (hub_url, None),
+    )

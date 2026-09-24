@@ -59,7 +59,9 @@ def test_projects_checkpoint_assets_from_a_release_event_without_api_calls() -> 
         [
             asset(1, "weights.safetensors"),
             asset(2, "README.txt"),
-            asset(3, "foreign.pt", "https://example.test/lab/model/releases/download/v1/foreign.pt"),
+            asset(
+                3, "foreign.pt", "https://example.test/lab/model/releases/download/v1/foreign.pt"
+            ),
         ]
     )
 
@@ -75,12 +77,22 @@ def test_projects_checkpoint_assets_from_a_release_event_without_api_calls() -> 
     assert record.raw["is_verified_model_checkpoint"] is False
 
 
-def test_projects_only_the_bounded_prefix_of_embedded_assets() -> None:
+def test_projects_descriptive_executorch_pte_release_asset() -> None:
+    # ExecuTorch is a PyTorch model-program format; first-party release
+    # inventories include pre-exported model .pte assets.
+    event = release_event_record([asset(1, "mobilenet_v3_small_xnnpack.pte")])
+
+    [candidate] = project_github_release_assets(event)
+
+    assert candidate.canonical_url.endswith("/mobilenet_v3_small_xnnpack.pte")
+    assert candidate.models[0].name == "mobilenet small xnnpack"
+
+
+def test_rejects_release_asset_lists_above_the_limit_instead_of_silently_truncating() -> None:
     event = release_event_record([asset(i, f"{i}.pt") for i in range(1, 5)])
 
-    candidates = project_github_release_assets(event, max_assets=2)
-
-    assert [item.title for item in candidates] == ["1.pt", "2.pt"]
+    with pytest.raises(ValueError, match="projection would be incomplete"):
+        project_github_release_assets(event, max_assets=2)
 
 
 def test_adds_a_low_confidence_model_hint_for_descriptive_model_asset_evidence() -> None:
@@ -239,5 +251,5 @@ def test_ignores_non_release_events_and_rejects_invalid_asset_limit() -> None:
     )
 
     assert project_github_release_assets(non_release) == ()
-    with pytest.raises(ValueError, match="max_assets must be a positive integer"):
+    with pytest.raises(ValueError, match="max_assets must be an integer"):
         project_github_release_assets(event, max_assets=0)

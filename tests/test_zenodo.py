@@ -259,6 +259,8 @@ def test_zenodo_model_catalog_quarantines_a_non_model_result() -> None:
         ("mace-mp_2d-hoip_large.model", "checkpoint"),
         # Zenodo record 14638913 declares pytorch_model.bin as model weights.
         ("pytorch_model.bin", "checkpoint"),
+        # Zenodo record 20388950 publishes `pretrain.pt` as a pretrained checkpoint.
+        ("pretrain.pt", "checkpoint"),
         ("oceannet.pt", None),
         ("weights.csv", None),
     ],

@@ -11,7 +11,7 @@ from modelome.sources.paddleclas_model_registry import (
 )
 
 _REVISION = "2" * 40
-_SOURCE = b'''
+_SOURCE = b"""
 IMN_MODEL_BASE_DOWNLOAD_URL = "https://weights.example.test/imn/{}_infer.tar"
 IMN_MODEL_SERIES = {
     "ResNet": ["ResNet18", "ResNet50"],
@@ -19,9 +19,14 @@ IMN_MODEL_SERIES = {
 }
 PULC_MODEL_BASE_DOWNLOAD_URL = "https://weights.example.test/pulc/{}_infer.tar"
 PULC_MODELS = ["car_exists"]
-SHITU_MODEL_BASE_DOWNLOAD_URL = "https://weights.example.test/shitu/{}_infer.tar"
+SHITU_MODEL_BASE_DOWNLOAD_URL = "https://paddle-imagenet-models-name.bj.bcebos.com/dygraph/rec/models/inference/{}_infer.tar"
 SHITU_MODELS = ["PP-ShiTuV2"]
-'''
+
+def _check_input_model(model_name):
+    if model_name in SHITU_MODELS:
+        check_model_file("shitu", "PP-ShiTuV2/general_PPLCNetV2_base_pretrained_v1.0")
+        check_model_file("shitu", "picodet_PPLCNet_x2_5_mainbody_lite_v1.0")
+"""
 
 
 class _QueuedClient:
@@ -39,7 +44,7 @@ def _response(body: bytes, *, url: str = "https://fixtures.test/paddleclas") -> 
 
 
 def _commit() -> HttpResponse:
-    return _response(("{\"sha\": \"" + _REVISION + "\"}").encode())
+    return _response(('{"sha": "' + _REVISION + '"}').encode())
 
 
 def test_paddleclas_registry_enumerates_only_explicit_inference_models() -> None:
@@ -54,8 +59,8 @@ def test_paddleclas_registry_enumerates_only_explicit_inference_models() -> None
     page = adapter.fetch_page({})
 
     assert page.authoritative_snapshot
-    assert page.upstream_count == 4
-    assert page.next_state["catalog_counts"] == {"IMN": 3, "PULC": 1}
+    assert page.upstream_count == 6
+    assert page.next_state["catalog_counts"] == {"IMN": 3, "PULC": 1, "SHITU": 2}
     assert client.calls[1][0].endswith(f"/{_REVISION}/paddleclas.py")
     resnet = next(record for record in page.records if record.title == "ResNet50")
     assert resnet.identifiers == (Identifier("paddleclas:model", "IMN:ResNet50"),)
@@ -71,7 +76,21 @@ def test_paddleclas_registry_enumerates_only_explicit_inference_models() -> None
         False,
     ) in {(link.url, link.relation, link.crawl) for link in resnet.links}
     assert all(link.model_local_ids == (resnet.models[0].local_id,) for link in resnet.links)
-    assert all(record.title != "PP-ShiTuV2" for record in page.records)
+    shitu_records = [
+        record for record in page.records if record.identifiers[0].value.startswith("SHITU:")
+    ]
+    assert {record.title for record in shitu_records} == {
+        "PP-ShiTuV2/general_PPLCNetV2_base_pretrained_v1.0",
+        "picodet_PPLCNet_x2_5_mainbody_lite_v1.0",
+    }
+    assert all(record.releases[0].metadata["family"] == "PP-ShiTuV2" for record in shitu_records)
+    shitu_links = {
+        link.url for record in shitu_records for link in record.links if link.relation == "weights"
+    }
+    assert shitu_links == {
+        "https://paddle-imagenet-models-name.bj.bcebos.com/dygraph/rec/models/inference/PP-ShiTuV2/general_PPLCNetV2_base_pretrained_v1.0_infer.tar",
+        "https://paddle-imagenet-models-name.bj.bcebos.com/dygraph/rec/models/inference/picodet_PPLCNet_x2_5_mainbody_lite_v1.0_infer.tar",
+    }
 
 
 def test_paddleclas_registry_skips_source_when_commit_is_unchanged() -> None:
@@ -84,6 +103,17 @@ def test_paddleclas_registry_skips_source_when_commit_is_unchanged() -> None:
     assert page.complete
     assert page.upstream_count == 41
     assert len(client.calls) == 1
+
+
+def test_paddleclas_shitu_parser_requires_literal_runtime_archive_handles() -> None:
+    source = _SOURCE.decode().replace(
+        'check_model_file("shitu", "picodet_PPLCNet_x2_5_mainbody_lite_v1.0")',
+        'check_model_file("shitu", archive_name)',
+    )
+    client = _QueuedClient(_commit(), _response(source.encode()))
+
+    with pytest.raises(ValueError, match="archive handles must be literal strings"):
+        PaddleClasModelRegistrySourceAdapter(client=client).fetch_page({})
 
 
 @pytest.mark.parametrize(
@@ -100,9 +130,9 @@ def test_paddleclas_registry_skips_source_when_commit_is_unchanged() -> None:
             "expected a literal model list",
         ),
         (
-            b"SHITU_MODEL_BASE_DOWNLOAD_URL = 'https://weights.test/{}_infer.tar'\n"
-            b"SHITU_MODELS = ['PP-ShiTuV2']\n",
-            "neither a literal IMN nor PULC",
+            b"OTHER_MODEL_BASE_DOWNLOAD_URL = 'https://weights.test/{}_infer.tar'\n"
+            b"OTHER_MODELS = ['some_model']\n",
+            "no supported literal inference model registry",
         ),
     ],
 )

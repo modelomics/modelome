@@ -41,6 +41,7 @@ _CHECKPOINT_SUFFIXES = frozenset(
         ".msgpack",
         ".pdparams",
         ".ptl",
+        ".pte",
         ".params",
         ".pkl",
         ".weights",
@@ -86,7 +87,7 @@ _NON_MODEL_FILE_RE = re.compile(
     re.IGNORECASE,
 )
 _STRONG_MODEL_SUFFIXES = frozenset(
-    {".safetensors", ".gguf", ".ggml", ".keras", ".tflite", ".mlmodel"}
+    {".safetensors", ".gguf", ".ggml", ".keras", ".tflite", ".mlmodel", ".pte"}
 )
 
 
@@ -104,8 +105,12 @@ def project_github_release_assets(
 
     if not isinstance(event_record, SourceRecord):
         raise TypeError("event_record must be a SourceRecord")
-    if isinstance(max_assets, bool) or not isinstance(max_assets, int) or max_assets < 1:
-        raise ValueError("max_assets must be a positive integer")
+    if (
+        isinstance(max_assets, bool)
+        or not isinstance(max_assets, int)
+        or not 1 <= max_assets <= 10_000
+    ):
+        raise ValueError("max_assets must be an integer from 1 to 10000")
     raw = event_record.raw
     if not isinstance(raw, Mapping) or raw.get("record_type") != "gharchive_public_event":
         return ()
@@ -132,12 +137,15 @@ def project_github_release_assets(
     assets = release.get("assets")
     if not _is_sequence(assets):
         return ()
+    if len(assets) > max_assets:
+        raise ValueError(
+            f"release event has {len(assets)} assets, above max_assets {max_assets}; "
+            "projection would be incomplete"
+        )
 
     result: list[SourceRecord] = []
-    release_context = " ".join(
-        _text(release.get(field)) for field in ("name", "body", "tag_name")
-    )
-    for asset in assets[:max_assets]:
+    release_context = " ".join(_text(release.get(field)) for field in ("name", "body", "tag_name"))
+    for asset in assets:
         if not isinstance(asset, Mapping):
             continue
         asset_id = _positive_decimal(asset.get("id"))
@@ -146,11 +154,7 @@ def project_github_release_assets(
         # Dots are common in model names (for example, ``qwen2.5``). Treat a
         # final short dotted token as a file extension, but allow dotted model
         # identities that end in a longer descriptive token.
-        extensionless = (
-            bool(name)
-            and not suffix
-            and not re.search(r"\.[A-Za-z0-9]{1,8}$", name)
-        )
+        extensionless = bool(name) and not suffix and not re.search(r"\.[A-Za-z0-9]{1,8}$", name)
         checkpoint_file = suffix in _CHECKPOINT_SUFFIXES
         archive_file = suffix in _ARCHIVE_SUFFIXES
         if not asset_id or not name or not (checkpoint_file or archive_file or extensionless):
@@ -173,7 +177,8 @@ def project_github_release_assets(
             model_name = ""
         if extensionless and (
             not _MODEL_CONTEXT_RE.search(" ".join((release_context, _text(asset.get("label")))))
-            or model_locator not in {
+            or model_locator
+            not in {
                 "$.payload.release.assets[id].name",
                 "$.payload.release.assets[id].label",
             }
@@ -196,9 +201,7 @@ def project_github_release_assets(
         )
         result.append(
             SourceRecord(
-                source_record_id=(
-                    f"github-release-asset:{repository_id}:{release_id}:{asset_id}"
-                ),
+                source_record_id=(f"github-release-asset:{repository_id}:{release_id}:{asset_id}"),
                 kind=ArtifactKind.WEIGHTS,
                 canonical_url=download_url,
                 title=name,
@@ -276,8 +279,7 @@ def _model_candidate(
     ):
         name = _descriptive_name(candidate_text)
         if name and (
-            suffix in _STRONG_MODEL_SUFFIXES
-            or _context_identifies_candidate(name, context)
+            suffix in _STRONG_MODEL_SUFFIXES or _context_identifies_candidate(name, context)
         ):
             return name, locator
     return "", ""

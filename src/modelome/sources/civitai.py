@@ -31,6 +31,13 @@ from modelome.normalize import canonicalize_url, content_hash, extract_urls
 class CivitaiModelsSourceAdapter:
     """Page every public model exposed by CivitAI's model-list endpoint."""
 
+    coverage_limitation = (
+        "The public models API exposes only Published versions to non-moderator callers; "
+        "archived models omit file links, and NSFW results can be silently restricted "
+        "by region even when nsfw=true. This source cannot enumerate unpublished or "
+        "moderator-only historical versions."
+    )
+
     def __init__(
         self,
         *,
@@ -206,11 +213,16 @@ class CivitaiModelsSourceAdapter:
         title = _optional_text(item.get("name")) or model_id
         model_local_id = f"{model_id}#model"
         model_identifier = Identifier("civitai:model", model_id)
+        model_mode = _optional_text(item.get("mode"))
         model = ModelHint(
             local_id=model_local_id,
             name=title,
             identifiers=(model_identifier,),
-            status=ModelStatus.RELEASED,
+            status=(
+                ModelStatus.DOCUMENTED
+                if model_mode in {"Archived", "TakenDown"}
+                else ModelStatus.RELEASED
+            ),
             locator="$.id",
         )
 
@@ -245,6 +257,7 @@ class CivitaiModelsSourceAdapter:
                 model_local_id,
                 version,
                 version_index,
+                model_mode,
             )
             if release is not None:
                 releases.append(release)
@@ -274,6 +287,7 @@ class CivitaiModelsSourceAdapter:
         model_local_id: str,
         version: Mapping[str, Any],
         index: int,
+        model_mode: str | None,
     ) -> tuple[ReleaseHint | None, tuple[Link, ...], ModelRelationHint | None]:
         version_id = _optional_text(version.get("id"))
         version_name = _optional_text(version.get("name"))
@@ -358,6 +372,7 @@ class CivitaiModelsSourceAdapter:
                 ),
                 "air": _optional_text(version.get("air")),
                 "status": _optional_text(version.get("status")),
+                "model_mode": model_mode,
                 "upload_type": _optional_text(version.get("uploadType")),
                 "usage_control": _optional_text(version.get("usageControl")),
                 "created_at": _optional_text(version.get("createdAt")),

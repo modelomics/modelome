@@ -159,6 +159,7 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
     )
     rich_manifest = {
         "id": "10.5281/zenodo.1234567",
+        "parent": {"id": "bioimage-io/parent-model", "version": "v2"},
         "documentation": {"source": "README.md", "sha256": "a" * 64},
         "git_repo": "https://github.com/example-lab/neural-image-model",
         "links": [
@@ -245,6 +246,15 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
         "first-model",
         "10.5281/zenodo.1234567",
     )
+    assert len(first.model_relations) == 1
+    relation = first.model_relations[0]
+    assert relation.subject_local_id == "bioimage-io/first-model@v0#model"
+    assert relation.predicate == "derived_from"
+    assert relation.target.identifiers == (
+        Identifier("bioimageio:model", "bioimage-io/parent-model"),
+    )
+    assert relation.target.locator == "$.artifact.manifest.parent.id"
+    assert relation.locator == "$.artifact.manifest.parent.id"
     assert first.releases[0].identifiers == (
         Identifier(
             "bioimageio:version",
@@ -422,6 +432,82 @@ def test_index_change_during_scan_requests_restart_from_completed_checkpoint() -
     assert second.retry_state is not None
     assert "index_digest" not in second.retry_state
     assert "operation_offset" not in second.retry_state
+
+
+def test_restart_after_index_change_preserves_exact_version_addition_and_tombstone() -> None:
+    v0_rdf = b"type: model\nname: Stable version\n"
+    v1_rdf = b"type: model\nname: Historical version\n"
+    v2_rdf = b"type: model\nname: First replacement\n"
+    v3_rdf = b"type: model\nname: Final replacement\n"
+    v0 = version("versioned", "v0", v0_rdf, created_at="2026-01-01")
+    v1 = version("versioned", "v1", v1_rdf, created_at="2026-01-02")
+    v2 = version("versioned", "v2", v2_rdf, created_at="2026-01-03")
+    v3 = version("versioned", "v3", v3_rdf, created_at="2026-01-04")
+    initial_index = index(item("versioned", v0, v1), timestamp="initial")
+    initial_client = QueuedClient(
+        json_response(initial_index),
+        json_response(detail("versioned", "Stable version"), url=f"{ARTIFACT_BASE}/versioned"),
+        rdf_response(v0_rdf, v0["source"]),
+        json_response(initial_index),
+        json_response(detail("versioned", "Historical version"), url=f"{ARTIFACT_BASE}/versioned"),
+        rdf_response(v1_rdf, v1["source"]),
+    )
+    initial_source = adapter(initial_client, page_size=1)
+    first_initial = initial_source.fetch_page({})
+    assert first_initial.complete is False
+    completed_state = initial_source.fetch_page(first_initial.next_state).next_state
+
+    first_update_index = index(item("versioned", v0, v2), timestamp="first-update")
+    first_update_client = QueuedClient(
+        json_response(first_update_index),
+        json_response(detail("versioned", "First replacement"), url=f"{ARTIFACT_BASE}/versioned"),
+        rdf_response(v2_rdf, v2["source"]),
+    )
+    first_update_source = adapter(first_update_client, page_size=1)
+    partial_update = first_update_source.fetch_page(completed_state)
+    assert partial_update.complete is False
+    assert [record.source_record_id for record in partial_update.records] == [
+        "bioimage-io/versioned@v2"
+    ]
+
+    final_index = index(item("versioned", v0, v3), timestamp="final-update")
+    stale_source = adapter(
+        QueuedClient(json_response(final_index)),
+        page_size=1,
+    )
+    restarted = stale_source.fetch_page(partial_update.next_state)
+    assert restarted.complete is False
+    assert restarted.records == ()
+    assert restarted.retry_state is not None
+    assert "index_digest" not in restarted.retry_state
+    assert set(restarted.retry_state["known_records"]) == {
+        "bioimage-io/versioned@v0",
+        "bioimage-io/versioned@v1",
+    }
+
+    final_client = QueuedClient(
+        json_response(final_index),
+        json_response(detail("versioned", "Final replacement"), url=f"{ARTIFACT_BASE}/versioned"),
+        rdf_response(v3_rdf, v3["source"]),
+        json_response(final_index),
+    )
+    final_source = adapter(final_client, page_size=1)
+    final_upsert = final_source.fetch_page(restarted.retry_state)
+    final_tombstone = final_source.fetch_page(final_upsert.next_state)
+
+    assert final_upsert.complete is False
+    assert [record.source_record_id for record in final_upsert.records] == [
+        "bioimage-io/versioned@v3"
+    ]
+    assert final_tombstone.complete is True
+    assert len(final_tombstone.records) == 1
+    tombstone = final_tombstone.records[0]
+    assert tombstone.source_record_id == "bioimage-io/versioned@v1"
+    assert tombstone.deleted is True
+    assert final_tombstone.next_state["known_records"].keys() == {
+        "bioimage-io/versioned@v0",
+        "bioimage-io/versioned@v3",
+    }
 
 
 def test_rejects_catalog_count_drift_and_cross_origin_rdf_source() -> None:

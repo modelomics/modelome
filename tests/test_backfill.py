@@ -144,6 +144,20 @@ def arxiv_page(
 </OAI-PMH>"""
 
 
+def arxiv_identify() -> str:
+    return """<?xml version="1.0" encoding="UTF-8"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
+  <Identify>
+    <repositoryName>arXiv</repositoryName>
+    <baseURL>https://oaipmh.arxiv.org/oai</baseURL>
+    <protocolVersion>2.0</protocolVersion>
+    <earliestDatestamp>1991-01-01</earliestDatestamp>
+    <deletedRecord>persistent</deletedRecord>
+    <granularity>YYYY-MM-DD</granularity>
+  </Identify>
+</OAI-PMH>"""
+
+
 def crossref_page(
     doi: str,
     *,
@@ -639,7 +653,7 @@ def test_arxiv_backfill_resumes_token_in_a_fixed_inclusive_window(database) -> N
 def test_arxiv_backfill_reuses_daily_artifact_identity(database) -> None:
     paper = arxiv_page("1706.03762", cursor=0, total=1, next_token=None)
     daily_source = ArxivSourceAdapter(
-        client=FakeXmlHttp(paper),
+        client=FakeXmlHttp(arxiv_identify(), paper),
         clock=lambda: NOW,
         initial_lookback_days=1,
     )

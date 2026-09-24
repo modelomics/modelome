@@ -33,18 +33,21 @@ _MARKDOWN_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^)]+)\)")
 _INLINE_HUB = re.compile(r"(?P<url>https://tfhub\.dev/[^\s,|`]+)")
 _INIT_CHECKPOINT = re.compile(r"task\.init_checkpoint=(?P<url>gs://[^\s,|`]+)")
 _PYTHON_INIT_CHECKPOINT = re.compile(
-    r"\binit_checkpoint\s*=\s*\(?\s*['\"]"
+    r"\b(?:init_checkpoint|hub_module_url)\s*=\s*\(?\s*['\"]"
     r"(?P<url>gs://[^'\"\r\n]+|https?://[^'\"\r\n]+)['\"]\s*\)?"
 )
 _YAML_INIT_CHECKPOINT = re.compile(
-    r"\binit_checkpoint\s*:\s*(?:['\"](?P<quoted>gs://[^'\"]+|https?://[^'\"]+)['\"]|"
+    r"\b(?:init_checkpoint|hub_module_url)\s*:\s*"
+    r"(?:['\"](?P<quoted>gs://[^'\"]+|https?://[^'\"]+)['\"]|"
     r"(?P<plain>gs://[^\s#]+|https?://[^\s#]+))"
 )
 _CHECKPOINT_MODULES = re.compile(
     r"\binit_checkpoint_modules\s*[:=]\s*['\"](?P<modules>[^'\"]+)['\"]"
 )
+_PARAMETER_COLUMN = re.compile(r"(?:extra.?params?|params?_override|parameter.?overrides?)")
 _HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*$")
 _NLP_DOC = "official/nlp/docs/pretrained_models.md"
+_NLP_GARDEN_DOC = "official/nlp/MODEL_GARDEN.md"
 _VISION_README = "official/vision/README.md"
 
 
@@ -78,7 +81,7 @@ class TensorFlowGardenSourceAdapter:
         self.client = client or HttpClient(max_response_bytes=max_bytes)
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "tensorflow-model-garden-v5",
+                "adapter": "tensorflow-model-garden-v7",
                 "repository": _REPOSITORY,
                 "docs": _DOCS,
                 "max_bytes": max_bytes,
@@ -245,6 +248,27 @@ class TensorFlowGardenSourceAdapter:
                     checkpoint_links.extend(
                         ("init_checkpoint", _gcs_https(match.group("url")))
                         for match in _INIT_CHECKPOINT.finditer(text_cell)
+                    )
+                    checkpoint_links.extend(
+                        ("tfhub", match.group("url").rstrip(".,;)>"))
+                        for match in _INLINE_HUB.finditer(text_cell)
+                    )
+            # The official NLP experiment matrix puts pretrained references
+            # in EXRTRA_PARAMS instead of a checkpoint/download column.
+            # Admit only its explicit init_checkpoint and TF Hub URL values.
+            if path in {_NLP_DOC, _NLP_GARDEN_DOC}:
+                for column, header in enumerate(headers):
+                    if column >= len(cells) or not _PARAMETER_COLUMN.search(header):
+                        continue
+                    text_cell = cells[column]
+                    checkpoint_links.extend(
+                        ("init_checkpoint", _gcs_https(match.group("url")))
+                        for match in _INIT_CHECKPOINT.finditer(text_cell)
+                    )
+                    checkpoint_links.extend(
+                        ("init_checkpoint", _gcs_https(match.group("url")))
+                        for match in _PYTHON_INIT_CHECKPOINT.finditer(text_cell)
+                        if match.group("url").startswith("gs://")
                     )
                     checkpoint_links.extend(
                         ("tfhub", match.group("url").rstrip(".,;)>"))
@@ -535,7 +559,7 @@ def _append_config_queue(
 
 
 def _declared_config_checkpoints(source: str) -> tuple[tuple[str, str | None], ...]:
-    """Read literal init_checkpoint values and their optional module scope."""
+    """Read literal checkpoint and TensorFlow Hub initialization references."""
     module_match = _CHECKPOINT_MODULES.search(source)
     modules = module_match.group("modules").strip() if module_match else None
     checkpoints = []

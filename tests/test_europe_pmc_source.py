@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import pytest
@@ -10,7 +10,7 @@ import pytest
 from modelome.http import HttpResponse
 from modelome.models import Identifier
 from modelome.normalize import content_hash
-from modelome.sources.europe_pmc import EuropePmcSourceAdapter
+from modelome.sources.europe_pmc import EuropePmcBootstrapSource, EuropePmcSourceAdapter
 
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)
 
@@ -199,6 +199,74 @@ def test_hit_count_drift_restarts_the_same_frozen_window() -> None:
     assert page.retry_state["window_end"] == "2026-09-01"
     assert page.retry_state["raw_items_seen"] == 0
     assert "scan_total" not in page.retry_state
+
+
+def test_historical_bootstrap_freezes_month_chunks_and_resumes_cursors() -> None:
+    client = QueuedClient(
+        response([result("1")], total=2, cursor="aug-page-2"),
+        response([result("2")], total=2, cursor="unused"),
+        response([result("3")], total=1, cursor="unused"),
+    )
+    daily = adapter(client, page_size=1)
+    bootstrap = EuropePmcBootstrapSource(
+        daily, earliest_update_date=date(2026, 8, 31)
+    )
+
+    first = bootstrap.fetch_page({})
+    second = bootstrap.fetch_page(first.next_state)
+    third = bootstrap.fetch_page(second.next_state)
+
+    assert not first.complete and first.next_state["bootstrap_complete"] is False
+    assert first.next_state["bootstrap"]["adapter_state"]["cursor_mark"] == "aug-page-2"
+    assert not second.complete
+    assert second.next_state["bootstrap"]["chunk_start"] == "2026-09-01"
+    assert second.next_state["bootstrap"]["chunk_end"] == "2026-09-01"
+    assert third.complete and bootstrap.is_complete(third.next_state)
+    assert [call[1]["query"] for call in client.calls] == [
+        "UPDATE_DATE:[2026-08-31 TO 2026-08-31]",
+        "UPDATE_DATE:[2026-08-31 TO 2026-08-31]",
+        "UPDATE_DATE:[2026-09-01 TO 2026-09-01]",
+    ]
+    assert client.calls[1][1]["cursorMark"] == "aug-page-2"
+    assert bootstrap.artifact_source == daily.name
+
+
+def test_historical_bootstrap_rejects_changed_or_corrupt_checkpoint() -> None:
+    bootstrap = EuropePmcBootstrapSource(
+        adapter(QueuedClient()), earliest_update_date=date(2026, 8, 1)
+    )
+    descriptor = bootstrap._start_descriptor()
+    descriptor["chunk_end"] = "2026-08-30"
+    with pytest.raises(ValueError, match="month boundary"):
+        bootstrap._descriptor({"bootstrap": descriptor})
+
+
+def test_historical_bootstrap_replays_current_month_when_total_drifts() -> None:
+    client = QueuedClient(
+        response([result("1")], total=2, cursor="page-2"),
+        response([result("2")], total=3, cursor="page-3"),
+    )
+    bootstrap = EuropePmcBootstrapSource(
+        adapter(client, page_size=1), earliest_update_date=date(2026, 8, 1)
+    )
+
+    first = bootstrap.fetch_page({})
+    second = bootstrap.fetch_page(first.next_state)
+
+    assert any("hitCount changed" in issue.error for issue in second.issues)
+    retry = second.retry_state["bootstrap"]
+    assert retry["chunk_start"] == "2026-08-01"
+    assert retry["chunk_end"] == "2026-08-31"
+    assert retry["adapter_state"]["cursor_mark"] == "*"
+    assert retry["adapter_state"]["raw_items_seen"] == 0
+
+
+def test_historical_bootstrap_rejects_lower_bound_after_frozen_end() -> None:
+    bootstrap = EuropePmcBootstrapSource(
+        adapter(QueuedClient()), earliest_update_date=date(2026, 9, 2)
+    )
+    with pytest.raises(ValueError, match="later than yesterday"):
+        bootstrap.fetch_page({})
 
 
 def test_constructor_rejects_non_web_api_url() -> None:

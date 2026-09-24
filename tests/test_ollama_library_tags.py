@@ -13,6 +13,7 @@ from modelome.sources.ollama_library_tags import OllamaLibraryTagCatalogAdapter
 
 _PROPOSAL = Path(__file__).parents[1] / "config/proposals/ollama_library_tags.toml"
 _INDEX = "https://ollama.com/library"
+_INDEX_2 = "https://ollama.com/library?page=2"
 _FAMILY = "https://ollama.com/library/mistral"
 _TAGS_1 = "https://ollama.com/library/mistral/tags"
 _TAGS_2 = "https://ollama.com/library/mistral/tags?cursor=cursor-from-page"
@@ -117,6 +118,55 @@ def test_ollama_adapter_fails_closed_when_family_does_not_declare_tag_page() -> 
     )
     with pytest.raises(ValueError, match="did not declare its tag-list link"):
         _adapter(client).fetch_page({})
+
+
+def test_ollama_catalog_follows_explicit_library_index_pagination() -> None:
+    client = _FixtureClient(
+        {
+            _INDEX: '<a rel="next" href="/library?page=2" aria-label="Next page"></a>',
+            _INDEX_2: '<a href="/library/mistral">mistral</a>',
+            _FAMILY: '<a href="/library/mistral/tags">View all</a>',
+            _TAGS_1: '<a href="/library/mistral%3Alatest">mistral:latest</a>',
+        }
+    )
+
+    page = _adapter(client).fetch_page({})
+
+    assert client.calls == [_INDEX, _INDEX_2, _FAMILY, _TAGS_1]
+    assert page.complete
+    assert page.upstream_count == 1
+    assert page.records[0].releases[0].identifiers == (
+        Identifier("ollama:model-tag", "mistral:latest"),
+    )
+
+
+def test_ollama_catalog_fails_closed_on_unusable_explicit_index_next_link() -> None:
+    client = _FixtureClient(
+        {
+            _INDEX: '<a rel="next" href="https://example.com/library?page=2">Next</a>',
+        }
+    )
+
+    with pytest.raises(ValueError, match="index declares an unusable next-page link"):
+        _adapter(client).fetch_page({})
+    assert client.calls == [_INDEX]
+
+
+def test_ollama_catalog_fails_closed_on_unusable_explicit_tag_next_link() -> None:
+    client = _FixtureClient(
+        {
+            _INDEX: '<a href="/library/mistral">mistral</a>',
+            _FAMILY: '<a href="/library/mistral/tags">View all</a>',
+            _TAGS_1: (
+                '<a href="/library/mistral%3Alatest">mistral:latest</a>'
+                '<a rel="next" href="https://example.com/mistral/tags?page=2">Next</a>'
+            ),
+        }
+    )
+
+    with pytest.raises(ValueError, match="tag page declares an unusable next-page link"):
+        _adapter(client).fetch_page({})
+    assert client.calls == [_INDEX, _FAMILY, _TAGS_1]
 
 
 def test_ollama_adapter_does_not_accept_pagination_state_or_fetch_manifests() -> None:

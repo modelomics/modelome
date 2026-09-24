@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from modelome.http import HttpResponse
 from modelome.sources.opencsg import OpenCsgModelsSourceAdapter
 
@@ -53,3 +55,17 @@ def test_model_license_is_included_in_normalized_search_text() -> None:
     assert release.identifiers[0].namespace == "opencsg:revision"
     assert release.identifiers[0].value == "example/model@abc123"
     assert release.locator == "$.revision"
+
+
+def test_model_catalog_does_not_treat_http_error_as_an_empty_terminal_page() -> None:
+    class ErrorClient:
+        def get(self, url, *, params, headers):
+            return HttpResponse(
+                403,
+                {},
+                json.dumps({"data": [], "total": 0}).encode(),
+                url,
+            )
+
+    with pytest.raises(ValueError, match="HTTP 403"):
+        OpenCsgModelsSourceAdapter(client=ErrorClient()).fetch_page({})

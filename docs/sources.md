@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **324 enabled
-source entries** (309 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **328 enabled
+source entries** (313 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -314,6 +314,11 @@ recommendation service:
   MODELOME already has an exact Semantic Scholar or external paper identifier. Keyword search,
   bulk search, recommendations, and citation expansion are not enumeration mechanisms
   and must not become discovery seeds.
+- **Targeted citation edges (opt-in):** a custom source with adapter
+  `semantic_scholar_citation_graph`, an exact `paper_id`, `paper_url`, and `paper_title`
+  can page that paper's `citations` or `references` endpoint. It preserves exact
+  paper IDs and citation direction, with a bounded offset checkpoint; it does not
+  expand the default global catalog or infer model identity from paper titles.
 - **Rights:** require an API key for full dataset downloads and diffs. Preserve the
   README and license delivered with each dataset release; the core paper, abstract, and
   paper-ID datasets currently declare ODC-By attribution terms, while API access is also
@@ -422,10 +427,12 @@ GeoAI preprints outside the historical OSF collection.
   earliest datestamp and resumes toward the last closed day. PMC Article Datasets on
   AWS inventory reconciliation remains additional redundancy rather than a prerequisite
   for daily JATS ingestion.
-- **Europe PMC (REST daily/backfill implemented):** use the [Articles REST API](https://europepmc.org/RestfulWebService),
+- **Europe PMC (REST daily and historical bootstrap implemented):** use the [Articles REST API](https://europepmc.org/RestfulWebService),
   OAI-PMH, and [bulk downloads](https://europepmc.org/downloads) as an independent
   biomedical metadata, full-text, preprint, citation, and data-link layer. Cursor through
-  unfiltered `UPDATE_DATE` windows with a committed multi-day overlap, while using the
+  unfiltered `UPDATE_DATE` windows with a committed multi-day overlap. A separate
+  resumable bootstrap scans closed calendar months from a configurable historical floor,
+  and `bootstrap --source europe-pmc` runs it with a finite page budget. Use the
   weekly open-access XML and full-text metadata files for reconciliation. Preserve PMID,
   PMCID, DOI, Europe PMC/PPR identity, preprint versions, and links to journal-published
   versions. Europe PMC corroborates and enriches direct bioRxiv/medRxiv observations; it

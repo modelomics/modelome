@@ -96,6 +96,29 @@ def test_projects_openAIRE_software_repository_and_documentation_fields() -> Non
     assert record.raw["documentation_urls"] == ["https://docs.example.org/project"]
 
 
+def test_projects_current_plural_documentation_urls_schema_field() -> None:
+    record = project_openaire_software(
+        {
+            "id": "openaire-software-plural-docs",
+            "type": "software",
+            "documentationUrls": [
+                "https://docs.example.org/guide",
+                "https://docs.example.org/api",
+            ],
+        }
+    )
+
+    assert record is not None
+    assert [(link.url, link.relation, link.locator) for link in record.links] == [
+        ("https://docs.example.org/guide", "documentation", "documentationUrls[0]"),
+        ("https://docs.example.org/api", "documentation", "documentationUrls[1]"),
+    ]
+    assert record.raw["documentation_urls"] == [
+        "https://docs.example.org/guide",
+        "https://docs.example.org/api",
+    ]
+
+
 def test_preserves_http_instance_artifact_urls_from_graph_schema() -> None:
     record = project_openaire_software(
         {

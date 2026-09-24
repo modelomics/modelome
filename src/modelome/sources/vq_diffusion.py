@@ -24,6 +24,7 @@ _CAT = re.compile(
     r"(?P<filename>[A-Za-z0-9_.-]+\.pth)\s*$"
 )
 _ASSET = re.compile(r"^[A-Za-z0-9_.-]+$")
+_CHECKPOINT_SUFFIXES = (".pth", ".pt")
 
 
 class MicrosoftVqDiffusionCheckpointManifestSourceAdapter(
@@ -206,9 +207,13 @@ def _parse_manifest(
     for asset, url in downloads.items():
         if asset in mapped_assets:
             continue
-        if not asset.casefold().endswith(".pth"):
+        suffix = next(
+            (suffix for suffix in _CHECKPOINT_SUFFIXES if asset.casefold().endswith(suffix)),
+            None,
+        )
+        if suffix is None:
             raise ValueError(f"{source}: downloaded shard {asset!r} has no output mapping")
-        handle = asset.removesuffix(".pth")
+        handle = asset[: -len(suffix)]
         if handle in handles:
             raise ValueError(f"{source}: duplicate checkpoint output {asset!r}")
         handles.add(handle)

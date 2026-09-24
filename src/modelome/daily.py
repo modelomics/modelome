@@ -13,6 +13,10 @@ from modelome.artifact_relation_runtime import (
 from modelome.bootstrap import BootstrapOutcome, run_arxiv_bootstrap
 from modelome.bulk import BulkError, BulkOutcome
 from modelome.bulk_runtime import run_bulk_source, select_bulk_sources
+from modelome.europe_pmc_bootstrap import (
+    EuropePmcBootstrapOutcome,
+    run_europe_pmc_bootstrap,
+)
 from modelome.frontier import FrontierCrawler, FrontierOutcome
 from modelome.gharchive_projection import (
     GhArchiveProjectionOutcome,
@@ -24,6 +28,7 @@ from modelome.pmc_bootstrap import PmcBootstrapOutcome, run_pmc_bootstrap
 from modelome.projection_runtime import ProjectionOutcome, run_semantic_scholar_projection
 from modelome.sources.arxiv import ArxivSourceAdapter
 from modelome.sources.base import SourceAdapter
+from modelome.sources.europe_pmc import EuropePmcSourceAdapter
 from modelome.sources.gharchive import GhArchiveSourceAdapter
 from modelome.sources.pmc import PmcSourceAdapter
 from modelome.storage import Database
@@ -36,7 +41,7 @@ class DailyOutcome:
     status: str
     sync: tuple[SyncOutcome, ...]
     bulk: tuple[BulkOutcome, ...]
-    bootstraps: tuple[BootstrapOutcome | PmcBootstrapOutcome, ...]
+    bootstraps: tuple[BootstrapOutcome | PmcBootstrapOutcome | EuropePmcBootstrapOutcome, ...]
     frontier: FrontierOutcome | None
     projections: tuple[ProjectionOutcome, ...] = ()
     enrichments: tuple[AlphaXivOutcome, ...] = ()
@@ -112,6 +117,12 @@ def run_daily(
                 )
             elif isinstance(source, PmcSourceAdapter):
                 outcome = run_pmc_bootstrap(
+                    database,
+                    source,
+                    max_pages=bootstrap_max_pages,
+                )
+            elif isinstance(source, EuropePmcSourceAdapter):
+                outcome = run_europe_pmc_bootstrap(
                     database,
                     source,
                     max_pages=bootstrap_max_pages,
@@ -230,13 +241,17 @@ def _bulk_failure(source: str, error: Exception) -> BulkOutcome:
 
 
 def _bootstrap_failure(
-    source: ArxivSourceAdapter | PmcSourceAdapter,
+    source: ArxivSourceAdapter | PmcSourceAdapter | EuropePmcSourceAdapter,
     error: Exception,
-) -> BootstrapOutcome | PmcBootstrapOutcome:
+) -> BootstrapOutcome | PmcBootstrapOutcome | EuropePmcBootstrapOutcome:
     namespace = f"{source.name}:bootstrap"
     message = f"{type(error).__name__}: {error}"
     outcome_type = (
-        PmcBootstrapOutcome if isinstance(source, PmcSourceAdapter) else BootstrapOutcome
+        PmcBootstrapOutcome
+        if isinstance(source, PmcSourceAdapter)
+        else EuropePmcBootstrapOutcome
+        if isinstance(source, EuropePmcSourceAdapter)
+        else BootstrapOutcome
     )
     return outcome_type(
         source=namespace,

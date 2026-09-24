@@ -109,6 +109,7 @@ class OllamaLibraryTagCatalogAdapter:
         max_families: int = 5_000,
         max_tags_per_family: int = 10_000,
         max_pages_per_family: int = 100,
+        max_index_pages: int = 100,
         max_anchors_per_page: int = 100_000,
     ) -> None:
         self.name = name
@@ -120,6 +121,7 @@ class OllamaLibraryTagCatalogAdapter:
             max_families,
             max_tags_per_family,
             max_pages_per_family,
+            max_index_pages,
             max_anchors_per_page,
         )
         if any(value < 1 for value in limits):
@@ -128,17 +130,48 @@ class OllamaLibraryTagCatalogAdapter:
         self.max_families = max_families
         self.max_tags_per_family = max_tags_per_family
         self.max_pages_per_family = max_pages_per_family
+        self.max_index_pages = max_index_pages
         self.max_anchors_per_page = max_anchors_per_page
         self.client = client or HttpClient(max_response_bytes=max_response_bytes)
 
     def fetch_page(self, state: Mapping[str, Any]) -> SourcePage:
         if state:
             raise ValueError(f"{self.name}: this catalog does not accept pagination state")
-        index_response = self._get(self.url)
-        index_anchors = self._parse(index_response.text())
+        index_anchors: list[tuple[_Anchor, str]] = []
+        revision_material: list[str] = []
+        visited_index_pages: set[str] = set()
+        index_url: str | None = self.url
+        while index_url:
+            if index_url in visited_index_pages:
+                raise ValueError(f"{self.name}: library index pagination repeated")
+            visited_index_pages.add(index_url)
+            if len(visited_index_pages) > self.max_index_pages:
+                raise ValueError(f"{self.name}: library index pages exceed limit")
+            index_response = self._get(index_url)
+            revision_material.append(content_hash(index_response.body))
+            page_anchors = self._parse(index_response.text())
+            base_url = index_response.url or index_url
+            index_anchors.extend((anchor, base_url) for anchor in page_anchors)
+            next_links = [anchor for anchor in page_anchors if _is_next(anchor)]
+            if next_links:
+                next_urls = {
+                    self._safe_url(anchor.href, index_response.url or index_url)
+                    for anchor in next_links
+                }
+                if None in next_urls:
+                    raise ValueError(
+                        f"{self.name}: library index declares an unusable next-page link"
+                    )
+                if len(next_urls) != 1:
+                    raise ValueError(
+                        f"{self.name}: library index declares conflicting next-page links"
+                    )
+                index_url = next_urls.pop()
+            else:
+                index_url = None
         family_pages: dict[str, str] = {}
-        for anchor in index_anchors:
-            url = self._safe_url(anchor.href, index_response.url or self.url)
+        for anchor, base_url in index_anchors:
+            url = self._safe_url(anchor.href, base_url)
             if not url:
                 continue
             slug = _family_slug(url)
@@ -149,7 +182,6 @@ class OllamaLibraryTagCatalogAdapter:
         if len(family_pages) > self.max_families:
             raise ValueError(f"{self.name}: library exceeds {self.max_families} families")
 
-        revision_material = [content_hash(index_response.body)]
         records: list[SourceRecord] = []
         for slug, family_url in sorted(family_pages.items()):
             family_response = self._get(family_url)
@@ -191,7 +223,18 @@ class OllamaLibraryTagCatalogAdapter:
                             },
                         )
                     if _is_next(anchor):
-                        next_page = self._safe_url(anchor.href, tags_response.url or page_url)
+                        candidate = self._safe_url(anchor.href, tags_response.url or page_url)
+                        if candidate is None:
+                            raise ValueError(
+                                f"{self.name}: tag page declares an unusable next-page link "
+                                f"for {slug}"
+                            )
+                        if next_page is not None and candidate != next_page:
+                            raise ValueError(
+                                f"{self.name}: tag page declares conflicting next-page links "
+                                f"for {slug}"
+                            )
+                        next_page = candidate
                 page_url = next_page
                 if len(tags) > self.max_tags_per_family:
                     raise ValueError(f"{self.name}: tags for {slug} exceed configured limit")

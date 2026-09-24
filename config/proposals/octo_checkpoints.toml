@@ -12,6 +12,9 @@ max_entries = 10
 # Primary inventory: https://github.com/octo-models/octo/blob/main/README.md
 # https://huggingface.co/rail-berkeley/octo-base
 # https://huggingface.co/rail-berkeley/octo-small
+# Version 1.5 refs appear in official load examples:
+# https://huggingface.co/rail-berkeley/octo-base-1.5
+# https://huggingface.co/rail-berkeley/octo-small-1.5
 # RT-2 is discussed at https://deepmind.google/blog/rt-2-new-model-translates-vision-and-language-into-action/
 # but the official source does not publish downloadable checkpoint links.
 # This adapter only records repo refs and does not fetch model weights.

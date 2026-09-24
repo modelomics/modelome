@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from modelome.http import HttpResponse
+from modelome.models import Identifier
 from modelome.sources.huggingface import HuggingFaceSourceAdapter
 
 
@@ -101,6 +102,34 @@ def test_huggingface_records_additional_checkpoint_formats_and_shard_indexes() -
         "direction": -1,
     }
     assert not {"gated", "private", "filter", "author", "search"} & set(client.calls[0])
+
+
+def test_huggingface_links_exact_dataset_identifiers_from_model_card_metadata() -> None:
+    client = _Client(
+        [
+            {
+                "id": "lab/model-trained-on-data",
+                "cardData": {
+                    "datasets": [
+                        "stanfordnlp/imdb",
+                        "dataset-without-namespace",
+                        "owner/../not-a-repo",
+                    ]
+                },
+            }
+        ]
+    )
+
+    record = HuggingFaceSourceAdapter(client=client).fetch_page({}).records[0]
+
+    dataset_links = [link for link in record.links if link.relation == "dataset"]
+    assert [(link.url, link.locator) for link in dataset_links] == [
+        (
+            "https://huggingface.co/datasets/stanfordnlp/imdb",
+            "$.cardData.datasets[0]",
+        )
+    ]
+    assert Identifier("huggingface:dataset", "stanfordnlp/imdb") in record.identifiers
 
 
 def test_huggingface_revision_enrichment_is_checkpointed_and_does_not_fetch_blobs() -> None:

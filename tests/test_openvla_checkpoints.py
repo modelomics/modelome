@@ -23,6 +23,9 @@ _README = "\n".join(
         "[openvla-v01-7b](https://huggingface.co/openvla/openvla-v01-7b)",
         "## Fine-Tuning OpenVLA",
         "[not a model](https://huggingface.co/openvla/ignore-me)",
+        "## Fully Fine-Tuning OpenVLA",
+        "[Prismatic-compatible checkpoint]("
+        "https://huggingface.co/openvla/openvla-7b-prismatic)",
         "#### Launching LIBERO Evaluations",
         "[openvla/openvla-7b-finetuned-libero-spatial]("
         "https://huggingface.co/openvla/openvla-7b-finetuned-libero-spatial)",
@@ -64,13 +67,15 @@ def test_parser_keeps_only_refs_in_checkpoint_sections() -> None:
     assert [entry[2] for entry in entries] == [
         "https://huggingface.co/openvla/openvla-7b",
         "https://huggingface.co/openvla/openvla-v01-7b",
+        "https://huggingface.co/openvla/openvla-7b-prismatic",
         "https://huggingface.co/openvla/openvla-7b-finetuned-libero-spatial",
         "https://huggingface.co/openvla/openvla-7b-finetuned-libero-object",
         "https://huggingface.co/openvla/openvla-7b-finetuned-libero-goal",
         "https://huggingface.co/openvla/openvla-7b-finetuned-libero-10",
     ]
     assert [entry[1] for entry in entries[:2]] == ["pretrained vlas"] * 2
-    assert [entry[1] for entry in entries[2:]] == ["launching libero evaluations"] * 4
+    assert entries[2][1] == "fully fine-tuning openvla"
+    assert [entry[1] for entry in entries[3:]] == ["launching libero evaluations"] * 4
 
 
 def test_adapter_emits_exact_checkpoint_repo_refs() -> None:
@@ -88,7 +93,7 @@ def test_adapter_emits_exact_checkpoint_repo_refs() -> None:
     ]
     assert page.complete is True
     assert page.authoritative_snapshot is True
-    assert page.upstream_count == 6
+    assert page.upstream_count == 7
     record = page.records[0]
     assert record.kind is ArtifactKind.WEIGHTS
     assert record.canonical_url == "https://huggingface.co/openvla/openvla-7b"

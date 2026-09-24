@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -123,6 +123,32 @@ def test_oai_dcat_discovers_candidate_checkpoint_and_resumes_with_opaque_token()
     assert first.next_state["pages_seen"] == 1
     assert second.complete is True
     assert second.next_state["records_seen"] == 2
+
+
+def test_resumption_token_timestamp_precedes_page_record_parsing() -> None:
+    now = [datetime(2026, 9, 22, 12, 0, tzinfo=UTC)]
+    record = oai_record(
+        130,
+        title="Ordinary data",
+        description="A tabular dataset.",
+        filename="examples.csv",
+        url="https://zenodo.org/api/files/abc/examples.csv",
+    )
+    adapter = ZenodoOaiModelCandidatesSourceAdapter(
+        client=Client(response(harvest_page(record, "token-next"))),
+        clock=lambda: now[0],
+    )
+    parse_record = adapter._candidate
+
+    def slow_parse(raw_record):
+        now[0] += timedelta(seconds=60)
+        return parse_record(raw_record)
+
+    adapter._candidate = slow_parse
+
+    page = adapter.fetch_page({})
+
+    assert page.next_state["token_issued_at"] == "2026-09-22T12:00:00Z"
 
 
 def test_punctuation_distinct_checkpoint_stems_keep_distinct_candidate_ids() -> None:

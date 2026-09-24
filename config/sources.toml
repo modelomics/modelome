@@ -154,6 +154,16 @@ schedule = "weekly"
 max_response_bytes = 8388608
 max_entries = 1000
 
+[[source]]
+name = "nemo-speech-classification-checkpoints"
+adapter = "nemo_checkpoint_catalog"
+enabled = true
+entry_tags = ["field:audio-machine-learning", "task:speech-classification", "ecosystem:nvidia-nemo"]
+url = "https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/speech_classification/results.html"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 1000
+
 # Ollama's first-party library serves its model-family cards in a single public
 # document. This source extracts only each list-card's canonical title/URL pair;
 # it references model cards without fetching their manifests or blob layers.
@@ -6081,3 +6091,53 @@ document_path = "docs/source/onnx/audio-tagging/pretrained_models.rst"
 schedule = "weekly"
 max_response_bytes = 2097152
 max_models = 200
+
+# First-party BPEmb language pages publish exact pretrained vector archives.
+[[source]]
+name = "bpemb-pretrained-vectors"
+adapter = "bpemb_pretrained_vector_registry"
+enabled = true
+entry_tags = ["field:natural-language-processing", "ecosystem:bpemb", "kind:pretrained-vectors"]
+repository = "bheinzerling/bpemb"
+branch = "master"
+provider_namespace = "bpemb:pretrained-vector"
+schedule = "monthly"
+max_response_bytes = 4194304
+max_entries = 10000
+max_languages = 300
+languages_per_page = 10
+
+# MACE's first-party loader declares a separate OMOL checkpoint URL.
+[[source]]
+name = "mace-omol-checkpoint"
+adapter = "mace_omol_checkpoint"
+enabled = true
+entry_tags = ["field:computational-chemistry", "ecosystem:mace", "kind:checkpoint"]
+repository = "ACEsuit/mace"
+branch = "develop"
+source_path = "mace/calculators/foundations_models.py"
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# Cohere's public deprecation table retains exact retired Rerank IDs, shutdown
+# dates, and the documented replacement as historical provider evidence.
+[[source]]
+name = "cohere-rerank-model-lifecycle"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:cohere", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history"]
+url = "https://docs.cohere.com/docs/deprecations"
+provider_namespace = "cohere:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Shutdown Date \| Deprecated Model \| Deprecated Model Price \| Recommended Replacement$'
+name_column = 1
+identity_column = 1
+identity_source = "id"
+require_url = false
