@@ -88,6 +88,7 @@ def raw_record(
     version: str = "v1",
     datestamp: str = "2026-08-31",
     comments: str = "",
+    abstract: str = "We introduce an example architecture.",
 ) -> str:
     return f"""
 <record>
@@ -106,7 +107,7 @@ def raw_record(
       <raw:title>Example paper</raw:title>
       <raw:authors>First Author and Second Author</raw:authors>
       <raw:categories>cs.LG</raw:categories>
-      <raw:abstract>We introduce an example architecture.</raw:abstract>
+      <raw:abstract>{abstract}</raw:abstract>
       <raw:comments>{comments}</raw:comments>
     </raw:arXivRaw>
   </metadata>
@@ -142,6 +143,41 @@ def test_extracts_http_links_from_official_arxiv_comments_field() -> None:
         "weights",
         "embedded",
     ]
+
+
+def test_extracts_model_release_urls_from_official_arxiv_abstract_field() -> None:
+    github = "https://github.com/EleutherAI/gpt-neox"
+    abstract = (
+        "We open-source the training and evaluation code, as well as the model weights, "
+        f"at {github}."
+    )
+    root = ET.fromstring(oai_response(raw_record(abstract=abstract)))
+    element = root.find(f"{{{OAI_NAMESPACE}}}record")
+    assert element is not None
+
+    record = ArxivSourceAdapter()._record(element)
+
+    abstract_links = [
+        link for link in record.links if (link.locator or "").startswith("metadata.abstract:")
+    ]
+    assert [(link.url, link.relation) for link in abstract_links] == [(github, "weights")]
+
+
+def test_extracts_huggingface_checkpoint_url_from_arxiv_abstract() -> None:
+    checkpoint = "https://huggingface.co/aehrc/cxrmate"
+    abstract = (
+        f"Our Hugging Face checkpoint ({checkpoint}) and code "
+        "(https://github.com/aehrc/cxrmate) are publicly available."
+    )
+    root = ET.fromstring(oai_response(raw_record(abstract=abstract)))
+    element = root.find(f"{{{OAI_NAMESPACE}}}record")
+    assert element is not None
+
+    record = ArxivSourceAdapter()._record(element)
+    checkpoint_link = next(link for link in record.links if link.url == checkpoint)
+    assert checkpoint_link.relation == "weights"
+    assert checkpoint_link.locator is not None
+    assert checkpoint_link.locator.startswith("metadata.abstract:")
 
 
 def deleted_record(arxiv_id: str, datestamp: str) -> str:

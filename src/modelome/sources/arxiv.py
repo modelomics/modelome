@@ -680,6 +680,15 @@ class ArxivSourceAdapter:
                         locator=f"metadata.comments:{span}",
                     )
                 )
+        for url, span in extract_url_mentions(abstract):
+            if _optional_web_url(url):
+                links.append(
+                    Link(
+                        url=url,
+                        relation=infer_url_relation(abstract, span),
+                        locator=f"metadata.abstract:{span}",
+                    )
+                )
 
         raw_payload = dict(raw_fields)
         raw_payload["versions"] = versions

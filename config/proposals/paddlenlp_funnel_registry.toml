@@ -1,0 +1,10 @@
+# PaddleNLP's Funnel config pairs ten slash-qualified IDs with exact model_state URLs.
+[[source]]
+name = "paddlenlp-funnel-pretrained-registry"
+adapter = "paddlenlp_funnel_registry"
+enabled = false
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/transformers/funnel/configuration.py"
+provider_namespace = "paddlenlp:transformer-model"
+max_response_bytes = 4194304

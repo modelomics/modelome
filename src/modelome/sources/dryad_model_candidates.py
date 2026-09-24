@@ -43,12 +43,7 @@ _FILE_NAME = re.compile(
 _FILE_PAGE_SIZE = 100
 _MAX_FILE_PAGES = 100
 _MAX_PAGE_SIZE = 10
-_QUERIES = (
-    '"deep learning models"',
-    '"neural network weights"',
-    '"model checkpoint"',
-    '"model weights"',
-)
+_DEFAULT_QUERY = '"weights of the trained machine learning models"'
 
 
 class _HTMLText(HTMLParser):
@@ -71,9 +66,9 @@ class DryadModelCandidatesSourceAdapter:
     """
 
     coverage_limitation = (
-        "Search mode covers a fixed set of model-weight and deep-learning phrases and "
-        "misses records that use other searchable wording. When dataset_doi is configured, "
-        "the adapter reads only that one known record. Metadata requests are sequential. Dryad "
+        "Search mode reads a bounded prefix of one exact query and misses records outside "
+        "that result window. When dataset_doi is configured, it reads only that known record. "
+        "Metadata requests are sequential. Dryad "
         "documents that API accounts receive eight times the anonymous request rate, but "
         "does not publish the anonymous numeric quota in the API guide. Files are never "
         "downloaded; provider file download links may require authentication."
@@ -85,6 +80,8 @@ class DryadModelCandidatesSourceAdapter:
         name: str = "dryad-model-weight-candidates",
         base_url: str = "https://datadryad.org/api/v2",
         page_size: int = 1,
+        query: str = _DEFAULT_QUERY,
+        max_pages: int = 3,
         dataset_doi: str | None = None,
         client: HttpClient | Any | None = None,
     ) -> None:
@@ -92,17 +89,24 @@ class DryadModelCandidatesSourceAdapter:
             raise ValueError("source name and HTTPS Dryad API URL are required")
         if not 1 <= int(page_size) <= _MAX_PAGE_SIZE:
             raise ValueError(f"page_size must be between 1 and {_MAX_PAGE_SIZE}")
+        if not isinstance(query, str) or not query.strip() or len(query) > 200:
+            raise ValueError("query must be a non-empty string of at most 200 characters")
+        if not 1 <= int(max_pages) <= 10:
+            raise ValueError("max_pages must be between 1 and 10")
         self.name = name
         self.base_url = canonicalize_url(base_url).rstrip("/")
         self.page_size = int(page_size)
+        self.query = query.strip()
+        self.max_pages = int(max_pages)
         self.dataset_doi = _validate_doi(dataset_doi) if dataset_doi is not None else None
         self.client = client or HttpClient()
         self.checkpoint_signature = content_hash(
             {
                 "adapter": "dryad-model-weight-candidates-v1",
                 "base_url": self.base_url,
-                "queries": _QUERIES,
+                "query": self.query,
                 "page_size": self.page_size,
+                "max_pages": self.max_pages,
                 "dataset_doi": self.dataset_doi,
                 "file_page_size": _FILE_PAGE_SIZE,
                 "max_file_pages": _MAX_FILE_PAGES,
@@ -113,10 +117,11 @@ class DryadModelCandidatesSourceAdapter:
         if self.dataset_doi is not None:
             return self._fetch_fixed_record()
         page = _positive_int(state.get("page", 1), "page")
-        query_index = _nonnegative_int(state.get("query_index", 0), "query_index")
-        if query_index >= len(_QUERIES):
-            raise ValueError(f"{self.name}: query_index is outside configured query set")
-        query = _QUERIES[query_index]
+        if page > self.max_pages:
+            raise ValueError(
+                f"{self.name}: page exceeds configured {self.max_pages}-page query window"
+            )
+        query = self.query
         if state and state.get("query", query) != query:
             raise ValueError(f"{self.name}: checkpoint query does not match adapter")
         response = self.client.get(
@@ -144,19 +149,13 @@ class DryadModelCandidatesSourceAdapter:
             raise ValueError(f"{self.name}: received more search results than total")
         if count == 0 and seen < total:
             raise ValueError(f"{self.name}: search page ended before the declared total")
-        query_complete = seen >= total
-        complete = query_complete and query_index == len(_QUERIES) - 1
-        if query_complete and not complete:
-            next_state = {
-                "query_index": query_index + 1,
-                "query": _QUERIES[query_index + 1],
-                "records_seen": 0,
-            }
-        elif not query_complete:
-            next_state = {"query_index": query_index, "query": query, "records_seen": seen}
+        query_complete = seen >= total or page >= self.max_pages
+        complete = query_complete
+        if not query_complete:
+            next_state = {"query": query, "records_seen": seen}
             next_state["page"] = page + 1
         else:
-            next_state = {"query_index": query_index, "query": query, "records_seen": seen}
+            next_state = {"query": query, "records_seen": seen}
         return SourcePage(
             records=tuple(records),
             next_state=next_state,

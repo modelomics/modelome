@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **499 enabled
-source entries** (474 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **509 enabled
+source entries** (484 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -734,6 +734,22 @@ model weights. The record remains a candidate because its archive contents are n
 inspected. It runs on a manual schedule to limit requests to the public Dryad API.
 Cloudflare's Workers AI changelog contributes 19 exact IDs in its documented
 2025 deprecation cohort; this is lifecycle evidence, not a shutdown claim.
+
+Azure Asset Catalog V2's anonymous public listing reported 15,993 model asset versions
+at the last metadata check. The source follows its opaque continuation tokens and
+retains Azure asset identities as catalog releases; this does not assert hosted
+inference availability or equivalence to an origin model. Alibaba Model Studio's
+first-party rate-limit tables document 414 Qwen-family IDs across language, vision,
+audio, translation, image, embedding, and reranking. They are documentation evidence,
+including historical IDs, rather than a current availability list. RSNA ATLAS adds
+119 published radiology model cards; its free-text availability references are
+recorded as links, not asserted to be weight files.
+
+Additional direct checkpoint inventories cover PaddleNLP Funnel (10), GeoLink (2),
+Keras EfficientNet B0–B7 (16 weight assets), PANNs AudioSet (43 versioned attachments),
+StarVLA VLAct (11 pinned policy files), archived TF-Slim MobileNet V2 (21 float
+checkpoints), and timm v0.6.13 ViT (32 historical direct URLs). These counts are
+source observations and can overlap other catalogs; no model binaries are fetched.
 
 The 2025 ACL Anthology XML source adds paper and abstract evidence for 1,966 records in
 the current collection file. It extracts implementation links only when an abstract

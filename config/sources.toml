@@ -8796,3 +8796,128 @@ kind = "text"
 entry_pattern = '''(?P<name>@(?:hf/thebloke/(?:zephyr-7b-beta-awq|mistral-7b-instruct-v0[.]1-awq|llama-2-13b-chat-awq|openhermes-2[.]5-mistral-7b-awq|neural-chat-7b-v3-1-awq|llamaguard-7b-awq|deepseek-coder-6[.]7b-(?:base|instruct)-awq)|cf/(?:deepseek-ai/deepseek-math-7b-instruct|openchat/openchat-3[.]5-0106|tiiuae/falcon-7b-instruct|thebloke/discolm-german-7b-v1-awq|qwen/qwen1[.]5-(?:0[.]5b-chat|7b-chat-awq|14b-chat-awq|1[.]8b-chat)|tinyllama/tinyllama-1[.]1b-chat-v1[.]0|fblgit/una-cybertron-7b-v2-bf16)|hf/nexusflow/starling-lm-7b-beta))'''
 identity_source = "name"
 require_url = false
+
+# Anonymous Azure Asset Catalog V2 enumerates public model asset versions.
+[[source]]
+name = "azure-asset-gallery-v2-public-models"
+adapter = "azure_asset_gallery_v2"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:azure", "kind:model-catalog-asset", "evidence:public-api-catalog"]
+url = "https://api.catalog.azureml.ms/asset-gallery/v1.0/models"
+provider_namespace = "azureml:catalog-model-version"
+model_page_crawl = false
+schedule = "weekly"
+page_size = 100
+max_pages = 500
+max_response_bytes = 8388608
+
+# PaddleNLP's Funnel config maps ten model IDs to exact checkpoint URLs.
+[[source]]
+name = "paddlenlp-funnel-pretrained-registry"
+adapter = "paddlenlp_funnel_registry"
+enabled = true
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/transformers/funnel/configuration.py"
+provider_namespace = "paddlenlp:transformer-model"
+max_response_bytes = 4194304
+schedule = "weekly"
+
+# GeoLink publishes distinct unimodal and multimodal checkpoints.
+[[source]]
+name = "geolink-checkpoint-registry"
+adapter = "geolink_checkpoint_registry"
+enabled = true
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:geolink", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+max_response_bytes = 1048576
+
+# Keras Applications declares exact EfficientNet B0-B7 top/no-top assets.
+[[source]]
+name = "keras-efficientnet-imagenet-weights"
+adapter = "keras_efficientnet_weights"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:keras-applications", "kind:pretrained-model"]
+repository = "keras-team/keras"
+branch = "master"
+source_path = "keras/src/applications/efficientnet.py"
+schedule = "weekly"
+max_source_bytes = 2097152
+max_records = 16
+
+# PANNs' public Zenodo records retain 43 version-specific AudioSet checkpoints.
+[[source]]
+name = "panns-zenodo-models"
+adapter = "panns_zenodo_models"
+enabled = true
+record_ids = ["3576403", "3987831"]
+record_api_urls = ["https://zenodo.org/api/records/3576403", "https://zenodo.org/api/records/3987831"]
+entry_tags = ["ecosystem:panns", "modality:audio", "task:audio-tagging", "dataset:audioset", "kind:checkpoint"]
+schedule = "weekly"
+max_files_per_record = 100
+max_response_bytes = 4194304
+
+# StarVLA's public VLAct collection resolves exact pinned policy files.
+[[source]]
+name = "starvla-vlact-collection"
+adapter = "starvla_vlact_collection"
+enabled = true
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 24
+
+# TF-Slim's archived MobileNet V2 table has directly linked float checkpoints.
+[[source]]
+name = "tensorflow-slim-mobilenet-v2-checkpoints"
+adapter = "markdown_model_table"
+enabled = true
+entry_tags = ["field:computer-vision", "task:image-classification", "ecosystem:tensorflow-slim", "era:historical", "kind:pretrained-checkpoint"]
+repository = "tensorflow/models"
+branch = "master"
+document_path = "research/slim/nets/mobilenet/README.md"
+provider_namespace = "tensorflow:slim-mobilenet-v2-checkpoint"
+model_column = 0
+model_header_pattern = "^Classification Checkpoint$"
+identity_include_heading = false
+schedule = "weekly"
+max_response_bytes = 4194304
+max_rows = 1000
+
+# Pinned timm v0.6.13 ViT source declares 32 distinct historical direct URLs.
+[[source]]
+name = "timm-legacy-vit-v0613"
+adapter = "timm_legacy_vit"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:timm", "kind:checkpoint"]
+schedule = "weekly"
+
+# RSNA ATLAS publishes radiology AI model cards with scoped availability links.
+[[source]]
+name = "rsna-atlas-medical-ai-model-cards"
+adapter = "rsna_atlas_registry"
+enabled = true
+entry_tags = ["field:medical-ai", "ecosystem:rsna-atlas", "kind:model-card"]
+schedule = "weekly"
+page_size = 100
+max_entries = 5000
+max_response_bytes = 33554432
+
+# Model Studio rate-limit tables document Qwen-family API IDs across modalities.
+[[source]]
+name = "alibaba-model-studio-qwen-api-model-documentation"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:alibaba-model-studio", "ecosystem:qwen", "kind:hosted-model", "evidence:provider-model-documentation"]
+url = "https://help.aliyun.com/en/model-studio/rate-limit"
+provider_namespace = "alibaba:model-studio-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 2000
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '''\b(?!qwen(?:work[.]cn|-(?:language-model(?:-open-source-version)?|open-source))\b)(?P<name>(?:qwen|qwq|qvq)[a-z0-9.-]*[a-z0-9])\b'''
+identity_source = "name"
+require_url = false

@@ -8,7 +8,12 @@ from urllib.parse import quote, urlsplit
 
 from modelome.http import HttpClient, HttpFailure, HttpResponse
 from modelome.models import ArtifactKind, Identifier, Link, SourceIssue, SourcePage, SourceRecord
-from modelome.normalize import canonicalize_url, content_hash
+from modelome.normalize import (
+    canonicalize_url,
+    content_hash,
+    extract_url_mentions,
+    infer_url_relation,
+)
 
 Clock = Callable[[], datetime]
 
@@ -334,6 +339,7 @@ class CrossrefSourceAdapter:
             text_parts.append(f"Subjects: {'; '.join(subjects)}")
         text = "\n\n".join(text_parts)
         links = list(_work_links(work, doi_url))
+        links.extend(_abstract_links(work.get("abstract"), abstract))
         if not any(link.url == doi_url for link in links):
             links.insert(0, Link(doi_url, relation="doi", locator="$.DOI"))
         return SourceRecord(
@@ -391,6 +397,55 @@ class _TextParser(HTMLParser):
     def handle_data(self, data: str) -> None:
         if value := data.strip():
             self.parts.append(value)
+
+
+class _AbstractLinkParser(HTMLParser):
+    """Collect author-declared HTTP hrefs with their preceding abstract text."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self.links: list[tuple[str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        del tag
+        values = dict(attrs)
+        href = _safe_url(values.get("href") or values.get("xlink:href"))
+        if href:
+            self.links.append((href, " ".join(self.parts)))
+
+    def handle_data(self, data: str) -> None:
+        if value := data.strip():
+            self.parts.append(value)
+
+
+def _abstract_links(raw_abstract: Any, abstract_text: str) -> tuple[Link, ...]:
+    links: list[Link] = []
+    for url, span in extract_url_mentions(abstract_text):
+        relation = infer_url_relation(abstract_text, span)
+        if relation in {"implementation", "official_implementation", "weights", "model_card"}:
+            links.append(Link(url, relation=relation, locator=f"$.abstract:{span}"))
+
+    raw = _text(raw_abstract)
+    if raw:
+        parser = _AbstractLinkParser()
+        try:
+            parser.feed(raw)
+            parser.close()
+        except Exception:
+            parser.links.clear()
+        for index, (url, prefix) in enumerate(parser.links):
+            context = f"{prefix} {url}"
+            locator = f"text:{len(prefix) + 1}-{len(context)}"
+            relation = infer_url_relation(context, locator)
+            if relation in {"implementation", "official_implementation", "weights", "model_card"}:
+                links.append(
+                    Link(url, relation=relation, locator=f"$.abstract.ext-link[{index}]")
+                )
+    unique: dict[str, Link] = {}
+    for link in links:
+        unique.setdefault(link.url, link)
+    return tuple(unique.values())
 
 
 def _response_message(payload: Any, source: str) -> Mapping[str, Any]:

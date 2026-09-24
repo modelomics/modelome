@@ -146,9 +146,11 @@ def test_fixture_model_names_are_not_runtime_seed_constants() -> None:
             "src/modelome/sources/paddlenlp_albert_registry.py",
             "src/modelome/sources/paddlenlp_xlm_registry.py",
             "src/modelome/sources/msst_pretrained_models.py",
-                "src/modelome/sources/paddlenlp_roformer_registry.py",
-                "src/modelome/sources/paddlenlp_bert_registry.py",
-                "src/modelome/sources/vitae_rsp_checkpoint_registry.py",
+            "src/modelome/sources/paddlenlp_roformer_registry.py",
+            "src/modelome/sources/paddlenlp_bert_registry.py",
+            "src/modelome/sources/vitae_rsp_checkpoint_registry.py",
+            "src/modelome/sources/paddlenlp_funnel_registry.py",
+            "src/modelome/sources/timm_legacy_vit.py",
             "src/modelome/entries.py",
         },
         "U-Net": {
@@ -166,15 +168,15 @@ def test_fixture_model_names_are_not_runtime_seed_constants() -> None:
             "src/modelome/sources/catalog.py",
             "src/modelome/sources/pyg_dimenet_checkpoints.py",
         },
-            "SchNet": {
-                "src/modelome/sources/catalog.py",
-                "src/modelome/sources/pyg_schnet_qm9_registry.py",
-                "src/modelome/sources/cgschnet_pretrained_bundle.py",
-            },
-            "GenCast": {
-                "src/modelome/sources/catalog.py",
-                "src/modelome/sources/google_gencast_checkpoint_inventory.py",
-            },
+        "SchNet": {
+            "src/modelome/sources/catalog.py",
+            "src/modelome/sources/pyg_schnet_qm9_registry.py",
+            "src/modelome/sources/cgschnet_pretrained_bundle.py",
+        },
+        "GenCast": {
+            "src/modelome/sources/catalog.py",
+            "src/modelome/sources/google_gencast_checkpoint_inventory.py",
+        },
     }
     violations: dict[str, list[str]] = {}
 

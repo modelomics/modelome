@@ -1,0 +1,15 @@
+# Published medical AI model cards from the RSNA first-party ATLAS catalog.
+# Current live inventory: 119 model cards among 240 published model/dataset
+# cards. This contributes model documentation and source links; Availability is
+# free text and is not interpreted as a direct checkpoint manifest. Some cards
+# will overlap existing model sources (for example MONAI/VISTA3D and Hugging Face).
+# API/schema evidence: https://atlas.rsna.org/documentation
+[[source]]
+name = "rsna-atlas-medical-ai-model-cards"
+adapter = "rsna_atlas_registry"
+enabled = false
+entry_tags = ["field:medical-ai", "ecosystem:rsna-atlas", "kind:model-card"]
+schedule = "weekly"
+page_size = 100
+max_entries = 5000
+max_response_bytes = 33554432

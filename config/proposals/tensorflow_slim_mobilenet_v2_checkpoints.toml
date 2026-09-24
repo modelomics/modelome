@@ -1,0 +1,19 @@
+# This archived first-party Slim page contains 21 direct MobileNet V2 float
+# checkpoint links (one per model-variant row). Quantized MobileNet V2 and
+# MobileNet V3 links use Markdown reference definitions; this generic table
+# source deliberately admits only directly linked row artifacts.
+[[source]]
+name = "tensorflow-slim-mobilenet-v2-checkpoints"
+adapter = "markdown_model_table"
+enabled = false
+entry_tags = ["field:computer-vision", "task:image-classification", "ecosystem:tensorflow-slim", "era:historical", "kind:pretrained-checkpoint"]
+repository = "tensorflow/models"
+branch = "master"
+document_path = "research/slim/nets/mobilenet/README.md"
+provider_namespace = "tensorflow:slim-mobilenet-v2-checkpoint"
+model_column = 0
+model_header_pattern = "^Classification Checkpoint$"
+identity_include_heading = false
+schedule = "weekly"
+max_response_bytes = 4194304
+max_rows = 1000

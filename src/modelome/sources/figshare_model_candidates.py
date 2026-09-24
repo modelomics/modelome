@@ -58,23 +58,26 @@ class _TextParser(HTMLParser):
 class FigshareModelCandidatesSourceAdapter:
     """Traverse one half-open Figshare OAI date window, emitting cautious candidates.
 
-    Figshare has no Model article type. The current OAI record must first signal
-    neural/deep-learning work and explicitly name a weight/checkpoint file. The
-    adapter then reads the bounded REST version list and checks each version's own
-    description and file list. For the current version, OAI and REST URLs must
-    match; for historical versions, the version-specific REST response establishes
-    the exact article/version/file relation. Candidate status preserves uncertainty.
+    Figshare has no Model article type. Current OAI candidate signals trigger full
+    bounded version expansion. An OAI current-version number above one also triggers
+    prior-version checks, covering candidate cues removed from the latest article.
+    Each candidate still needs neural/deep-learning wording and a named weight or
+    checkpoint file clause in its own version metadata. For the current version, OAI
+    and REST URLs must match; historical version detail establishes its own exact
+    article/version/file relation. Candidate status preserves uncertainty.
     """
 
     coverage_limitation = (
         "Covers public Figshare records with publication datestamps in the configured "
         "half-open date window [from_date, until_date). OAI exposes each article's "
         "latest version only; records whose latest metadata signals a model candidate "
-        "are expanded through Figshare's public version-list and version-detail API "
-        "(bounded to 50 versions per article). Historical-only model signals remain "
-        "out of scope. Candidate files must be named as model weights or checkpoints "
-        "in that version's description and match its exact public file list. Files "
-        "are never downloaded."
+        "are expanded through Figshare's public version-list and version-detail API. "
+        "For other articles whose OAI current-version number is greater than one, "
+        "prior versions are checked for historical-only candidates. Both paths are "
+        "bounded to 50 versions per article. Articles whose version number is absent "
+        "or malformed cannot be expanded through the historical-only path. Candidate "
+        "files must be named as model weights or checkpoints in that version's "
+        "description and match its exact public file list. Files are never downloaded."
     )
 
     def __init__(
@@ -179,9 +182,8 @@ class FigshareModelCandidatesSourceAdapter:
             if evidence is None:
                 continue
             record_id, title, description, page_url, file_urls, version = evidence
-            if not _MODEL_SCOPE.search(f"{title}\n{description}") or not _named_weight_files(
-                description
-            ):
+            current_candidate_signal = _has_candidate_signal(title, description)
+            if not current_candidate_signal and not _has_prior_versions(version):
                 continue
             versions = self._versions(record_id)
             if version and version not in {str(item) for item in versions}:
@@ -190,9 +192,15 @@ class FigshareModelCandidatesSourceAdapter:
                     f"{record_id} version list"
                 )
             for article_version in versions:
+                if not current_candidate_signal and str(article_version) == version:
+                    # The current OAI metadata was already checked; only prior
+                    # versions can contain a historical-only candidate here.
+                    continue
                 article = self._article_version(record_id, article_version)
                 version_title = _text(article.get("title")) or title
                 version_description = _plain_text(_text(article.get("description")) or description)
+                if not _has_candidate_signal(version_title, version_description):
+                    continue
                 named_files = _named_weight_files(version_description)
                 version_urls = (
                     file_urls if str(article_version) == version else _rest_file_urls(article)
@@ -459,6 +467,14 @@ def _named_weight_files(description: str) -> set[str]:
         if label and _WEIGHT_CUE.search(clause) and not re.search(r"\bdataset\b", clause, re.I):
             found.add(label)
     return found
+
+
+def _has_candidate_signal(title: str, description: str) -> bool:
+    return bool(_MODEL_SCOPE.search(f"{title}\n{description}") and _named_weight_files(description))
+
+
+def _has_prior_versions(version: str | None) -> bool:
+    return bool(version and version.isdecimal() and int(version) > 1)
 
 
 def _filename_stem(filename: str) -> str:

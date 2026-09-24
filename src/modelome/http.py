@@ -4,6 +4,7 @@ import ipaddress
 import json
 import os
 import socket
+import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -23,6 +24,7 @@ _CROSS_ORIGIN_SAFE_HEADERS = {
     "range",
     "user-agent",
 }
+_GITHUB_COMMIT_CACHE_MAX_ENTRIES = 512
 
 
 class HttpFailure(RuntimeError):
@@ -63,6 +65,8 @@ class HttpClient:
         self.user_agent = user_agent or default_agent
         self._sleep = sleep
         self._opener = build_opener(_SafeRedirectHandler(_require_public_redirect))
+        self._github_commit_cache: dict[tuple[str, str, str], HttpResponse] = {}
+        self._github_commit_cache_lock = threading.Lock()
 
     def get(
         self,
@@ -73,9 +77,43 @@ class HttpClient:
         redirect_validator: Callable[[str], None] | None = None,
     ) -> HttpResponse:
         request_url = _with_params(url, params or {})
-        display_url = _redacted_url(request_url)
         request_headers = {"Accept": "application/json", "User-Agent": self.user_agent}
         request_headers.update(headers or {})
+        cache_key = (
+            _github_commit_cache_key(request_url, request_headers)
+            if redirect_validator is None
+            else None
+        )
+        if cache_key is None:
+            return self._get_uncached(request_url, request_headers, redirect_validator)
+
+        # Serialize only matching commit lookups. This prevents simultaneous
+        # adapters from issuing the same anonymous API request before the first
+        # response reaches the in-memory cache.
+        with self._github_commit_cache_lock:
+            cached = self._github_commit_cache.get(cache_key)
+            if cached is not None:
+                return cached
+            response = self._get_uncached(request_url, request_headers, None)
+            if response.status == 200 and _origin(response.url) == _origin(request_url):
+                if len(self._github_commit_cache) >= _GITHUB_COMMIT_CACHE_MAX_ENTRIES:
+                    self._github_commit_cache.pop(next(iter(self._github_commit_cache)))
+                self._github_commit_cache[cache_key] = response
+            return response
+
+    def clear_github_commit_cache(self) -> None:
+        """Discard successful commit lookups, for example at a sync-run boundary."""
+
+        with self._github_commit_cache_lock:
+            self._github_commit_cache.clear()
+
+    def _get_uncached(
+        self,
+        request_url: str,
+        request_headers: Mapping[str, str],
+        redirect_validator: Callable[[str], None] | None,
+    ) -> HttpResponse:
+        display_url = _redacted_url(request_url)
 
         last_error: Exception | None = None
         opener = self._opener
@@ -118,6 +156,49 @@ class HttpClient:
             if attempt + 1 < self.attempts:
                 self._sleep(delay)
         raise HttpFailure(f"GET {display_url} failed: {last_error}") from last_error
+
+
+def _github_commit_cache_key(
+    url: str,
+    headers: Mapping[str, str],
+) -> tuple[str, str, str] | None:
+    parts = urlsplit(url)
+    if (
+        parts.scheme.casefold() != "https"
+        or (parts.hostname or "").casefold() != "api.github.com"
+        or parts.username is not None
+        or parts.password is not None
+        or parts.query
+        or parts.fragment
+    ):
+        return None
+    path_parts = parts.path.split("/")
+    if (
+        len(path_parts) != 6
+        or path_parts[0] != ""
+        or path_parts[1] != "repos"
+        or not path_parts[2]
+        or not path_parts[3]
+        or path_parts[4] != "commits"
+        or not all(path_parts[5:])
+    ):
+        return None
+    normalized_headers = {key.casefold(): value for key, value in headers.items()}
+    safe_headers = {"accept", "user-agent", "x-github-api-version"}
+    if set(normalized_headers) - safe_headers:
+        return None
+    if "if-none-match" in normalized_headers or "if-modified-since" in normalized_headers:
+        return None
+    return (
+        url,
+        normalized_headers.get("accept", ""),
+        "\n".join(
+            (
+                normalized_headers.get("user-agent", ""),
+                normalized_headers.get("x-github-api-version", ""),
+            )
+        ),
+    )
 
 
 class _SafeRedirectHandler(HTTPRedirectHandler):

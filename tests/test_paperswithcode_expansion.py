@@ -301,6 +301,9 @@ def test_evaluation_model_links_project_exact_huggingface_model_identity() -> No
         if model.identifiers and model.identifiers[0].namespace == "huggingface:model"
     )
     assert linked_model.identifiers[0].value == "example/published-model"
+    assert linked_model.identifiers == (
+        Identifier("huggingface:model", "example/published-model"),
+    )
     assert linked_model.status is ModelStatus.CANDIDATE
     assert linked_model.confidence == 0.65
     model_link = next(link for link in records[0].links if link.relation == "model_artifact")
@@ -522,6 +525,56 @@ def test_evaluation_tfhub_versioned_model_url_projects_exact_model_identity() ->
     assert linked_model.confidence == 0.65
     model_link = next(link for link in records[0].links if link.relation == "model_artifact")
     assert model_link.model_local_ids == (linked_model.local_id,)
+
+
+def test_evaluation_huggingface_commit_pinned_link_projects_exact_revision() -> None:
+    from modelome.sources.paperswithcode import _evaluation_records
+
+    commit = "a" * 40
+    other_commit = "b" * 40
+    row = {
+        "model_name": "Pinned Model",
+        "paper_url": "https://arxiv.org/abs/2401.12345",
+        "paper_title": "Pinned Model paper",
+        "model_links": [
+            {
+                "url": f"https://huggingface.co/example/published-model/resolve/{commit}/model.safetensors",
+                "title": "Pinned weights",
+            },
+            {
+                "url": f"https://huggingface.co/example/published-model/resolve/{other_commit}/model.safetensors",
+                "title": "Earlier pinned weights",
+            },
+        ],
+    }
+    records, rejected, _ = _evaluation_records(
+        [{"task": "Classification", "datasets": [{"dataset": "Example", "sota": {"rows": [row]}}]}],
+        revision="c" * 40,
+        data_path="data/train.parquet",
+        dataset_id="pwc-archive/evaluation-tables",
+        license="CC-BY-SA-4.0",
+        max_model_rows=10,
+    )
+
+    assert rejected == {}
+    linked_models = {
+        model.name: model for model in records[0].models if model.name != "Pinned Model"
+    }
+    assert len(linked_models) == 2
+    for name, sha in (("Pinned weights", commit), ("Earlier pinned weights", other_commit)):
+        linked_model = linked_models[name]
+        assert linked_model.identifiers == (
+            Identifier("huggingface:model", "example/published-model"),
+            Identifier("huggingface:revision", f"example/published-model@{sha}"),
+        )
+        assert linked_model.status is ModelStatus.CANDIDATE
+        assert linked_model.confidence == 0.65
+        model_link = next(
+            link
+            for link in records[0].links
+            if link.url.endswith(f"/{sha}/model.safetensors")
+        )
+        assert model_link.model_local_ids == (linked_model.local_id,)
 
 
 def test_evaluation_model_links_project_exact_civitai_model_version() -> None:

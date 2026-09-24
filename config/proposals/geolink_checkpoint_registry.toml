@@ -1,0 +1,12 @@
+# The official GeoLink README lists separate unimodal and multimodal checkpoints.
+[[source]]
+name = "geolink-checkpoint-registry"
+adapter = "geolink_checkpoint_registry"
+enabled = false
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:geolink", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+max_response_bytes = 1048576
+
+[evidence]
+model_inventory = "https://github.com/bailubin/GeoLink_NeurIPS2025"
+checkpoint_scope = "Two README-declared Google Drive checkpoint files for unimodal and multimodal GeoLink; no file bytes fetched"

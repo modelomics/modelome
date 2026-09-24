@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 
+from modelome.entries import build_entries, source_record_to_entry_seed
+from modelome.extract import IntroductionCueExtractor
 from modelome.http import HttpFailure, HttpResponse
 from modelome.models import Identifier
 from modelome.normalize import content_hash
@@ -296,6 +299,32 @@ def test_uri_typed_supplement_relation_emits_exact_hosted_artifact_link() -> Non
     assert artifact_link.locator == "$.relation.is-supplemented-by[0]"
     assert not any(link.url.startswith("javascript:") for link in record.links)
     assert record.models == ()
+
+
+def test_abstract_declared_checkpoint_link_is_projected_with_span_evidence() -> None:
+    item = work()
+    item["abstract"] = (
+        '<jats:p>We introduce GenomicsNet, a neural network. '
+        'Model weights are available at '
+        '<jats:ext-link xlink:href="https://huggingface.co/org/model">the model card'
+        "</jats:ext-link>.</jats:p>"
+    )
+    client = QueuedClient(response([item], total=1, cursor=""))
+
+    page = adapter(client).fetch_page({})
+
+    record = page.records[0]
+    link = next(link for link in record.links if link.url == "https://huggingface.co/org/model")
+    assert link.relation == "weights"
+    assert link.locator == "$.abstract.ext-link[0]"
+
+    record = replace(record, models=IntroductionCueExtractor().extract(record))
+    seed = source_record_to_entry_seed(record, source="crossref")
+    entry = build_entries([seed]).entries[0]
+    assert any(
+        resource.url == link.url and resource.relation == "weights"
+        for resource in entry.resources
+    )
 
 
 def test_constructor_rejects_non_web_api_url() -> None:

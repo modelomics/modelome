@@ -1,0 +1,15 @@
+# First-party PANNs AudioSet releases on Zenodo. The v3 (3987831) release has
+# 23 .pth file rows; v1 (3576403) has 20. Non-checkpoint attachments are skipped.
+[[source]]
+name = "panns-zenodo-models"
+adapter = "panns_zenodo_models"
+enabled = false
+record_ids = ["3576403", "3987831"]
+record_api_urls = ["https://zenodo.org/api/records/3576403", "https://zenodo.org/api/records/3987831"]
+entry_tags = ["ecosystem:panns", "modality:audio", "task:audio-tagging", "dataset:audioset", "kind:checkpoint"]
+schedule = "weekly"
+max_files_per_record = 100
+max_response_bytes = 4194304
+
+# Files, exact Zenodo version-specific content URLs, MD5 checksums, and sizes
+# are read from record metadata only. Checkpoint contents are never fetched.

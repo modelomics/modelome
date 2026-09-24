@@ -1,0 +1,21 @@
+# Microsoft's Azure ML Asset Catalog V2 has a documented anonymous model-list
+# API. This records public model asset versions and catalog metadata, including
+# third-party publisher records. It does not assert inference availability.
+# Listing uses the documented continuationToken in POST bodies; requests omit
+# all authentication headers. A bounded adapter/factory must be wired before
+# activation.
+# Primary sources:
+# https://api.catalog.azureml.ms/asset-gallery/v1.0
+# https://ai.azure.com/catalog/models/
+[[source]]
+name = "azure-asset-gallery-v2-public-models"
+adapter = "azure_asset_gallery_v2"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:azure", "kind:model-catalog-asset", "evidence:public-api-catalog"]
+url = "https://api.catalog.azureml.ms/asset-gallery/v1.0/models"
+provider_namespace = "azureml:catalog-model-version"
+model_page_crawl = false
+schedule = "weekly"
+page_size = 100
+max_pages = 500
+max_response_bytes = 8388608

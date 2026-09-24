@@ -1,0 +1,14 @@
+name = "starvla-vlact-collection"
+adapter = "starvla_vlact_collection"
+enabled = false
+max_response_bytes = 4194304
+max_entries = 24
+
+[discovery]
+source = "https://huggingface.co/collections/StarVLA/vlact-6a903c2e0c176179da425c96"
+api = "https://huggingface.co/api/collections/StarVLA/vlact-6a903c2e0c176179da425c96"
+organization = "https://huggingface.co/StarVLA"
+
+[coverage]
+kind = "robotics-policy-checkpoints"
+notes = "Indexes public model entries in StarVLA's first-party VLAct collection and verifies one exact checkpoints/*.pt object in each pinned Hub revision. Includes the continued-pretraining backbone and downstream action-policy checkpoints; does not download weights or enumerate the separate model zoo."

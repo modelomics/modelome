@@ -37,6 +37,7 @@ _ZENODO_DOI = re.compile(r"^10\.5281/zenodo\.([1-9][0-9]*)$", re.IGNORECASE)
 _CIVITAI_ID = re.compile(r"^[1-9][0-9]*$")
 _DEMUCS_CHECKPOINT = re.compile(r"^(?P<signature>[0-9a-f]{8})-[0-9a-f]{8}\.th$")
 _TFHUB_VERSION = re.compile(r"^[1-9][0-9]*$")
+_HUGGINGFACE_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 _TITLE_STOPWORDS = frozenset(
     {
         "a",
@@ -944,8 +945,8 @@ def _evaluation_records(
                 locator="$.datasets[].sota.rows[].model_links[].url",
                 crawl=False,
                 model_local_ids=(
-                    ("pwc-linked-model:" + content_hash(model_identifier.value)[:32],)
-                    if (model_identifier := _evaluation_model_identifier_from_url(model_url))
+                    (_evaluation_linked_model_local_id(model_identifiers),)
+                    if (model_identifiers := _evaluation_model_identifiers_from_url(model_url))
                     else ()
                 ),
             )
@@ -954,10 +955,11 @@ def _evaluation_records(
         local_id = f"pwc-evaluation:{identity}"
         linked_model_hints: dict[str, ModelHint] = {}
         for model_url in sorted(entry["model_links"]):
-            model_identifier = _evaluation_model_identifier_from_url(model_url)
-            if not model_identifier:
+            model_identifiers = _evaluation_model_identifiers_from_url(model_url)
+            if not model_identifiers:
                 continue
-            linked_local_id = "pwc-linked-model:" + content_hash(model_identifier.value)[:32]
+            model_identifier = model_identifiers[0]
+            linked_local_id = _evaluation_linked_model_local_id(model_identifiers)
             linked_model_hints.setdefault(
                 linked_local_id,
                 ModelHint(
@@ -967,7 +969,7 @@ def _evaluation_records(
                         if entry["model_link_titles"].get(model_url)
                         else model_identifier.value
                     ),
-                    identifiers=(model_identifier,),
+                    identifiers=model_identifiers,
                     status=ModelStatus.CANDIDATE,
                     confidence=0.65,
                     locator="$.datasets[].sota.rows[].model_links[].url",
@@ -1107,6 +1109,34 @@ def _evaluation_model_identifier_from_url(value: str) -> Identifier | None:
     if len(segments) >= 5 and _KAGGLE_VERSION.fullmatch(segments[4]):
         return Identifier("kaggle:model-instance-version", "/".join(segments[:5]))
     return Identifier("kaggle:model", model_ref)
+
+
+def _evaluation_model_identifiers_from_url(value: str) -> tuple[Identifier, ...]:
+    identifier = _evaluation_model_identifier_from_url(value)
+    if identifier is None:
+        return ()
+    identifiers = [identifier]
+    parts = urlsplit(canonicalize_url(value))
+    segments = [unquote(segment) for segment in parts.path.split("/") if segment]
+    if (
+        (parts.hostname or "").casefold() in {"huggingface.co", "www.huggingface.co"}
+        and identifier.namespace == "huggingface:model"
+        and len(segments) >= 5
+        and segments[2] in {"blob", "resolve"}
+        and _HUGGINGFACE_COMMIT.fullmatch(segments[3])
+    ):
+        identifiers.append(
+            Identifier("huggingface:revision", f"{identifier.value}@{segments[3]}")
+        )
+    return tuple(identifiers)
+
+
+def _evaluation_linked_model_local_id(identifiers: Sequence[Identifier]) -> str:
+    if len(identifiers) == 1:
+        return "pwc-linked-model:" + content_hash(identifiers[0].value)[:32]
+    return "pwc-linked-model:" + content_hash(
+        [(identifier.namespace, identifier.value) for identifier in identifiers]
+    )[:32]
 
 
 def _dataset_items(value: Any) -> tuple[Any, ...]:

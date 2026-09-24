@@ -30,6 +30,7 @@ from modelome.sources.aws_sagemaker_client import create_signed_sagemaker_client
 from modelome.sources.aws_sagemaker_jumpstart_versions import (
     AwsSageMakerJumpStartVersionsSourceAdapter,
 )
+from modelome.sources.azure_asset_gallery_v2 import AzureAssetGalleryV2Adapter
 from modelome.sources.base import SourceAdapter
 from modelome.sources.bfl_api_models import BFLAPIModelsSourceAdapter
 from modelome.sources.bioimageio import BioImageIoSourceAdapter
@@ -100,6 +101,7 @@ from modelome.sources.generative_extra import (
     CompVisStableDiffusionFirstStagesSourceAdapter,
 )
 from modelome.sources.gensim_registry import GensimDownloaderModelRegistrySourceAdapter
+from modelome.sources.geolink_checkpoint_registry import GeoLinkCheckpointRegistrySourceAdapter
 from modelome.sources.geom2vec_checkpoint_files import Geom2VecCheckpointFilesSourceAdapter
 from modelome.sources.geospatial_registry import GeospatialRegistrySourceAdapter
 from modelome.sources.gharchive import GhArchiveSourceAdapter
@@ -143,6 +145,7 @@ from modelome.sources.json_catalog import JsonCatalogSourceAdapter
 from modelome.sources.kaggle import KaggleModelsSourceAdapter
 from modelome.sources.kaldi_model_index import KaldiModelIndexSourceAdapter
 from modelome.sources.keras_convnext_weights import KerasConvNeXtWeightsSourceAdapter
+from modelome.sources.keras_efficientnet_weights import KerasEfficientNetWeightsSourceAdapter
 from modelome.sources.keras_hub_preset_registry import KerasHubPresetRegistrySourceAdapter
 from modelome.sources.keras_resnet_weights import KerasResNetWeightsSourceAdapter
 from modelome.sources.lerobot_molmoact2_relation import (
@@ -245,6 +248,7 @@ from modelome.sources.paddlematerials_registry import PaddleMaterialsRegistryAda
 from modelome.sources.paddlenlp_albert_registry import PaddleNlpAlbertRegistrySourceAdapter
 from modelome.sources.paddlenlp_bert_registry import PaddleNlpBertRegistrySourceAdapter
 from modelome.sources.paddlenlp_ernie_registry import PaddleNlpErnieRegistrySourceAdapter
+from modelome.sources.paddlenlp_funnel_registry import PaddleNlpFunnelRegistrySourceAdapter
 from modelome.sources.paddlenlp_roformer_registry import PaddleNlpRoformerRegistrySourceAdapter
 from modelome.sources.paddlenlp_taskflow_knowledge_mining import (
     PaddleNlpTaskflowKnowledgeMiningSourceAdapter,
@@ -270,6 +274,7 @@ from modelome.sources.paddlex_model_list import PaddleXModelListSourceAdapter
 from modelome.sources.pangu_weather_checkpoint_registry import (
     PanguWeatherCheckpointRegistrySourceAdapter,
 )
+from modelome.sources.panns_zenodo_models import PannsZenodoModelsAdapter
 from modelome.sources.paperswithcode import (
     PapersWithCodeEvaluationMethodsSourceAdapter,
     PapersWithCodeLinksSourceAdapter,
@@ -301,6 +306,7 @@ from modelome.sources.roboflow_universe_candidates import RoboflowUniverseCandid
 from modelome.sources.robotics_extra import ArgusCheckpointInventorySourceAdapter
 from modelome.sources.robotics_registry_v3 import RoboticsTransformerCheckpointSourceAdapter
 from modelome.sources.rosettafold_checkpoints import RoseTTAFoldCheckpointAdapter
+from modelome.sources.rsna_atlas_registry import RsnaAtlasRegistrySourceAdapter
 from modelome.sources.satmae_checkpoint_registry import SatMAECheckpointRegistrySourceAdapter
 from modelome.sources.sdss_ssl_checkpoints import SdssSslCheckpointsSourceAdapter
 from modelome.sources.semantic_scholar import SemanticScholarDatasetSourceAdapter
@@ -316,6 +322,7 @@ from modelome.sources.ssl4eo_s12_drive_checkpoints import (
 )
 from modelome.sources.stability_sdxl_checkpoints import StabilitySDXLCheckpointSourceAdapter
 from modelome.sources.stanza_resources import StanzaResourcesSourceAdapter
+from modelome.sources.starvla_vlact_collection import StarVLAVLActCollectionAdapter
 from modelome.sources.static_json_checkpoint_registry import (
     StaticJsonCheckpointRegistrySourceAdapter,
 )
@@ -333,6 +340,7 @@ from modelome.sources.timm_legacy_efficientnet import TimmLegacyEfficientNetSour
 from modelome.sources.timm_legacy_poolformer import TimmLegacyPoolFormerSourceAdapter
 from modelome.sources.timm_legacy_regnet import TimmLegacyRegNetSourceAdapter
 from modelome.sources.timm_legacy_resnetv2 import TimmLegacyResNetV2SourceAdapter
+from modelome.sources.timm_legacy_vit import TimmLegacyViTSourceAdapter
 from modelome.sources.timm_model_registry import TimmModelRegistrySourceAdapter
 from modelome.sources.torch_hub_extra import TorchHubListingSourceAdapter
 from modelome.sources.torchaudio_pipeline_registry import (
@@ -1956,7 +1964,14 @@ def create_source(
             "deepinfra_model_catalog",
             "dryad_model_candidates",
             "keras_convnext_weights",
+            "keras_efficientnet_weights",
+            "panns_zenodo_models",
+            "starvla_vlact_collection",
+            "timm_legacy_vit",
+            "rsna_atlas_registry",
             "paddlenlp_bert_registry",
+            "paddlenlp_funnel_registry",
+            "geolink_checkpoint_registry",
             "vosk_models",
             "keras_resnet_weights",
             "molmobot_policy_collection",
@@ -2066,6 +2081,9 @@ def create_source(
             include_revisions=_boolean(expanded.get("include_revisions"), default=False),
             include_revision_files=_boolean(
                 expanded.get("include_revision_files"), default=False
+            ),
+            include_checkpoint_file_metadata=_boolean(
+                expanded.get("include_checkpoint_file_metadata"), default=False
             ),
             max_revision_tree_pages=_integer(
                 expanded.get("max_revision_tree_pages"), 20
@@ -3604,6 +3622,26 @@ def create_source(
             **injected,
         )
 
+    if adapter == "paddlenlp_funnel_registry":
+        return PaddleNlpFunnelRegistrySourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "PaddlePaddle/PaddleNLP",
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_text(expanded.get("source_path"))
+            or "paddlenlp/transformers/funnel/configuration.py",
+            provider_namespace=_text(expanded.get("provider_namespace"))
+            or "paddlenlp:transformer-model",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "geolink_checkpoint_registry":
+        return GeoLinkCheckpointRegistrySourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 1024 * 1024),
+            client=injected["client"],
+        )
+
     if adapter == "yandex_ddpm_ffhq_checkpoint":
         return YandexDDPMFFHQCheckpointSourceAdapter(
             name=name,
@@ -3674,6 +3712,9 @@ def create_source(
             name=name,
             base_url=_text(expanded.get("base_url")) or "https://datadryad.org/api/v2",
             page_size=_integer(expanded.get("page_size"), 10),
+            query=_text(expanded.get("query"))
+            or '"deep learning models"',
+            max_pages=_integer(expanded.get("max_pages"), 3),
             dataset_doi=_text(expanded.get("dataset_doi")) or None,
             client=injected["client"],
         )
@@ -3687,6 +3728,26 @@ def create_source(
             max_source_bytes=_integer(expanded.get("max_source_bytes"), 2 * 1024 * 1024),
             max_records=_integer(expanded.get("max_records"), 20),
             client=injected["client"],
+        )
+
+    if adapter == "keras_efficientnet_weights":
+        return KerasEfficientNetWeightsSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "keras-team/keras",
+            branch=_text(expanded.get("branch")) or "master",
+            source_path=_text(expanded.get("source_path"))
+            or "keras/src/applications/efficientnet.py",
+            max_source_bytes=_integer(expanded.get("max_source_bytes"), 2 * 1024 * 1024),
+            max_records=_integer(expanded.get("max_records"), 16),
+            client=injected["client"],
+        )
+
+    if adapter == "panns_zenodo_models":
+        return PannsZenodoModelsAdapter(
+            name=name,
+            max_files_per_record=_integer(expanded.get("max_files_per_record"), 100),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
         )
 
     if adapter == "vosk_models":
@@ -3754,6 +3815,36 @@ def create_source(
             document_path=_text(expanded.get("document_path")) or "README.md",
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
             max_checkpoints=_integer(expanded.get("max_checkpoints"), 20),
+            client=injected["client"],
+        )
+
+    if adapter == "azure_asset_gallery_v2":
+        return AzureAssetGalleryV2Adapter(
+            name=name,
+            page_size=_integer(expanded.get("page_size"), 100),
+            max_pages=_integer(expanded.get("max_pages"), 500),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            timeout=float(expanded.get("timeout", 30.0)),
+            client=client if callable(getattr(client, "post", None)) else None,
+        )
+
+    if adapter == "starvla_vlact_collection":
+        return StarVLAVLActCollectionAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 24),
+            **injected,
+        )
+
+    if adapter == "timm_legacy_vit":
+        return TimmLegacyViTSourceAdapter(name=name, **injected)
+
+    if adapter == "rsna_atlas_registry":
+        return RsnaAtlasRegistrySourceAdapter(
+            name=name,
+            page_size=_integer(expanded.get("page_size"), 100),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 32 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 5000),
             client=injected["client"],
         )
 

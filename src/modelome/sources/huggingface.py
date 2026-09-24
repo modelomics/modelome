@@ -118,6 +118,9 @@ def _weight_file_metadata(entry: Mapping[str, Any]) -> dict[str, int | str]:
         size = raw_lfs.get("size")
     if isinstance(size, int) and not isinstance(size, bool) and size >= 0:
         result["size_bytes"] = size
+    blob_id = entry.get("blobId") or entry.get("blob_id")
+    if isinstance(blob_id, str) and re.fullmatch(r"[0-9a-fA-F]{40}", blob_id):
+        result["blob_id"] = blob_id.casefold()
     sha256 = raw_lfs.get("sha256")
     if isinstance(sha256, str) and re.fullmatch(r"[0-9a-fA-F]{64}", sha256):
         result["lfs_sha256"] = sha256.casefold()
@@ -143,6 +146,9 @@ def _safe_weight_file_metadata(
         size = details.get("size_bytes")
         if isinstance(size, int) and not isinstance(size, bool) and size >= 0:
             safe_details["size_bytes"] = size
+        blob_id = details.get("blob_id")
+        if isinstance(blob_id, str) and re.fullmatch(r"[0-9a-fA-F]{40}", blob_id):
+            safe_details["blob_id"] = blob_id.casefold()
         sha256 = details.get("lfs_sha256")
         if isinstance(sha256, str) and re.fullmatch(r"[0-9a-fA-F]{64}", sha256):
             safe_details["lfs_sha256"] = sha256.casefold()
@@ -221,6 +227,7 @@ class HuggingFaceSourceAdapter:
         include_private: bool = False,
         include_revisions: bool = False,
         include_revision_files: bool = False,
+        include_checkpoint_file_metadata: bool = False,
         max_revision_tree_pages: int = 20,
         max_revision_weight_file_state_bytes: int = 262_144,
         client: HttpClient | Any | None = None,
@@ -241,6 +248,11 @@ class HuggingFaceSourceAdapter:
         self.include_revision_files = bool(include_revision_files)
         if self.include_revision_files and not self.include_revisions:
             raise ValueError("include_revision_files requires include_revisions")
+        self.include_checkpoint_file_metadata = bool(include_checkpoint_file_metadata)
+        if self.include_checkpoint_file_metadata and self.include_revisions:
+            raise ValueError(
+                "include_checkpoint_file_metadata cannot be combined with include_revisions"
+            )
         self.max_revision_tree_pages = _positive_int(
             max_revision_tree_pages, "max_revision_tree_pages"
         )
@@ -262,6 +274,7 @@ class HuggingFaceSourceAdapter:
                 "include_private": self.include_private,
                 "include_revisions": self.include_revisions,
                 "include_revision_files": self.include_revision_files,
+                "include_checkpoint_file_metadata": self.include_checkpoint_file_metadata,
                 "max_revision_tree_pages": self.max_revision_tree_pages,
                 "max_revision_weight_file_state_bytes": self.max_revision_weight_file_state_bytes,
             }
@@ -271,6 +284,11 @@ class HuggingFaceSourceAdapter:
         headers = {"Accept": "application/json"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
+
+        if self.include_checkpoint_file_metadata and isinstance(
+            state.get("checkpoint_metadata_queue"), Sequence
+        ):
+            return self._fetch_checkpoint_file_metadata_page(state, headers)
 
         if self.include_revisions and isinstance(state.get("revision_queue"), Sequence):
             return self._fetch_revision_page(state, headers)
@@ -446,6 +464,38 @@ class HuggingFaceSourceAdapter:
                     "created_at_sweep_completed_at"
                 ]
 
+        if self.include_checkpoint_file_metadata:
+            metadata_queue = [
+                dict(record.raw)
+                for record in records
+                if record.releases
+                and _sequence(record.releases[0].metadata.get("weight_files"))
+            ]
+            if metadata_queue:
+                records_without_weights = tuple(
+                    record
+                    for record in records
+                    if not record.releases
+                    or not _sequence(record.releases[0].metadata.get("weight_files"))
+                )
+                next_state = {
+                    "checkpoint_metadata_base_state": next_state,
+                    "checkpoint_metadata_queue": metadata_queue,
+                    "checkpoint_metadata_listing_complete": complete,
+                    "checkpoint_metadata_upstream_count": (
+                        response_total if response_total is not None else scan_total
+                    ),
+                }
+                return SourcePage(
+                    records=records_without_weights,
+                    next_state=next_state,
+                    complete=False,
+                    upstream_count=(
+                        response_total if response_total is not None else scan_total
+                    ),
+                    issues=tuple(issues),
+                )
+
         if self.include_revisions:
             # The Hub's refs and commits endpoints expose exact immutable commit
             # IDs as JSON. Walk them separately so catalog enumeration remains
@@ -468,6 +518,182 @@ class HuggingFaceSourceAdapter:
             complete=complete,
             upstream_count=response_total if response_total is not None else scan_total,
             issues=tuple(issues),
+        )
+
+    def _fetch_checkpoint_file_metadata_page(
+        self,
+        state: Mapping[str, Any],
+        headers: Mapping[str, str],
+    ) -> SourcePage:
+        queue = [
+            dict(value)
+            for value in _sequence(state.get("checkpoint_metadata_queue"))
+            if isinstance(value, Mapping)
+        ]
+        if not queue:
+            return SourcePage(
+                records=(),
+                next_state=dict(state.get("checkpoint_metadata_base_state") or {}),
+                complete=state.get("checkpoint_metadata_listing_complete") is True,
+                upstream_count=state.get("checkpoint_metadata_upstream_count"),
+            )
+
+        item = queue[0]
+        repo_id = _hub_repo_id(item.get("id") or item.get("modelId"))
+        expected_sha = _text(item.get("sha"))
+        if not repo_id or not re.fullmatch(r"[0-9a-f]{40}", expected_sha):
+            raise ValueError(f"{self.name}: invalid checkpoint metadata queue identity")
+        encoded_id = quote(repo_id, safe="/")
+        url = f"https://huggingface.co/api/models/{encoded_id}?blobs=true"
+        issues: tuple[SourceIssue, ...] = ()
+        metadata: dict[str, dict[str, int | str]] = {}
+        metadata_complete = False
+        try:
+            response: HttpResponse = self.client.get(url, headers=headers)
+        except HttpFailure as error:
+            if "exceeded" not in str(error) or "bytes" not in str(error):
+                raise
+            payload = None
+            issue_text = (
+                f"model detail exceeded the {self.max_response_bytes}-byte metadata limit"
+            )
+        else:
+            if response.status in {401, 403, 404}:
+                payload = None
+                issue_text = f"model detail is unavailable (HTTP {response.status})"
+            elif response.status != 200:
+                raise ValueError(f"{self.name}: model detail returned HTTP {response.status}")
+            elif len(response.body) > self.max_response_bytes:
+                payload = None
+                issue_text = (
+                    f"model detail exceeded the {self.max_response_bytes}-byte metadata limit"
+                )
+            else:
+                payload = response.json()
+                issue_text = ""
+
+        if payload is None:
+            issues = (self._checkpoint_metadata_issue(repo_id, issue_text),)
+        elif not isinstance(payload, Mapping):
+            issues = (
+                self._checkpoint_metadata_issue(repo_id, "model detail is not a JSON object"),
+            )
+        else:
+            detail_id = _hub_repo_id(payload.get("id") or payload.get("modelId"))
+            detail_sha = _text(payload.get("sha"))
+            if detail_id != repo_id:
+                issues = (
+                    self._checkpoint_metadata_issue(repo_id, "model detail identity changed"),
+                )
+            elif detail_sha != expected_sha:
+                issues = (
+                    self._checkpoint_metadata_issue(
+                        repo_id,
+                        "model detail revision changed during listing",
+                        listed_sha=expected_sha,
+                        detail_sha=detail_sha or None,
+                    ),
+                )
+            elif not isinstance(payload.get("siblings"), Sequence) or isinstance(
+                payload.get("siblings"), (str, bytes, bytearray)
+            ):
+                issues = (
+                    self._checkpoint_metadata_issue(repo_id, "model detail lacks file siblings"),
+                )
+            else:
+                detail_files = {
+                    _text(sibling.get("rfilename") or sibling.get("path")): sibling
+                    for sibling in _sequence(payload.get("siblings"))
+                    if isinstance(sibling, Mapping)
+                    and _text(sibling.get("rfilename") or sibling.get("path"))
+                }
+                listing_files = {
+                    _text(sibling.get("rfilename") or sibling.get("path"))
+                    for sibling in _sequence(item.get("siblings"))
+                    if isinstance(sibling, Mapping)
+                    and _text(sibling.get("rfilename") or sibling.get("path"))
+                }
+                weight_files = {
+                    filename
+                    for filename in listing_files
+                    if _is_weight_file(filename, tuple(listing_files))
+                }
+                metadata_complete = True
+                for filename in weight_files:
+                    sibling = detail_files.get(filename)
+                    if sibling is None:
+                        metadata_complete = False
+                        continue
+                    details = _weight_file_metadata(sibling)
+                    if not details:
+                        metadata_complete = False
+                        continue
+                    metadata[filename] = details
+                metadata, truncated = _safe_weight_file_metadata(
+                    metadata,
+                    self.max_revision_weight_file_state_bytes,
+                )
+                metadata_complete = metadata_complete and not truncated
+                if not metadata_complete:
+                    issues = (
+                        self._checkpoint_metadata_issue(
+                            repo_id,
+                            "checkpoint file metadata is incomplete",
+                            listed_file_count=len(weight_files),
+                            metadata_file_count=len(metadata),
+                        ),
+                    )
+
+        record = self._record(
+            item,
+            weight_file_metadata=metadata,
+            weight_file_metadata_complete=metadata_complete,
+        )
+        if record is None:
+            records: tuple[SourceRecord, ...] = ()
+        else:
+            records = (record,)
+        remaining = queue[1:]
+        base_state = dict(state.get("checkpoint_metadata_base_state") or {})
+        if remaining:
+            next_state = {
+                "checkpoint_metadata_base_state": base_state,
+                "checkpoint_metadata_queue": remaining,
+                "checkpoint_metadata_listing_complete": (
+                    state.get("checkpoint_metadata_listing_complete") is True
+                ),
+                "checkpoint_metadata_upstream_count": state.get(
+                    "checkpoint_metadata_upstream_count"
+                ),
+            }
+            complete = False
+        else:
+            next_state = base_state
+            complete = state.get("checkpoint_metadata_listing_complete") is True
+        return SourcePage(
+            records=records,
+            next_state=next_state,
+            complete=complete,
+            upstream_count=state.get("checkpoint_metadata_upstream_count"),
+            issues=issues,
+            advance_on_source_issues=bool(issues),
+        )
+
+    def _checkpoint_metadata_issue(
+        self,
+        repo_id: str,
+        message: str,
+        **summary: Any,
+    ) -> SourceIssue:
+        return SourceIssue(
+            source_record_id=f"{self.name}:{repo_id}",
+            stage="source_normalize",
+            error=message,
+            summary={
+                "model_id": repo_id,
+                "file_metadata_status": "incomplete",
+                **summary,
+            },
         )
 
     def _listing_params(self, created_at_sweep: bool) -> Mapping[str, Any]:
@@ -859,7 +1085,13 @@ class HuggingFaceSourceAdapter:
             raise ValueError(f"{self.name}: pagination URL changed origin")
         return candidate
 
-    def _record(self, item: Mapping[str, Any]) -> SourceRecord | None:
+    def _record(
+        self,
+        item: Mapping[str, Any],
+        *,
+        weight_file_metadata: Mapping[str, Mapping[str, int | str]] | None = None,
+        weight_file_metadata_complete: bool | None = None,
+    ) -> SourceRecord | None:
         repo_id = _text(item.get("id")) or _text(item.get("modelId"))
         if not repo_id:
             raise ValueError(f"{self.name}: model result is missing id")
@@ -988,22 +1220,34 @@ class HuggingFaceSourceAdapter:
             if commit_sha
             else ()
         )
+        release_metadata: dict[str, Any] = {
+            "library_name": _text(item.get("library_name")) or None,
+            "pipeline_tag": _text(item.get("pipeline_tag")) or None,
+            "weight_files": sorted(
+                filename
+                for filename in sibling_filenames
+                if _is_weight_file(filename, sibling_filenames)
+            ),
+            "weight_files_complete": True,
+        }
+        if weight_file_metadata is not None:
+            safe_metadata, truncated = _safe_weight_file_metadata(
+                weight_file_metadata,
+                self.max_revision_weight_file_state_bytes,
+            )
+            release_metadata["weight_file_metadata"] = safe_metadata
+            release_metadata["weight_file_metadata_complete"] = bool(
+                weight_file_metadata_complete and not truncated
+            )
+            if truncated:
+                release_metadata["weight_file_metadata_truncated"] = True
         release = ReleaseHint(
             local_id=f"{repo_id}#release:{revision}",
             model_local_id=model.local_id,
             revision=revision,
             identifiers=release_identifiers,
             released_at=_text(item.get("lastModified") or item.get("last_modified")) or None,
-            metadata={
-                "library_name": _text(item.get("library_name")) or None,
-                "pipeline_tag": _text(item.get("pipeline_tag")) or None,
-                "weight_files": sorted(
-                    filename
-                    for filename in sibling_filenames
-                    if _is_weight_file(filename, sibling_filenames)
-                ),
-                "weight_files_complete": True,
-            },
+            metadata=release_metadata,
             locator="$.sha" if commit_sha else "$.id",
         )
 

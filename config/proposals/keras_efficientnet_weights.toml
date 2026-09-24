@@ -1,0 +1,19 @@
+# First-party Keras Applications EfficientNet B0-B7 ImageNet checkpoints.
+# Reads one literal source manifest; it does not download checkpoint files.
+[[source]]
+name = "keras-efficientnet-imagenet-weights"
+adapter = "keras_efficientnet_weights"
+enabled = false
+entry_tags = ["field:computer-vision", "ecosystem:keras-applications", "kind:pretrained-model"]
+repository = "keras-team/keras"
+branch = "master"
+source_path = "keras/src/applications/efficientnet.py"
+schedule = "weekly"
+max_source_bytes = 2097152
+max_records = 16
+
+[evidence]
+official_repository = "https://github.com/keras-team/keras"
+official_source = "https://github.com/keras-team/keras/blob/master/keras/src/applications/efficientnet.py"
+official_api = "https://keras.io/api/applications/efficientnet/"
+scope = "Eight EfficientNet variants (B0-B7), each with top and no-top ImageNet assets; 16 exact links and MD5 checksums declared by current Keras source. These are distinct from EfficientNetV2 and ConvNeXt sources."

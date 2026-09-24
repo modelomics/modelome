@@ -418,6 +418,123 @@ def test_budget_planner_rejects_budget_below_one_release_per_repository() -> Non
         )
 
 
+def test_small_budget_plan_resumes_at_exact_ids_without_false_completion() -> None:
+    plan = plan_github_repository_id_ranges_with_budget(
+        initial_since=10,
+        max_repository_id=16,
+        shard_count=1,
+        max_api_requests_per_range=60,
+        page_size=2,
+        max_releases_per_repository=1,
+        max_assets_per_release=1,
+        max_release_pages_per_repository=1,
+        max_asset_pages_per_release=1,
+        max_http_attempts=1,
+        source_name_prefix="github-history-smoke",
+    )[0]
+    assert (plan.initial_since, plan.max_repository_id, plan.max_repositories) == (
+        10,
+        16,
+        6,
+    )
+
+    repo_first = "https://api.github.com/repositories?per_page=2&since=10"
+    repo_next = "https://api.github.com/repositories?per_page=2&since=13"
+    repos = [
+        {"id": 11, "full_name": "lab/one", "private": False},
+        {"id": 13, "full_name": "lab/two", "private": False},
+    ]
+    routes = {
+        repo_first: (repos, {"Link": f"<{repo_next}>; rel=next"}),
+        repo_next: (
+            [
+                {"id": 15, "full_name": "lab/three", "private": False},
+                {"id": 16, "full_name": "lab/four", "private": False},
+            ],
+            {},
+        ),
+    }
+    for name in ("one", "two", "three", "four"):
+        routes[f"https://api.github.com/repos/lab/{name}/releases?per_page=2&page=1"] = ([], {})
+    client = RouteClient(routes)
+    adapter = GitHubHistoricalReleaseAssetsSourceAdapter(**plan.adapter_kwargs(), client=client)
+
+    page = adapter.fetch_page({})
+    assert page.complete is False
+    assert page.next_state["repo_queue"] == [
+        {"id": 11, "full_name": "lab/one"},
+        {"id": 13, "full_name": "lab/two"},
+    ]
+    # Persist and reload the checkpoint as an operator would between runs.
+    state = json.loads(json.dumps(page.next_state))
+    resumed = GitHubHistoricalReleaseAssetsSourceAdapter(**plan.adapter_kwargs(), client=client)
+    for _ in range(20):
+        page = resumed.fetch_page(state)
+        state = dict(page.next_state)
+        if page.complete:
+            break
+    else:
+        pytest.fail("planned range did not complete after resume")
+
+    release_urls = [url for url in client.calls if "/releases?" in url]
+    assert release_urls == [
+        "https://api.github.com/repos/lab/one/releases?per_page=2&page=1",
+        "https://api.github.com/repos/lab/two/releases?per_page=2&page=1",
+        "https://api.github.com/repos/lab/three/releases?per_page=2&page=1",
+        "https://api.github.com/repos/lab/four/releases?per_page=2&page=1",
+    ]
+    assert len(client.calls) <= plan.max_api_requests
+    assert state["complete"] is True
+    assert state["coverage_status"] == "repository_id_range_exhausted"
+    assert state["repos_seen"] == 4
+    assert state["last_repository_id"] == 16
+
+
+def test_planned_range_does_not_mark_page_capped_repository_set_complete() -> None:
+    plan = plan_github_repository_id_ranges_with_budget(
+        initial_since=10,
+        max_repository_id=16,
+        shard_count=1,
+        max_api_requests_per_range=60,
+        page_size=2,
+        max_releases_per_repository=1,
+        max_assets_per_release=1,
+        max_release_pages_per_repository=1,
+        max_asset_pages_per_release=1,
+        max_http_attempts=1,
+    )[0]
+    # A caller can choose a smaller explicit repository cap than the numeric
+    # shard width. Completion must report that bounded stop distinctly.
+    kwargs = plan.adapter_kwargs()
+    kwargs["max_repositories"] = 2
+    url = "https://api.github.com/repositories?per_page=2&since=10"
+    capped_routes = {
+        url: (
+            [
+                {"id": 11, "full_name": "lab/one", "private": False},
+                {"id": 13, "full_name": "lab/two", "private": False},
+            ],
+            {"Link": "<https://api.github.com/repositories?per_page=2&since=13>; rel=next"},
+        ),
+        "https://api.github.com/repos/lab/one/releases?per_page=2&page=1": ([], {}),
+        "https://api.github.com/repos/lab/two/releases?per_page=2&page=1": ([], {}),
+    }
+    adapter = GitHubHistoricalReleaseAssetsSourceAdapter(
+        **kwargs,
+        client=RouteClient(capped_routes),
+    )
+    state: dict[str, Any] = {}
+    for _ in range(10):
+        page = adapter.fetch_page(state)
+        state = dict(page.next_state)
+        if page.complete:
+            break
+    else:
+        pytest.fail("explicitly capped range did not complete")
+    assert page.complete is True
+    assert page.next_state["coverage_status"] == "repository_limit_reached"
+
+
 @pytest.mark.parametrize(
     ("initial_since", "max_repository_id", "shard_count"),
     [(3, 3, 1), (0, 10, 11), (0, 20_001, 1)],

@@ -76,7 +76,7 @@ def test_emits_candidate_only_for_explicit_model_weight_file():
     )
     page = DryadModelCandidatesSourceAdapter(client=client).fetch_page({})
 
-    assert page.complete is False
+    assert page.complete is True
     assert page.upstream_count == 1
     assert len(page.records) == 1
     record = page.records[0]
@@ -89,7 +89,7 @@ def test_emits_candidate_only_for_explicit_model_weight_file():
     assert record.links[-1].crawl is False
     assert record.links[0].url == "https://doi.org/10.1000/article.1"
     assert client.calls[0][1] == {
-        "q": '"deep learning models"',
+        "q": '"weights of the trained machine learning models"',
         "page": 1,
         "per_page": 1,
     }
@@ -139,14 +139,13 @@ def test_paginates_dataset_search_by_page_number():
 
     assert page.complete is False
     assert page.next_state == {
-        "query_index": 0,
-        "query": '"deep learning models"',
+        "query": '"weights of the trained machine learning models"',
         "records_seen": 1,
         "page": 2,
     }
 
 
-def test_advances_to_next_phrase_after_query_exhaustion():
+def test_advances_within_bounded_exact_query():
     client = _Client(
         [
             {
@@ -167,12 +166,41 @@ def test_advances_to_next_phrase_after_query_exhaustion():
 
     page = adapter.fetch_page({})
 
-    assert page.complete is False
+    assert page.complete is True
     assert page.next_state == {
-        "query_index": 1,
-        "query": '"neural network weights"',
-        "records_seen": 0,
+        "query": '"weights of the trained machine learning models"',
+        "records_seen": 1,
     }
+
+
+def test_stops_after_configured_query_window():
+    client = _Client(
+        [
+            {
+                "count": 1,
+                "total": 9,
+                "_embedded": {
+                    "stash:datasets": [
+                        {
+                            "identifier": "doi:10.5061/dryad.example",
+                            "title": "A dataset without model metadata",
+                        }
+                    ]
+                },
+            },
+        ]
+    )
+    adapter = DryadModelCandidatesSourceAdapter(client=client, page_size=1, max_pages=1)
+
+    page = adapter.fetch_page({})
+
+    assert page.complete is True
+    assert page.upstream_count == 9
+    assert page.next_state == {
+        "query": '"weights of the trained machine learning models"',
+        "records_seen": 1,
+    }
+    assert client.calls[0][1]["q"] == '"weights of the trained machine learning models"'
 
 
 def test_reads_model_file_after_first_file_metadata_page():

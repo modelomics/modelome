@@ -63,6 +63,22 @@ def wssnet_record() -> str:
     </record>"""
 
 
+def historical_only_record() -> str:
+    return """<record>
+      <header><identifier>oai:figshare.com:article/19105067</identifier></header>
+      <metadata><mets:mets xmlns:mets="http://www.loc.gov/METS/"
+          xmlns:dc="http://purl.org/dc/elements/1.1/"
+          xmlns:dcterms="http://purl.org/dc/terms/">
+        <mets:dmdSec><mets:mdWrap><mets:xmlData>
+          <dc:title>General research files</dc:title>
+          <dc:description>A public archive of research files.</dc:description>
+          <dc:relation>https://figshare.com/articles/software/General/19105067</dc:relation>
+          <dcterms:hasVersion>2</dcterms:hasVersion>
+        </mets:xmlData></mets:mdWrap></mets:dmdSec>
+      </mets:mets></metadata>
+    </record>"""
+
+
 def list_records(records: str, token: str = "") -> str:
     token_xml = (
         f'<resumptionToken expirationDate="2026-09-24T11:00:00Z">{token}</resumptionToken>'
@@ -218,6 +234,43 @@ def test_oai_traversal_preserves_article_file_relation_and_resumes() -> None:
         "https://ndownloader.figshare.com/files/33947432"
     ]
     assert record.models[0].status.value == "candidate"
+
+
+def test_older_candidate_is_found_when_latest_version_has_no_model_cues() -> None:
+    class HistoricalClient(Client):
+        def get(self, url: str, *, params=None, headers=None) -> HttpResponse:
+            self.calls.append((url, dict(params or {})))
+            if url == VERSIONS:
+                body = [
+                    {"version": 1, "url": f"{VERSIONS}/1"},
+                    {"version": 2, "url": f"{VERSIONS}/2"},
+                ]
+            elif url == f"{VERSIONS}/1":
+                body = ARTICLE_V1
+            elif url == f"{VERSIONS}/2":
+                body = {
+                    **ARTICLE,
+                    "title": "General research files",
+                    "description": "A public archive of research files.",
+                }
+            else:
+                return self.responses.pop(0)
+            return response(json.dumps(body), url, "application/json")
+
+    client = HistoricalClient(response(list_records(historical_only_record())))
+    adapter = FigshareModelCandidatesSourceAdapter(
+        from_date="2022-02-07", until_date="2022-02-08", client=client
+    )
+
+    page = adapter.fetch_page({})
+
+    assert [url for url, _ in client.calls] == [OAI, VERSIONS, f"{VERSIONS}/1"]
+    assert page.complete is True
+    assert len(page.records) == 1
+    candidate = page.records[0]
+    assert candidate.source_record_id == "article:19105067:version:1"
+    assert candidate.raw["article_version"] == "1"
+    assert candidate.raw["matched_files"][0]["name"] == "wssnet.zip"
 
 
 def test_half_open_window_and_token_expiry_are_validated() -> None:
