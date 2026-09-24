@@ -377,3 +377,22 @@ def test_garden_reads_literal_yaml_init_checkpoint_without_fetching_artifact() -
             None,
         ),
     )
+
+
+def test_garden_reads_parenthesized_multiline_python_checkpoint_literal() -> None:
+    from modelome.sources.tensorflow_garden import _declared_config_checkpoints
+
+    assert _declared_config_checkpoints(
+        "task.init_checkpoint=(\n"
+        "    'gs://tf_model_garden/vision/resnet/ckpt-42'\n"
+        ")\n"
+    ) == (
+        (
+            "https://storage.googleapis.com/tf_model_garden/vision/resnet/ckpt-42",
+            None,
+        ),
+    )
+    # The parser only accepts a single literal, never evaluates Python.
+    assert _declared_config_checkpoints(
+        "task.init_checkpoint=(prefix + 'gs://bucket/ckpt')\n"
+    ) == ()

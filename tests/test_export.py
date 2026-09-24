@@ -140,7 +140,13 @@ def test_metadata_export_projects_only_huggingface_release_weight_filenames(tmp_
     store = Database(tmp_path / "store")
     store.initialize()
 
-    def record(revision: str, filenames: list[str], raw_body: str) -> SourceRecord:
+    def record(
+        revision: str,
+        filenames: list[str],
+        raw_body: str,
+        *,
+        files_complete: bool = True,
+    ) -> SourceRecord:
         return SourceRecord(
             source_record_id="lab/checkpoint",
             kind=ArtifactKind.MODEL_CARD,
@@ -165,6 +171,7 @@ def test_metadata_export_projects_only_huggingface_release_weight_filenames(tmp_
                     ),
                     metadata={
                         "weight_files": filenames,
+                        "weight_files_complete": files_complete,
                         "private_note": "PRIVATE RELEASE METADATA",
                     },
                 ),
@@ -190,6 +197,7 @@ def test_metadata_export_projects_only_huggingface_release_weight_filenames(tmp_
                 "def456",
                 ["model-v2.safetensors", "../outside.safetensors", "https://private.example/secret.safetensors"],
                 "PRIVATE CURRENT MODEL CARD BODY",
+                files_complete=False,
             ),
         ),
         {},
@@ -202,10 +210,12 @@ def test_metadata_export_projects_only_huggingface_release_weight_filenames(tmp_
     releases = pq.read_table(output / "model_releases.parquet").to_pylist()
     assert {row["revision"] for row in releases} == {"abc123", "def456"}
     release_files = {row["revision"]: json.loads(row["weight_files_json"]) for row in releases}
+    release_files_complete = {row["revision"]: row["weight_files_complete"] for row in releases}
     assert release_files == {
         "abc123": ["model.safetensors", "shards/part-00001.safetensors"],
         "def456": ["model-v2.safetensors"],
     }
+    assert release_files_complete == {"abc123": True, "def456": False}
     revision_identifiers = {
         (row["namespace"], row["value"])
         for row in pq.read_table(output / "release_identifiers.parquet").to_pylist()

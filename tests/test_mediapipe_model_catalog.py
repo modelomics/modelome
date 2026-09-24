@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from modelome.entries import build_entries, source_record_to_entry_seed
 from modelome.http import HttpResponse
 from modelome.models import ArtifactKind, Identifier
 from modelome.sources.mediapipe_model_catalog import (
@@ -95,6 +96,11 @@ def test_same_filename_in_distinct_asset_paths_keeps_distinct_source_ids() -> No
     assert len({record.source_record_id for record in records}) == 2
     assert len({record.models[0].local_id for record in records}) == 2
     assert len({record.releases[0].local_id for record in records}) == 2
+    assert len({record.models[0].identifiers for record in records}) == 2
+    result = build_entries(
+        source_record_to_entry_seed(record, source="mediapipe") for record in records
+    )
+    assert len(result.entries) == 2
 
 
 def test_adapter_emits_exact_binary_links_with_revisioned_first_party_source() -> None:

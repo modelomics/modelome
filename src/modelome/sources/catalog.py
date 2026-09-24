@@ -11,6 +11,7 @@ from typing import Any
 from modelome.config import default_source_catalog
 from modelome.http import HttpClient
 from modelome.sources.acl_anthology import AclAnthologySourceAdapter
+from modelome.sources.admet_ai_checkpoint_registry import ADMETAICheckpointRegistrySourceAdapter
 from modelome.sources.aggregator_registry import OpenMLFlowRegistrySourceAdapter
 from modelome.sources.allennlp_model_archives import AllenNLPModelArchiveSourceAdapter
 from modelome.sources.alphachip_rl_checkpoint import AlphaChipRlCheckpointAdapter
@@ -40,6 +41,7 @@ from modelome.sources.datacite import DataCiteSourceAdapter
 from modelome.sources.deepchem_checkpoint import DeepChemMol2VecCheckpointSourceAdapter
 from modelome.sources.detectron2_model_zoo import Detectron2ModelZooSourceAdapter
 from modelome.sources.dgl_lifesci_registry import DglLifeSciCheckpointRegistrySourceAdapter
+from modelome.sources.dipy_registry import DipyPretrainedRegistrySourceAdapter
 from modelome.sources.dopamine_checkpoint_bundles import DopamineCheckpointBundleAdapter
 from modelome.sources.eartharxiv import EarthArxivSourceAdapter
 from modelome.sources.espnet_model_zoo import EspnetModelZooSourceAdapter
@@ -89,9 +91,11 @@ from modelome.sources.neuralgcm_checkpoint_registry import (
     NeuralGCMCheckpointRegistrySourceAdapter,
 )
 from modelome.sources.ngc import NgcModelsSourceAdapter
+from modelome.sources.ngc_cli_versions import NgcCliModelVersionsSourceAdapter
 from modelome.sources.nltk_data_models import NltkDataModelIndexSourceAdapter
 from modelome.sources.nnunet_registry import NnUNetV1PretrainedRegistryAdapter
 from modelome.sources.ocp_model_registry import OCPModelRegistrySourceAdapter
+from modelome.sources.octo_checkpoints import OctoCheckpointSourceAdapter
 from modelome.sources.ollama_library_tags import OllamaLibraryTagCatalogAdapter
 from modelome.sources.onnx_model_zoo import OnnxModelZooSourceAdapter
 from modelome.sources.openai_models import OpenAIModelsSourceAdapter
@@ -111,6 +115,9 @@ from modelome.sources.paddle_model_center import PaddleModelCenterSourceAdapter
 from modelome.sources.paddleclas_model_registry import PaddleClasModelRegistrySourceAdapter
 from modelome.sources.paddlegan_tutorial_model_zoo import (
     PaddleGanTutorialModelZooSourceAdapter,
+)
+from modelome.sources.paddlenlp_taskflow_knowledge_mining import (
+    PaddleNlpTaskflowKnowledgeMiningSourceAdapter,
 )
 from modelome.sources.paddlenlp_taskflow_sentiment import PaddleNlpTaskflowSentimentSourceAdapter
 from modelome.sources.paddlenlp_taskflow_uie import PaddleNlpTaskflowUieSourceAdapter
@@ -143,6 +150,7 @@ from modelome.sources.rl_checkpoints_extra import DiffusionPolicyCheckpointIndex
 from modelome.sources.robotics_extra import ArgusCheckpointInventorySourceAdapter
 from modelome.sources.robotics_registry_v3 import RoboticsTransformerCheckpointSourceAdapter
 from modelome.sources.semantic_scholar import SemanticScholarDatasetSourceAdapter
+from modelome.sources.sherpa_audio_tagging import SherpaAudioTaggingSourceAdapter
 from modelome.sources.sherpa_source_separation import SherpaSourceSeparationSourceAdapter
 from modelome.sources.software_heritage import SoftwareHeritageOriginSourceAdapter
 from modelome.sources.spacy_models import SpacyModelsSourceAdapter
@@ -970,6 +978,12 @@ def create_source(
             "alphachip_rl_checkpoint",
             "paddlenlp_taskflow_sentiment",
             "gitlab_public_release_assets",
+            "admet_ai_checkpoint_registry",
+            "dipy_pretrained_registry",
+            "paddlenlp_taskflow_knowledge_mining",
+            "octo_checkpoints",
+            "sherpa_audio_tagging",
+            "ngc_cli_model_versions",
             "pelican_vla_checkpoint_registry",
             "ocp_model_registry",
             "dopamine_checkpoint_bundles",
@@ -1076,6 +1090,12 @@ def create_source(
             token=token or None,
             include_private=_boolean(expanded.get("include_private"), default=False),
             include_revisions=_boolean(expanded.get("include_revisions"), default=False),
+            include_revision_files=_boolean(
+                expanded.get("include_revision_files"), default=False
+            ),
+            max_revision_tree_pages=_integer(
+                expanded.get("max_revision_tree_pages"), 20
+            ),
             created_at_sweep_interval_days=_nonnegative_integer(
                 expanded.get("created_at_sweep_interval_days"), 0
             ),
@@ -1838,6 +1858,67 @@ def create_source(
             max_releases_per_page=_integer(expanded.get("max_releases_per_page"), 100),
             max_assets_per_release=_integer(expanded.get("max_assets_per_release"), 1_000),
             client=injected["client"],
+        )
+
+    if adapter == "ngc_cli_model_versions":
+        targets = expanded.get("targets")
+        if not isinstance(targets, list) or not all(isinstance(value, str) for value in targets):
+            raise ValueError(f"{name}: targets must be a list of model identifiers")
+        return NgcCliModelVersionsSourceAdapter(
+            targets=targets,
+            name=name,
+            executable=_text(expanded.get("executable")) or "ngc",
+            max_versions_per_target=_integer(expanded.get("max_versions_per_target"), 5_000),
+        )
+
+    if adapter == "admet_ai_checkpoint_registry":
+        return ADMETAICheckpointRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 16 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "dipy_pretrained_registry":
+        return DipyPretrainedRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            source_path=_required_text(expanded, "source_path"),
+            max_source_bytes=_integer(expanded.get("max_source_bytes"), 8 * 1024 * 1024),
+            max_models=_integer(expanded.get("max_models"), 100),
+            **injected,
+        )
+
+    if adapter == "paddlenlp_taskflow_knowledge_mining":
+        return PaddleNlpTaskflowKnowledgeMiningSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "octo_checkpoints":
+        return OctoCheckpointSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 10),
+            **injected,
+        )
+
+    if adapter == "sherpa_audio_tagging":
+        return SherpaAudioTaggingSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            document_path=_required_text(expanded, "document_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_models=_integer(expanded.get("max_models"), 200),
+            **injected,
         )
 
     if adapter == "pelican_vla_checkpoint_registry":

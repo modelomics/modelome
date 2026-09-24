@@ -281,3 +281,25 @@ def test_zenodo_marks_only_explicit_model_weight_files_as_candidate_checkpoints(
         [expected_relation] if expected_relation else []
     )
     assert page.records[0].models == ()
+
+
+@pytest.mark.parametrize("access_right", ["open", "restricted"])
+def test_zenodo_model_record_preserves_file_integrity_and_access_metadata(
+    access_right: str,
+) -> None:
+    result = item(101, title="OceanNet")
+    result["metadata"]["access_right"] = access_right
+    result["files"][0]["size"] = 1_234_567
+    result["files"][0]["checksum"] = "md5:0123456789abcdef0123456789abcdef"
+    client = QueuedClient(response([result], total=1))
+    adapter = ZenodoModelRecordsSourceAdapter(url=URL, page_size=1, client=client)
+
+    page = adapter.fetch_page({})
+
+    raw = page.records[0].raw
+    assert raw["metadata"]["access_right"] == access_right
+    file = raw["files"][0]
+    assert file["key"] == "oceannet.ckpt"
+    assert file["size"] == 1_234_567
+    assert file["checksum"] == "md5:0123456789abcdef0123456789abcdef"
+    assert file["links"]["self"].endswith("/oceannet.ckpt/content")

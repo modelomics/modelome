@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from modelome.entries import build_entries, source_record_to_entry_seed
 from modelome.http import HttpResponse
 from modelome.sources.opencv_dnn_model_index import OpenCVDnnModelIndexSourceAdapter
 
@@ -101,6 +102,29 @@ def test_opencv_dnn_index_extracts_exact_checkpoint_urls_and_metadata() -> None:
     )
     assert tensorflow.raw["model_filename"] == "ssd_mobilenet.pb"
     assert tensorflow.raw["config_filename"] == "ssd_mobilenet.pbtxt"
+
+
+def test_same_checkpoint_basename_under_distinct_paths_keeps_models_separate() -> None:
+    document = '''\
+model_a:
+  load_info:
+    url: "https://weights.example/a/shared.onnx"
+  model: "shared.onnx"
+model_b:
+  load_info:
+    url: "https://weights.example/b/shared.onnx"
+  model: "shared.onnx"
+'''
+    records = OpenCVDnnModelIndexSourceAdapter(client=_Client(document)).fetch_page({}).records
+
+    assert len(records) == 2
+    assert len({record.source_record_id for record in records}) == 2
+    assert len({record.releases[0].local_id for record in records}) == 2
+    result = build_entries(
+        source_record_to_entry_seed(record, source="opencv-dnn-index")
+        for record in records
+    )
+    assert len(result.entries) == 2
 
 
 def test_opencv_dnn_index_honors_conditional_request_and_size_bounds() -> None:

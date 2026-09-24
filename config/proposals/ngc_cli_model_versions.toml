@@ -1,0 +1,16 @@
+# Opt-in historical-version metadata for exact NGC model targets. This requires
+# NVIDIA's `ngc` CLI at fetch time; construction and import do not run it.
+# The CLI wildcard list has no documented paging, so each configured target is
+# capped and processed in one checkpointed page. Add further targets from the
+# active guest-visible NGC catalog before using this proposal.
+# https://docs.nvidia.com/ngc/latest/ngc-catalog-user-guide.html
+# https://docs.ngc.nvidia.com/cli/cmd_registry.html
+[[source]]
+name = "ngc-cli-model-versions"
+adapter = "ngc_cli_model_versions"
+enabled = false
+entry_tags = ["ecosystem:nvidia-ngc", "kind:model-version"]
+targets = ["nvidia/tao/actionrecognitionnet"]
+executable = "ngc"
+max_versions_per_target = 5000
+schedule = "weekly"

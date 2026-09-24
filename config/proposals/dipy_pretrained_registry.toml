@@ -1,0 +1,19 @@
+# First-party DIPY neuroimaging pretrained-weight fetchers. Disabled pending
+# source-catalog wiring and review of overlap with domain-wide Zenodo/HF indexes.
+[[source]]
+name = "dipy-pretrained-models"
+adapter = "dipy_pretrained_registry"
+enabled = false
+repository = "dipy/dipy"
+branch = "master"
+source_path = "dipy/data/fetcher.py"
+entry_tags = ["field:neuroimaging", "ecosystem:dipy", "kind:checkpoint"]
+schedule = "weekly"
+max_source_bytes = 8388608
+max_models = 100
+
+# DIPY's official fetcher module declares exact model-weight fetchers such as
+# Synb0, DeepN4, EVAC+, ResDNN and SynthSeg, including public Figshare file IDs,
+# filenames and checksums. The adapter AST-parses only literal
+# `fetch_*_weights = _make_fetcher(...)` declarations and does not download
+# checkpoint bytes. It omits test datasets and non-Figshare resources.

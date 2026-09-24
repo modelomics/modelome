@@ -1,0 +1,14 @@
+# PaddleNLP's official Taskflow knowledge-mining module declares direct weight
+# URLs and MD5 values for WordTag and NPTag checkpoints.
+[[source]]
+name = "paddlenlp-taskflow-knowledge-mining-checkpoints"
+adapter = "paddlenlp_taskflow_knowledge_mining"
+enabled = false
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/taskflow/knowledge_mining.py"
+max_response_bytes = 4194304
+max_entries = 100
+
+# The adapter reads literal model_state entries from WordTagTask and NPTagTask.
+# It excludes auxiliary resources and all other Taskflow modules.

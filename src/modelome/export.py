@@ -82,6 +82,7 @@ _PARQUET_FIELDS: dict[str, tuple[str, ...]] = {
         "version",
         "revision",
         "weight_files_json",
+        "weight_files_complete",
         "released_at",
         "confidence",
         "created_at",
@@ -206,6 +207,7 @@ def _project_public_metadata(
         if row.get("canonical_url_normalized")
     }
     release_weight_files: dict[str, set[str]] = {}
+    release_weight_files_complete: dict[str, bool] = {}
     for link in tables["artifact_release_links"]:
         artifact = artifacts.get(link["artifact_id"])
         if artifact is None or not _is_huggingface_model_artifact(artifact):
@@ -219,6 +221,13 @@ def _project_public_metadata(
         filenames = metadata.get("weight_files")
         if not isinstance(filenames, list):
             continue
+        files_complete = metadata.get("weight_files_complete", True)
+        if not isinstance(files_complete, bool):
+            continue
+        release_weight_files_complete[link["release_id"]] = (
+            release_weight_files_complete.get(link["release_id"], True)
+            and files_complete
+        )
         release_weight_files.setdefault(link["release_id"], set()).update(
             filename
             for filename in filenames
@@ -322,6 +331,7 @@ def _project_public_metadata(
                     if release_weight_files.get(row["id"])
                     else None
                 ),
+                "weight_files_complete": release_weight_files_complete.get(row["id"]),
                 "released_at": row["released_at"],
                 "confidence": row["confidence"],
                 "created_at": row["created_at"],
@@ -447,7 +457,9 @@ and, when present in this export, the matching target artifact ID. Together with
 artifacts.parquet and identifiers, those tables support paper/code/model and
 model/release reconstruction without claiming that a URL is a binary payload.
 model_releases.parquet may include weight_files_json, a JSON array of safe relative
-filenames declared by a Hugging Face model record. Other release metadata is omitted.
+filenames declared by a Hugging Face model record. weight_files_complete says
+whether the revision's file listing finished; false means the array contains only
+observed files. Other release metadata is omitted.
 
 ## Deliberately excluded
 

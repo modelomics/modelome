@@ -48,6 +48,7 @@ class _WeightMember:
     name: str
     url: str
     locator: str
+    aliases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -276,6 +277,7 @@ class TorchvisionWeightRegistrySourceAdapter:
                         "module_path": weight_enum.path,
                         "weight_enum": weight_enum.name,
                         "member": member.name,
+                        "aliases": member.aliases,
                         "weight_url": member.url,
                     },
                     locator=member.locator,
@@ -294,7 +296,12 @@ class TorchvisionWeightRegistrySourceAdapter:
                 "module_sha256": weight_enum.source_sha256,
                 "weight_enum": weight_enum.name,
                 "releases": [
-                    {"name": member.name, "url": member.url, "locator": member.locator}
+                    {
+                        "name": member.name,
+                        "aliases": member.aliases,
+                        "url": member.url,
+                        "locator": member.locator,
+                    }
                     for member in weight_enum.members
                 ],
             },
@@ -382,11 +389,17 @@ def _weight_members(
 ) -> tuple[_WeightMember, ...]:
     members = []
     seen: set[str] = set()
+    aliases: dict[str, str] = {}
     for statement in weight_enum.body:
         if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
             continue
         target = statement.targets[0]
-        if not isinstance(target, ast.Name) or not _is_weights_call(statement.value):
+        if not isinstance(target, ast.Name):
+            continue
+        if isinstance(statement.value, ast.Name):
+            aliases[target.id] = statement.value.id
+            continue
+        if not _is_weights_call(statement.value):
             continue
         if target.id in seen:
             raise ValueError(
@@ -405,7 +418,20 @@ def _weight_members(
                 locator=f"{path}:{weight_enum.name}.{target.id}",
             )
         )
-    return tuple(members)
+    members_by_name = {member.name: member for member in members}
+    aliases_by_member: dict[str, list[str]] = {}
+    for alias, target_name in aliases.items():
+        if target_name in members_by_name and alias not in members_by_name:
+            aliases_by_member.setdefault(target_name, []).append(alias)
+    return tuple(
+        _WeightMember(
+            name=member.name,
+            url=member.url,
+            locator=member.locator,
+            aliases=tuple(sorted(aliases_by_member.get(member.name, ()))),
+        )
+        for member in members
+    )
 
 
 def _is_weights_call(node: ast.AST) -> bool:

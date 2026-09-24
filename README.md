@@ -116,14 +116,14 @@ The following are available capabilities, not a directive to run every source or
 loader now. During the entry-first phase, use only the bounded source or link operations
 needed to validate the per-paper workflow. Their later corpus-scale role is documented in
 [Entry-first modelome](docs/entry-first.md#path-to-complete-paper-ingestion).
-The default catalog currently has **320 enabled sources** (304 loadable without provider credentials); this is a configuration count,
+The default catalog currently has **324 enabled sources** (309 loadable without provider credentials); this is a configuration count,
 not a claim that all upstream inventories have been exhausted.
 
 The default catalog enables independent, unfiltered streams for:
 
-- public Hugging Face model repositories, cards, revisions, weight-file metadata, declared
+- public Hugging Face model repositories, cards, current weight-file metadata, declared
   paper/code URLs, and `base_model` relations, with monthly created-at windows for bounded
-  temporal discovery;
+  temporal discovery and optional historical revision-file traversal;
 - the documented bounded union of ModelScope's public model-list orderings, retaining
   source-native model cards and metadata while explicitly respecting its 3,000-row
   per-sort pagination ceiling;
@@ -153,8 +153,10 @@ The default catalog enables independent, unfiltered streams for:
   and the GPT4All model catalog;
 - DeepChem Mol2Vec, Tencent GROVER, Microsoft VQ-Diffusion, AlphaChip, PaddleNLP
   sentiment, sherpa source-separation, and OpenVLA checkpoint inventories;
+- ADMET-AI Chemprop ensembles, DIPY neuroimaging weights, PaddleNLP knowledge-mining
+  checkpoints, Octo policies, and sherpa audio-tagging archives;
 - public GitLab release-asset candidates from checkpointable project and release
-  metadata traversal, plus account-visible Cohere Models API listings when configured;
+  metadata traversal;
 - the complete ACL Anthology XML manifest traversal, plus Oracle OCI pretrained-model and
   Azure Foundry models-sold-by-Azure catalogs; these are paper or hosted-offering evidence,
   not inferred weight claims;

@@ -119,6 +119,30 @@ def test_preserves_http_instance_artifact_urls_from_graph_schema() -> None:
     ]
 
 
+def test_duplicate_url_occurrences_keep_distinct_source_locators() -> None:
+    repeated_url = "https://github.com/example/repository"
+    record = project_openaire_software(
+        {
+            "id": "openaire-software-repeated-links",
+            "type": "software",
+            "documentationUrl": [
+                "https://docs.example.org/project",
+                "https://docs.example.org/project",
+                "ftp://invalid.example.org/docs",
+            ],
+            "instance": [{"url": [repeated_url, repeated_url]}],
+        }
+    )
+
+    assert record is not None
+    assert [(item.relation, item.url, item.locator) for item in record.links] == [
+        ("documentation", "https://docs.example.org/project", "documentationUrl[0]"),
+        ("documentation", "https://docs.example.org/project", "documentationUrl[1]"),
+        ("provider_resource", repeated_url, "instance[0].url[0]"),
+        ("provider_resource", repeated_url, "instance[0].url[1]"),
+    ]
+
+
 def test_exact_code_repository_url_enters_existing_crawl_frontier(tmp_path: Path) -> None:
     database = Database(tmp_path / "registry")
     database.initialize()

@@ -1,0 +1,14 @@
+# Chemprop-based ADMET-AI model files stored in the project's own repository.
+[[source]]
+name = "admet-ai-chemprop-checkpoints"
+adapter = "admet_ai_checkpoint_registry"
+enabled = false
+repository = "swansonk14/admet_ai"
+branch = "main"
+entry_tags = ["field:computational-chemistry", "ecosystem:chemprop", "ecosystem:admet-ai", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 16777216
+
+# Enumerates exactly model_0.pt through model_4.pt under each of
+# admet_ai/resources/models/admet_classification/ and admet_regression/.
+# The repository README identifies these as Chemprop models; no files are fetched.

@@ -1,0 +1,27 @@
+# Mistral documents GET /v1/models as listing all models available to the user.
+# Responses can include fine-tuned models, so observations are explicitly
+# account-key-scoped availability evidence and may contain user-owned IDs; this
+# is not a public exhaustive census. Raw provider fields retain TYPE, archived,
+# root, and capabilities so clients can distinguish provider-declared records.
+# Primary source: https://docs.mistral.ai/api/endpoint/models
+[[source]]
+name = "mistral-models-api"
+adapter = "json_catalog"
+enabled = false
+activation_env = "MISTRAL_API_KEY"
+entry_tags = ["field:machine-learning", "ecosystem:mistral", "kind:hosted-model", "evidence:current-api-availability"]
+url = "https://api.mistral.ai/v1/models"
+provider_namespace = "mistral:model"
+model_card_url_template = "https://api.mistral.ai/v1/models/{id_path}"
+model_page_crawl = false
+auth_env = "MISTRAL_API_KEY"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "data"
+id_path = "id"
+name_path = "id"
+created_path = "created"

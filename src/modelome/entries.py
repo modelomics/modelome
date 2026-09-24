@@ -499,16 +499,16 @@ def build_entries(seeds: Iterable[Mapping[str, Any]]) -> EntryBuildResult:
             union.union(index, owner)
 
     # Some catalogs declare an exact mirror ID in another model namespace.
-    # Treat that explicit cross-source relation as identity evidence so an
-    # OpenCSG card that names its Hugging Face or ModelScope mirror joins the
-    # independently sourced card. Other relation predicates remain descriptive.
+    # Treat that explicit relation as identity evidence so a catalog card that
+    # names its Hugging Face or ModelScope mirror joins the matching card.
+    # Other relation predicates remain descriptive.
     for index, candidate in enumerate(candidates):
         for relation in candidate.model_relations:
             if relation.predicate.casefold() != "mirrors":
                 continue
             for identifier in relation.target_identifiers:
                 owner = identifier_owner.get(identifier.key)
-                if owner is not None and candidates[owner].source != candidate.source:
+                if owner is not None:
                     union.union(index, owner)
 
     # A source-declared direct checkpoint URL can bridge otherwise unrelated

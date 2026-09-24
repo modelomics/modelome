@@ -33,7 +33,8 @@ _MARKDOWN_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^)]+)\)")
 _INLINE_HUB = re.compile(r"(?P<url>https://tfhub\.dev/[^\s,|`]+)")
 _INIT_CHECKPOINT = re.compile(r"task\.init_checkpoint=(?P<url>gs://[^\s,|`]+)")
 _PYTHON_INIT_CHECKPOINT = re.compile(
-    r"\binit_checkpoint\s*=\s*['\"](?P<url>gs://[^'\"]+|https?://[^'\"]+)['\"]"
+    r"\binit_checkpoint\s*=\s*\(?\s*['\"]"
+    r"(?P<url>gs://[^'\"\r\n]+|https?://[^'\"\r\n]+)['\"]\s*\)?"
 )
 _YAML_INIT_CHECKPOINT = re.compile(
     r"\binit_checkpoint\s*:\s*(?:['\"](?P<quoted>gs://[^'\"]+|https?://[^'\"]+)['\"]|"
@@ -77,7 +78,7 @@ class TensorFlowGardenSourceAdapter:
         self.client = client or HttpClient(max_response_bytes=max_bytes)
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "tensorflow-model-garden-v4",
+                "adapter": "tensorflow-model-garden-v5",
                 "repository": _REPOSITORY,
                 "docs": _DOCS,
                 "max_bytes": max_bytes,
@@ -538,21 +539,28 @@ def _declared_config_checkpoints(source: str) -> tuple[tuple[str, str | None], .
     module_match = _CHECKPOINT_MODULES.search(source)
     modules = module_match.group("modules").strip() if module_match else None
     checkpoints = []
+    python_source = "\n".join(
+        line for line in source.splitlines() if not line.lstrip().startswith("#")
+    )
+    for match in _PYTHON_INIT_CHECKPOINT.finditer(python_source):
+        target = match.group("url")
+        if target.startswith("gs://"):
+            target = _gcs_https(target)
+        parts = urlsplit(target)
+        if parts.scheme == "https" and parts.hostname and not parts.username and not parts.password:
+            checkpoints.append((target.rstrip(","), modules))
     for line in source.splitlines():
         if line.lstrip().startswith("#"):
             continue
-        match = _PYTHON_INIT_CHECKPOINT.search(line)
-        if match is not None:
-            target = match.group("url")
-        else:
+        if not _PYTHON_INIT_CHECKPOINT.search(line):
             match = _YAML_INIT_CHECKPOINT.search(line)
             if match is None:
                 continue
             target = match.group("quoted") or match.group("plain")
-        if target.startswith("gs://"):
-            target = _gcs_https(target)
-        parts = urlsplit(target)
-        if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
-            continue
-        checkpoints.append((target.rstrip(","), modules))
+            if target.startswith("gs://"):
+                target = _gcs_https(target)
+            parts = urlsplit(target)
+            if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+                continue
+            checkpoints.append((target.rstrip(","), modules))
     return tuple(dict.fromkeys(checkpoints))

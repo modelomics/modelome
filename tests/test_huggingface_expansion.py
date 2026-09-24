@@ -65,6 +65,7 @@ def test_huggingface_records_additional_checkpoint_formats_and_shard_indexes() -
             {
                 "id": "lab/multiformat-model",
                 "sha": "abc123",
+                "gated": True,
                 "config": {"source": "https://github.com/lab/architecture"},
                 "siblings": [{"rfilename": name} for name in filenames],
             }
@@ -85,12 +86,21 @@ def test_huggingface_records_additional_checkpoint_formats_and_shard_indexes() -
     }
     assert record.releases[0].metadata["weight_files"] == sorted(weights)
     assert all(link.crawl is False for link in record.links if link.relation == "weights")
+    assert record.raw["gated"] is True
     assert (
         "https://github.com/lab/architecture",
         "code_reference",
         "$.config",
     ) in {(link.url, link.relation, link.locator) for link in record.links}
-    assert client.calls[0]["config"] == "true"
+    assert client.calls[0] == {
+        "limit": 100,
+        "full": "true",
+        "cardData": "true",
+        "config": "true",
+        "sort": "lastModified",
+        "direction": -1,
+    }
+    assert not {"gated", "private", "filter", "author", "search"} & set(client.calls[0])
 
 
 def test_huggingface_revision_enrichment_is_checkpointed_and_does_not_fetch_blobs() -> None:

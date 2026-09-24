@@ -73,6 +73,38 @@ def test_legacy_arxiv_category_case_does_not_split_identity() -> None:
     assert [item.key for item in result.entries[0].identifiers] == ["arxiv:hep-th/9901001"]
 
 
+def test_explicit_exact_mirror_identifier_joins_within_one_source() -> None:
+    mirror_owner = _seed(
+        "catalog-model",
+        [{"namespace": "catalog:model", "value": "model-a"}],
+    )
+    mirror_owner["model_relations"] = [
+        {
+            "subject_local_id": "model",
+            "predicate": "mirrors",
+            "target": {
+                "local_id": "model-b",
+                "name": "Catalog alias",
+                "identifiers": [
+                    {"namespace": "catalog:model", "value": "model-b"}
+                ],
+            },
+        }
+    ]
+    mirror_target = _seed(
+        "catalog-model-mirror",
+        [{"namespace": "catalog:model", "value": "model-b"}],
+    )
+
+    result = build_entries([mirror_owner, mirror_target])
+
+    assert len(result.entries) == 1
+    assert {member.source_record_id for member in result.entries[0].members} == {
+        "catalog-model",
+        "catalog-model-mirror",
+    }
+
+
 def test_same_direct_checkpoint_url_joins_cross_source_records_and_keeps_provenance() -> None:
     first = _seed("source-a", [])
     first["source"] = "catalog-a"

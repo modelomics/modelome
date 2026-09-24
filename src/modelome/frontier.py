@@ -121,11 +121,11 @@ class FrontierCrawler:
             for item in items:
                 url = str(item["url"])
                 depth = int(item.get("depth") or 0)
-                declared_extensionless_weight = url in declared_weight_urls
+                declared_weight_url = url in declared_weight_urls
                 if depth > max_depth or not (
                     _worth_fetching(url)
                     or (
-                        declared_extensionless_weight
+                        declared_weight_url
                         and _is_reference_only_checkpoint_url(url)
                     )
                 ):
@@ -134,11 +134,22 @@ class FrontierCrawler:
                     )
                     continue
 
-                if (
-                    declared_extensionless_weight
-                    and _is_reference_only_checkpoint_url(url)
-                ):
-                    fetcher = reference_fetcher
+                if declared_weight_url:
+                    # Keep the existing suffix-aware reference fetcher when it
+                    # recognizes the URL. For all other explicitly declared
+                    # weights/checkpoints, prefer metadata over a generic web
+                    # fetch that could retrieve a large response body.
+                    fetcher = next(
+                        (
+                            candidate
+                            for candidate in self.fetchers
+                            if isinstance(candidate, WeightReferenceFetcher)
+                            and candidate.accepts(url)
+                        ),
+                        None,
+                    )
+                    if fetcher is None and reference_fetcher.accepts(url):
+                        fetcher = reference_fetcher
                 else:
                     fetcher = next(
                         (
@@ -227,7 +238,10 @@ class _DeclaredWeightReferenceFetcher:
     def accepts(self, url: str) -> bool:
         return (
             url in self.declared_urls
-            and _is_reference_only_checkpoint_url(url)
+            and (
+                not _is_openreview_attachment(url)
+                or _is_openreview_checkpoint_attachment(url)
+            )
             and self.url_policy.allows(url, resolve=False)
         )
 
@@ -244,7 +258,10 @@ class _DeclaredWeightReferenceFetcher:
             kind=ArtifactKind.WEIGHTS,
             canonical_url=canonical_url,
             title=filename or canonical_url,
-            raw={"reference_only": True, "suffix": ""},
+            raw={
+                "reference_only": True,
+                "suffix": PurePosixPath(parts.path).suffix.casefold(),
+            },
             identifiers=(Identifier("url", canonical_url),),
         )
 
@@ -279,6 +296,15 @@ def _is_extensionless_github_release_asset(url: str) -> bool:
 
 
 def _is_openreview_checkpoint_attachment(url: str) -> bool:
+    if not _is_openreview_attachment(url):
+        return False
+    query = parse_qs(urlsplit(url).query, keep_blank_values=False)
+    names = query.get("name", [])
+    name = names[0].casefold() if len(names) == 1 else ""
+    return bool(name) and ("weight" in name or "checkpoint" in name)
+
+
+def _is_openreview_attachment(url: str) -> bool:
     parts = urlsplit(url)
     if (
         parts.scheme.casefold() != "https"
@@ -288,14 +314,7 @@ def _is_openreview_checkpoint_attachment(url: str) -> bool:
         return False
     query = parse_qs(parts.query, keep_blank_values=False)
     ids = query.get("id", [])
-    names = query.get("name", [])
-    name = names[0].casefold() if len(names) == 1 else ""
-    return (
-        len(ids) == 1
-        and bool(ids[0])
-        and bool(name)
-        and ("weight" in name or "checkpoint" in name)
-    )
+    return len(ids) == 1 and bool(ids[0])
 
 
 def _is_reference_only_checkpoint_url(url: str) -> bool:

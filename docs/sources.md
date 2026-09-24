@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **320 enabled
-source entries** (304 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **324 enabled
+source entries** (309 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -42,9 +42,11 @@ and which remain roadmap work.
 
 Additional enabled inventories cover DeepChem Mol2Vec, Tencent GROVER, Microsoft
 VQ-Diffusion, AlphaChip, PaddleNLP sentiment, sherpa source separation, and OpenVLA.
+They also cover ADMET-AI Chemprop ensembles, DIPY neuroimaging weights, PaddleNLP
+knowledge-mining checkpoints, Octo policies, and sherpa audio tagging.
 The GitLab adapter scans public project release metadata one request per page and emits
-low-confidence model-file candidates. The Cohere Models API source records models
-available to the configured API key, rather than a public historical census.
+low-confidence model-file candidates. The Cohere and Mistral Models API proposals
+remain opt-in because their authenticated lists can include caller-owned models.
 
 When an adapter is eventually used for corpus enumeration, it must traverse its complete
 configured upstream scope without a model-name, method-keyword, subject, or journal
@@ -109,6 +111,10 @@ single-paper entry loop.
   verified its bytes.
 - **Identity:** model repository ID plus immutable commit SHA when the API supplies one.
   A repository, revision, and model release are related identities, not synonyms.
+- **Historical files:** an operator can enable `include_revisions` and
+  `include_revision_files` to list exact weight paths at commit SHAs without fetching
+  blobs. `max_revision_tree_pages` bounds each tree; capped or unavailable trees
+  retain observed paths with `weight_files_complete=false`.
 - **Rights:** metadata and files follow the repository's declared license and the
   [Hub terms](https://huggingface.co/terms-of-service); public visibility is not a blanket
   reuse license. Preserve unknown, custom, gated, and per-file license states.

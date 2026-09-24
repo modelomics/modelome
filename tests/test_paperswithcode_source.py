@@ -479,6 +479,107 @@ def test_evaluation_tables_emit_only_paper_backed_candidate_labels(
     assert len(client.calls) == 3
 
 
+def test_evaluation_model_links_survive_shard_pagination(monkeypatch: Any) -> None:
+    revision = "d" * 40
+    shard_paths = [
+        "data/train-00000-of-00002.parquet",
+        "data/train-00001-of-00002.parquet",
+    ]
+    metadata = (
+        b'{"id":"pwc-archive/evaluation-tables","sha":"'
+        + revision.encode()
+        + b'","siblings":['
+        + b",".join(
+            b'{"rfilename":"' + path.encode() + b'"}' for path in shard_paths
+        )
+        + b"]}"
+    )
+
+    def model_row(title: str, url: str) -> dict[str, Any]:
+        return {
+            "model_name": "Historical Model",
+            "paper_url": "https://arxiv.org/abs/2401.12345",
+            "paper_title": "Historical Model paper",
+            "model_links": [{"title": title, "url": url}],
+        }
+
+    rows_by_shard = {
+        b"first": [
+            {
+                "task": "Image Classification",
+                "subtasks": [],
+                "datasets": [
+                    {
+                        "dataset": "ImageNet",
+                        "sota": {
+                            "rows": [
+                                model_row(
+                                    "Original checkpoint",
+                                    "https://models.example.org/historical/model-v1.pt",
+                                )
+                            ]
+                        },
+                    }
+                ],
+            }
+        ],
+        b"second": [
+            {
+                "task": "Image Classification",
+                "subtasks": [],
+                "datasets": [
+                    {
+                        "dataset": "ImageNet",
+                        "sota": {
+                            "rows": [
+                                model_row(
+                                    "Archived checkpoint",
+                                    "https://models.example.org/archive/model-v0.pt",
+                                )
+                            ]
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        pwc_source,
+        "_read_evaluation_rows",
+        lambda body, _source: rows_by_shard[body],
+    )
+    client = QueuedClient(
+        _response(metadata, "https://huggingface.co/api/datasets/pwc-archive/evaluation-tables"),
+        _response(b"first", "https://cas-bridge.xethub.hf.co/first.parquet"),
+        _response(b"second", "https://cas-bridge.xethub.hf.co/second.parquet"),
+    )
+    source = PapersWithCodeEvaluationMethodsSourceAdapter(client=client, clock=lambda: _NOW)
+
+    first = source.fetch_page({})
+    second = source.fetch_page(first.next_state)
+
+    assert first.complete is False
+    assert second.complete is True
+    assert first.records[0].source_record_id == second.records[0].source_record_id
+    supplied_urls = {
+        "https://models.example.org/historical/model-v1.pt",
+        "https://models.example.org/archive/model-v0.pt",
+    }
+    emitted_urls = {
+        link.url
+        for page in (first, second)
+        for record in page.records
+        for link in record.links
+        if link.relation == "model_artifact"
+    }
+    assert emitted_urls == supplied_urls
+    assert all(
+        record.models[0].confidence == 0.35
+        for page in (first, second)
+        for record in page.records
+    )
+
+
 def _rows() -> list[dict[str, Any]]:
     common = {
         "paper_url": "https://paperswithcode.com/paper/source-backed-paper",

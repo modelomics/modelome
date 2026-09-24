@@ -115,6 +115,8 @@ def test_weight_registry_enumerates_literal_weight_enums_and_releases() -> None:
         "IMAGENET1K_V1",
         "IMAGENET1K_V2",
     ]
+    assert resnet.releases[0].metadata["aliases"] == ()
+    assert resnet.releases[1].metadata["aliases"] == ("DEFAULT",)
     assert {
         (link.url, link.relation, link.crawl, link.model_local_ids)
         for link in resnet.links

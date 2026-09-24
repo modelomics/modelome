@@ -6010,32 +6010,6 @@ source_path = "paddlenlp/taskflow/sentiment_analysis.py"
 max_response_bytes = 4194304
 max_entries = 100
 
-# The Cohere list is scoped to models available to the configured API key.
-[[source]]
-name = "cohere-models-api"
-adapter = "json_catalog"
-enabled = true
-activation_env = "COHERE_API_KEY"
-entry_tags = ["field:machine-learning", "ecosystem:cohere", "kind:hosted-model", "evidence:current-api-availability"]
-url = "https://api.cohere.com/v1/models"
-provider_namespace = "cohere:model"
-model_card_url_template = "https://docs.cohere.com/docs/models"
-model_page_crawl = false
-auth_env = "COHERE_API_KEY"
-auth_header = "Authorization"
-auth_scheme = "Bearer"
-cursor_param = "page_token"
-page_size = 1000
-page_size_param = "page_size"
-schedule = "daily"
-max_response_bytes = 8388608
-
-[source.mapping]
-items_path = "models"
-id_path = "name"
-name_path = "name"
-next_cursor_path = "next_page_token"
-
 # GitLab's public-project keyset listing and per-project release asset links.
 # Each fetch_page performs one metadata request and records only low-confidence
 # candidates whose release context agrees with an explicit checkpoint link.
@@ -6049,3 +6023,61 @@ page_size = 100
 max_projects_per_page = 100
 max_releases_per_page = 100
 max_assets_per_release = 1000
+
+# First-party source from config/proposals/admet_ai_chemprop_checkpoints.toml.
+[[source]]
+name = "admet-ai-chemprop-checkpoints"
+adapter = "admet_ai_checkpoint_registry"
+enabled = true
+repository = "swansonk14/admet_ai"
+branch = "main"
+entry_tags = ["field:computational-chemistry", "ecosystem:chemprop", "ecosystem:admet-ai", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 16777216
+
+# First-party source from config/proposals/dipy_pretrained_registry.toml.
+[[source]]
+name = "dipy-pretrained-models"
+adapter = "dipy_pretrained_registry"
+enabled = true
+repository = "dipy/dipy"
+branch = "master"
+source_path = "dipy/data/fetcher.py"
+entry_tags = ["field:neuroimaging", "ecosystem:dipy", "kind:checkpoint"]
+schedule = "weekly"
+max_source_bytes = 8388608
+max_models = 100
+
+# First-party source from config/proposals/paddlenlp_taskflow_knowledge_mining.toml.
+[[source]]
+name = "paddlenlp-taskflow-knowledge-mining-checkpoints"
+adapter = "paddlenlp_taskflow_knowledge_mining"
+enabled = true
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/taskflow/knowledge_mining.py"
+max_response_bytes = 4194304
+max_entries = 100
+
+# First-party source from config/proposals/octo_checkpoints.toml.
+[[source]]
+name = "octo-checkpoints"
+adapter = "octo_checkpoints"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:octo", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 10
+
+# First-party source from config/proposals/sherpa_audio_tagging.toml.
+[[source]]
+name = "sherpa-audio-tagging-models"
+adapter = "sherpa_audio_tagging"
+enabled = true
+entry_tags = ["field:audio-machine-learning", "task:audio-tagging", "ecosystem:sherpa-onnx", "kind:checkpoint"]
+repository = "k2-fsa/sherpa"
+branch = "master"
+document_path = "docs/source/onnx/audio-tagging/pretrained_models.rst"
+schedule = "weekly"
+max_response_bytes = 2097152
+max_models = 200

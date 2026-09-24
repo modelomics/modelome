@@ -612,3 +612,26 @@ def test_absolute_generic_attachment_url_uses_name_for_checkpoint_relation() -> 
         and not link.crawl
         for link in page.records[0].links
     )
+
+
+def test_historical_edit_attachment_url_uses_name_for_checkpoint_relation() -> None:
+    note = v2_note(
+        content={
+            "title": "A paper with a versioned checkpoint",
+            "abstract": "The invitation uses a generic file field.",
+            "authors": ["Model Author"],
+            "artifact": (
+                "https://openreview.net/notes/edits/attachment"
+                "?id=historical-edit&name=model_weights"
+            ),
+        }
+    )
+    page = adapter(QueueClient(response([note], count=1))).fetch_page(v2_state())
+
+    assert any(
+        link.url
+        == "https://openreview.net/notes/edits/attachment?id=historical-edit&name=model_weights"
+        and link.relation == "weights"
+        and not link.crawl
+        for link in page.records[0].links
+    )

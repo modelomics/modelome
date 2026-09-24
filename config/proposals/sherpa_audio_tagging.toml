@@ -1,0 +1,22 @@
+# sherpa's first-party audio-tagging guide provides an exact release archive URL.
+# The reader pins the guide and accepts only files under the audio-tagging release.
+[[source]]
+name = "sherpa-audio-tagging-models"
+adapter = "sherpa_audio_tagging"
+enabled = false
+entry_tags = [
+  "field:audio-machine-learning",
+  "task:audio-tagging",
+  "ecosystem:sherpa-onnx",
+  "kind:checkpoint",
+]
+repository = "k2-fsa/sherpa"
+branch = "master"
+document_path = "docs/source/onnx/audio-tagging/pretrained_models.rst"
+schedule = "weekly"
+max_response_bytes = 2097152
+max_models = 200
+
+[evidence]
+model_index = "https://github.com/k2-fsa/sherpa/blob/master/docs/source/onnx/audio-tagging/pretrained_models.rst"
+release_tag = "https://github.com/k2-fsa/sherpa-onnx/releases/tag/audio-tagging-models"

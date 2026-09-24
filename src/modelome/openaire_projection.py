@@ -157,11 +157,13 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
 
     links: list[Link] = []
     instance_pids: list[dict[str, str]] = []
-    code_repository_urls = _safe_urls(payload.get("codeRepositoryUrl"))
-    documentation_urls = _safe_urls(payload.get("documentationUrl"))
-    for url in code_repository_urls:
+    code_repository_items = _indexed_safe_urls(payload.get("codeRepositoryUrl"))
+    documentation_items = _indexed_safe_urls(payload.get("documentationUrl"))
+    code_repository_urls = tuple(url for _, url in code_repository_items)
+    documentation_urls = tuple(url for _, url in documentation_items)
+    for _, url in code_repository_items:
         links.append(Link(url, relation="code_repository", locator="codeRepositoryUrl"))
-    for index, url in enumerate(documentation_urls):
+    for index, url in documentation_items:
         links.append(
             Link(url, relation="documentation", locator=f"documentationUrl[{index}]")
         )
@@ -176,7 +178,7 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
         instance_pid_values += _sequence(instance.get("alternateIdentifiers")) or _sequence(
             instance.get("alternateIdentifier")
         )
-        for pid in instance_pid_values:
+        for pid_index, pid in enumerate(instance_pid_values):
             if not isinstance(pid, Mapping):
                 continue
             scheme = _text(pid.get("scheme"))
@@ -190,14 +192,14 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
                     Link(
                         pid_url,
                         relation="instance_identifier",
-                        locator=f"instance[{instance_index}].pid",
+                        locator=f"instance[{instance_index}].identifier[{pid_index}]",
                         crawl=False,
                     )
                 )
         urls = _sequence(instance.get("urls")) or _sequence(instance.get("url"))
         if not urls:
             urls = _sequence(instance.get("webresource"))
-        for value in urls:
+        for url_index, value in enumerate(urls):
             url_text = _text(value)
             if isinstance(value, Mapping):
                 url_text = _text(value.get("url"))
@@ -207,7 +209,7 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
                     Link(
                         url,
                         relation="provider_resource",
-                        locator=f"instances[{instance_index}]",
+                        locator=f"instance[{instance_index}].url[{url_index}]",
                         crawl=True,
                     )
                 )
@@ -344,13 +346,13 @@ def _sequence(value: Any) -> tuple[Any, ...]:
     return (value,)
 
 
-def _safe_urls(value: Any) -> tuple[str, ...]:
-    urls: list[str] = []
-    for item in _sequence(value):
+def _indexed_safe_urls(value: Any) -> tuple[tuple[int, str], ...]:
+    urls: list[tuple[int, str]] = []
+    for index, item in enumerate(_sequence(value)):
         text = _text(item)
         url = _public_web_url(text) if text is not None else None
-        if url is not None and url not in urls:
-            urls.append(url)
+        if url is not None:
+            urls.append((index, url))
     return tuple(urls)
 
 

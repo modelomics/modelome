@@ -72,6 +72,46 @@ def _is_weight_file(filename: str, siblings: Sequence[str] = ()) -> bool:
     return False
 
 
+def _potential_weight_file(filename: str) -> bool:
+    folded = filename.casefold()
+    return (
+        _is_weight_file(filename)
+        or folded.endswith(".index")
+        or re.fullmatch(r".+\.data-\d+-of-\d+", folded) is not None
+    )
+
+
+def _safe_repo_filename(value: str) -> bool:
+    if not value or len(value) > 1024 or value.startswith("/") or "\\" in value:
+        return False
+    if any(ord(char) < 32 for char in value):
+        return False
+    return all(segment not in {"", ".", ".."} for segment in value.split("/"))
+
+
+def _safe_weight_file_candidates(values: Sequence[Any]) -> set[str]:
+    return {
+        value
+        for value in values
+        if isinstance(value, str) and _safe_repo_filename(value) and _potential_weight_file(value)
+    }
+
+
+def _revision_commit_payload(commit: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "id": _text(commit.get("id") or commit.get("commit_id")),
+        "date": _text(commit.get("date")) or None,
+        "created_at": _text(commit.get("created_at")) or None,
+        "title": _text(commit.get("title")) or None,
+        "message": _text(commit.get("message")) or None,
+        "authors": [
+            dict(author)
+            for author in _sequence(commit.get("authors"))
+            if isinstance(author, Mapping)
+        ],
+    }
+
+
 def _utcnow() -> datetime:
     return datetime.now(UTC)
 
@@ -106,6 +146,8 @@ class HuggingFaceSourceAdapter:
         token: str | None = None,
         include_private: bool = False,
         include_revisions: bool = False,
+        include_revision_files: bool = False,
+        max_revision_tree_pages: int = 20,
         client: HttpClient | Any | None = None,
         clock: Clock = _utcnow,
     ) -> None:
@@ -121,6 +163,12 @@ class HuggingFaceSourceAdapter:
         self.token = token
         self.include_private = bool(include_private)
         self.include_revisions = bool(include_revisions)
+        self.include_revision_files = bool(include_revision_files)
+        if self.include_revision_files and not self.include_revisions:
+            raise ValueError("include_revision_files requires include_revisions")
+        self.max_revision_tree_pages = _positive_int(
+            max_revision_tree_pages, "max_revision_tree_pages"
+        )
         self.client = client or HttpClient(max_response_bytes=self.max_response_bytes)
         self.clock = clock
         self.checkpoint_signature = content_hash(
@@ -134,6 +182,8 @@ class HuggingFaceSourceAdapter:
                 "max_response_bytes": self.max_response_bytes,
                 "include_private": self.include_private,
                 "include_revisions": self.include_revisions,
+                "include_revision_files": self.include_revision_files,
+                "max_revision_tree_pages": self.max_revision_tree_pages,
             }
         )
 
@@ -353,6 +403,75 @@ class HuggingFaceSourceAdapter:
         if not repo_id:
             raise ValueError(f"{self.name}: revision checkpoint is missing model_id")
         encoded_id = quote(repo_id, safe="/")
+        tree_queue = [
+            dict(value)
+            for value in _sequence(item.get("tree_queue"))
+            if isinstance(value, Mapping)
+        ]
+        if self.include_revision_files and tree_queue:
+            task = tree_queue[0]
+            commit = task.get("commit")
+            if not isinstance(commit, Mapping):
+                raise ValueError(f"{self.name}: revision tree task is missing commit metadata")
+            sha = _text(commit.get("id") or commit.get("commit_id"))
+            if not sha:
+                raise ValueError(f"{self.name}: revision tree task is missing commit ID")
+            next_url = _text(task.get("next_url"))
+            url = self._safe_next_url(next_url, self.url) if next_url else (
+                f"https://huggingface.co/api/models/{encoded_id}/tree/"
+                f"{quote(sha, safe='')}?recursive=true&expand=false"
+            )
+            response = self.client.get(url, headers=headers)
+            filenames = {
+                *_safe_weight_file_candidates(_sequence(task.get("weight_candidates"))),
+            }
+            page_count = (_state_count(task, "page_count") or 0) + 1
+            inaccessible = response.status in {401, 403, 404}
+            if inaccessible:
+                following = None
+            else:
+                payload = self._revision_json(response)
+                if not isinstance(payload, Sequence) or isinstance(
+                    payload, (str, bytes, bytearray)
+                ):
+                    raise ValueError(f"{self.name}: revision tree must be a JSON array")
+                for entry in payload:
+                    if not isinstance(entry, Mapping) or entry.get("type", "file") != "file":
+                        continue
+                    path = _text(entry.get("path") or entry.get("rfilename"))
+                    if _safe_repo_filename(path) and _potential_weight_file(path):
+                        filenames.add(path)
+                following = _link_relation(_header(response.headers, "link"), "next")
+            complete = (
+                inaccessible
+                or following is None
+                or page_count >= self.max_revision_tree_pages
+            )
+            if complete:
+                weight_files = tuple(
+                    sorted(
+                        filename
+                        for filename in filenames
+                        if _is_weight_file(filename, tuple(filenames))
+                    )
+                )
+                record = self._revision_record(
+                    repo_id,
+                    commit,
+                    weight_files=weight_files,
+                    weight_files_complete=following is None and not inaccessible,
+                )
+                tree_queue.pop(0)
+                item["tree_queue"] = tree_queue
+                if not tree_queue and item.get("commits_exhausted") is True:
+                    queue.pop(0)
+                return self._revision_page_result(state, queue, (record,))
+            task["next_url"] = self._safe_next_url(following, response.url or url)
+            task["page_count"] = page_count
+            task["weight_candidates"] = sorted(filenames)
+            item["tree_queue"] = [task, *tree_queue[1:]]
+            return self._revision_page_result(state, queue, ())
+
         phase = _text(item.get("phase"))
         if phase == "refs":
             url = f"https://huggingface.co/api/models/{encoded_id}/refs"
@@ -390,12 +509,18 @@ class HuggingFaceSourceAdapter:
                 and not isinstance(payload, (str, bytes, bytearray))
                 else []
             )
-            records = tuple(
-                self._revision_record(repo_id, commit)
+            valid_commits = tuple(
+                commit
                 for commit in commits
                 if isinstance(commit, Mapping)
                 and _text(commit.get("id") or commit.get("commit_id"))
             )
+            if self.include_revision_files:
+                tree_queue.extend(
+                    {"commit": _revision_commit_payload(commit), "weight_candidates": []}
+                    for commit in valid_commits
+                )
+                item["tree_queue"] = tree_queue
             following = _link_relation(_header(response.headers, "link"), "next")
             if following:
                 item["next_url"] = self._safe_next_url(following, response.url or url)
@@ -403,7 +528,13 @@ class HuggingFaceSourceAdapter:
                 item.pop("next_url", None)
                 item["ref_index"] = index + 1
                 if index + 1 >= len(refs):
-                    queue.pop(0)
+                    if self.include_revision_files and tree_queue:
+                        item["commits_exhausted"] = True
+                    else:
+                        queue.pop(0)
+            if self.include_revision_files:
+                return self._revision_page_result(state, queue, ())
+            records = tuple(self._revision_record(repo_id, commit) for commit in valid_commits)
             return self._revision_page_result(state, queue, records)
         else:
             raise ValueError(f"{self.name}: invalid revision checkpoint phase {phase!r}")
@@ -418,7 +549,14 @@ class HuggingFaceSourceAdapter:
             )
         return response.json()
 
-    def _revision_record(self, repo_id: str, commit: Mapping[str, Any]) -> SourceRecord:
+    def _revision_record(
+        self,
+        repo_id: str,
+        commit: Mapping[str, Any],
+        *,
+        weight_files: Sequence[str] = (),
+        weight_files_complete: bool | None = None,
+    ) -> SourceRecord:
         sha = _text(commit.get("id") or commit.get("commit_id"))
         model = ModelHint(
             local_id=f"{repo_id}#model",
@@ -429,25 +567,42 @@ class HuggingFaceSourceAdapter:
         )
         released_at = _text(commit.get("date") or commit.get("created_at")) or None
         revision_id = Identifier("huggingface:revision", f"{repo_id}@{sha}")
+        release_metadata: dict[str, Any] = {
+            "title": _text(commit.get("title")) or None,
+            "message": _text(commit.get("message")) or None,
+            "authors": [
+                _text(author.get("username") or author.get("name"))
+                for author in _sequence(commit.get("authors"))
+                if isinstance(author, Mapping)
+                and _text(author.get("username") or author.get("name"))
+            ],
+        }
+        model_url = canonicalize_url(f"https://huggingface.co/{quote(repo_id, safe='/')}")
+        links = [Link(model_url, relation="model_page", locator="$.repo_id")]
+        if weight_files_complete is not None:
+            release_metadata["weight_files"] = sorted(set(weight_files))
+            release_metadata["weight_files_complete"] = weight_files_complete
+            links.extend(
+                Link(
+                    canonicalize_url(
+                        f"https://huggingface.co/{quote(repo_id, safe='/')}/resolve/"
+                        f"{quote(sha, safe='')}/{quote(filename, safe='/')}"
+                    ),
+                    relation="weights",
+                    locator="$.tree",
+                    crawl=False,
+                )
+                for filename in sorted(set(weight_files))
+            )
         release = ReleaseHint(
             local_id=f"{repo_id}#release:{sha}",
             model_local_id=model.local_id,
             revision=sha,
             identifiers=(revision_id,),
             released_at=released_at,
-            metadata={
-                "title": _text(commit.get("title")) or None,
-                "message": _text(commit.get("message")) or None,
-                "authors": [
-                    _text(author.get("username") or author.get("name"))
-                    for author in _sequence(commit.get("authors"))
-                    if isinstance(author, Mapping)
-                    and _text(author.get("username") or author.get("name"))
-                ],
-            },
+            metadata=release_metadata,
             locator="$.id",
         )
-        model_url = canonicalize_url(f"https://huggingface.co/{quote(repo_id, safe='/')}")
         return SourceRecord(
             source_record_id=f"{repo_id}@{sha}",
             kind=self.artifact_kind,
@@ -456,7 +611,7 @@ class HuggingFaceSourceAdapter:
             raw=dict(commit),
             published_at=released_at,
             identifiers=(Identifier("huggingface:model", repo_id), revision_id),
-            links=(Link(model_url, relation="model_page", locator="$.repo_id"),),
+            links=tuple(links),
             models=(model,),
             releases=(release,),
         )
@@ -601,6 +756,7 @@ class HuggingFaceSourceAdapter:
                     for filename in sibling_filenames
                     if _is_weight_file(filename, sibling_filenames)
                 ),
+                "weight_files_complete": True,
             },
             locator="$.sha" if commit_sha else "$.id",
         )

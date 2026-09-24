@@ -1095,7 +1095,7 @@ def _attachment_field(key: str) -> bool:
 def _openreview_attachment_name(value: str, *, web_base_url: str) -> str | None:
     """Return the field name from an OpenReview attachment route."""
     parts = urlsplit(value)
-    if parts.path.rstrip("/") != "/attachment":
+    if parts.path.rstrip("/") not in {"/attachment", "/notes/edits/attachment"}:
         return None
     if parts.scheme or parts.netloc:
         base = urlsplit(web_base_url)

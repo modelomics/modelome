@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from typing import Any
-from urllib.parse import quote, urljoin, urlsplit
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urljoin, urlsplit, urlunsplit
 
 from modelome.http import HttpClient, HttpResponse
 from modelome.models import (
@@ -66,7 +66,9 @@ class GitLabPublicReleaseAssetsSourceAdapter:
     coverage_limitation = (
         "Covers public GitLab.com projects and release links returned by the "
         "public REST API. Projects without releases and model files not declared "
-        "as release links are not represented."
+        "as release links are not represented. Release lists use offset pagination "
+        "ordered by creation time, not a snapshot cursor; a release deleted during "
+        "a scan can shift later pages and may require a later rescan."
     )
 
     def __init__(
@@ -114,20 +116,39 @@ class GitLabPublicReleaseAssetsSourceAdapter:
         current = _project_state(state.get("current_project"))
         queue = _project_queue(state.get("project_queue", []))
         projects_url = _optional_text(state.get("projects_next_url"))
+        last_project_id = _optional_positive_int(state.get("last_project_id"))
         projects_started = state.get("projects_started", False)
         if not isinstance(projects_started, bool):
             raise ValueError("projects_started must be boolean")
         release_url = _optional_text(state.get("release_next_url"))
+        release_page = _optional_positive_int(state.get("release_page")) or 1
 
         if current is None and queue:
             current, queue = queue[0], queue[1:]
             release_url = None
+            release_page = 1
 
         if current is not None:
             request_url = release_url or (
-                f"{_API}/projects/{current['id']}/releases?per_page={self.max_releases_per_page}"
+                f"{_API}/projects/{current['id']}/releases?order_by=created_at&sort=asc"
+                f"&per_page={self.max_releases_per_page}&page={release_page}"
             )
-            response = self._get(request_url, "release")
+            response = self._get(request_url, "release", allow_not_found=True)
+            if response is None:
+                next_state = {
+                    "projects_started": projects_started,
+                    "project_queue": queue,
+                    "current_project": None,
+                    "projects_next_url": projects_url,
+                    "last_project_id": last_project_id,
+                }
+                complete = not queue and not projects_url and projects_started
+                return SourcePage(
+                    records=(),
+                    next_state=next_state,
+                    complete=complete,
+                    upstream_count=0 if complete else None,
+                )
             payload = response.json()
             if not _is_sequence(payload) or len(payload) > self.max_releases_per_page:
                 raise ValueError("GitLab release response is not a bounded JSON array")
@@ -137,14 +158,22 @@ class GitLabPublicReleaseAssetsSourceAdapter:
                 for record in self._release_records(current, release, index)
             )
             next_release = _next_link(response.headers, response.url or request_url)
+            if not next_release and len(payload) == self.max_releases_per_page:
+                next_release = _set_query_parameter(request_url, "page", str(release_page + 1))
+            if next_release and _same_url(next_release, request_url):
+                raise ValueError("GitLab release pagination cursor did not advance")
+            if next_release and not payload:
+                raise ValueError("GitLab release pagination supplied a cursor for an empty page")
             next_state: dict[str, Any] = {
                 "projects_started": projects_started,
                 "project_queue": queue,
                 "current_project": current if next_release else None,
                 "projects_next_url": projects_url,
+                "last_project_id": last_project_id,
             }
             if next_release:
                 next_state["release_next_url"] = next_release
+                next_state["release_page"] = release_page + 1
             complete = not next_release and not queue and not projects_url and projects_started
             return SourcePage(
                 records=records,
@@ -168,7 +197,20 @@ class GitLabPublicReleaseAssetsSourceAdapter:
         if any(item is None for item in projects):
             raise ValueError("GitLab project response contains an invalid project")
         projects = [item for item in projects if item is not None]
+        project_ids = [item["id"] for item in projects]
+        if (
+            last_project_id is not None and project_ids and project_ids[0] <= last_project_id
+        ) or any(
+            project_ids[index] <= project_ids[index - 1] for index in range(1, len(project_ids))
+        ):
+            raise ValueError("GitLab project IDs did not advance past the previous keyset page")
         next_projects = _next_link(response.headers, response.url or request_url)
+        if next_projects and _same_url(next_projects, request_url):
+            raise ValueError("GitLab project pagination cursor did not advance")
+        if next_projects and not project_ids:
+            raise ValueError("GitLab project pagination supplied a cursor for an empty page")
+        if not next_projects and len(projects) == self.page_size and project_ids:
+            next_projects = _set_query_parameter(request_url, "id_after", str(project_ids[-1]))
         if len(projects) > self.max_projects_per_page:
             raise ValueError("GitLab project page exceeded max_projects_per_page")
         next_state = {
@@ -176,6 +218,7 @@ class GitLabPublicReleaseAssetsSourceAdapter:
             "project_queue": projects,
             "current_project": None,
             "projects_next_url": next_projects,
+            "last_project_id": project_ids[-1] if project_ids else last_project_id,
         }
         complete = not projects and not next_projects
         return SourcePage(
@@ -185,9 +228,11 @@ class GitLabPublicReleaseAssetsSourceAdapter:
             upstream_count=0 if complete else None,
         )
 
-    def _get(self, url: str, kind: str) -> HttpResponse:
+    def _get(self, url: str, kind: str, *, allow_not_found: bool = False) -> HttpResponse | None:
         _safe_api_url(url)
         response: HttpResponse = self.client.get(url, headers={"Accept": "application/json"})
+        if allow_not_found and response.status == 404:
+            return None
         if response.status != 200:
             raise ValueError(f"GitLab {kind} endpoint returned HTTP {response.status}")
         return response
@@ -205,8 +250,17 @@ class GitLabPublicReleaseAssetsSourceAdapter:
             if isinstance(release.get("_links"), Mapping)
             else ""
         )
-        if not _safe_project_web_url(release_url, project["path"]):
+        if not _safe_release_web_url(release_url):
             release_url = f"https://gitlab.com/{project['path']}/-/releases/{quote(tag, safe='')}"
+        else:
+            release_path = urlsplit(release_url).path.partition("/-/releases/")[0]
+            current_path = unquote(release_path.lstrip("/"))
+            if current_path:
+                project = {
+                    **project,
+                    "path": current_path,
+                    "web_url": f"https://gitlab.com/{current_path}",
+                }
         assets = release.get("assets")
         links = assets.get("links") if isinstance(assets, Mapping) else None
         if not _is_sequence(links):
@@ -333,12 +387,16 @@ def _safe_asset_url(value: str) -> bool:
     )
 
 
-def _safe_project_web_url(value: str, path: str) -> bool:
+def _safe_release_web_url(value: str) -> bool:
     parsed = urlsplit(value)
     return (
         parsed.scheme == "https"
         and parsed.hostname == "gitlab.com"
-        and parsed.path.startswith(f"/{path}/-/releases/")
+        and parsed.username is None
+        and parsed.password is None
+        and "/-/releases/" in parsed.path
+        and not parsed.query
+        and not parsed.fragment
     )
 
 
@@ -351,6 +409,23 @@ def _next_link(headers: Mapping[str, Any], base_url: str) -> str:
             _safe_api_url(candidate)
             return candidate
     return ""
+
+
+def _set_query_parameter(url: str, key: str, value: str) -> str:
+    parsed = urlsplit(url)
+    query = [(name, item) for name, item in parse_qsl(parsed.query) if name != key]
+    query.append((key, value))
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), ""))
+
+
+def _same_url(left: str, right: str) -> bool:
+    left_parts, right_parts = urlsplit(left), urlsplit(right)
+    return (
+        left_parts.scheme.casefold() == right_parts.scheme.casefold()
+        and (left_parts.hostname or "").casefold() == (right_parts.hostname or "").casefold()
+        and left_parts.path == right_parts.path
+        and sorted(parse_qsl(left_parts.query)) == sorted(parse_qsl(right_parts.query))
+    )
 
 
 def _descriptive_name(value: str) -> str:
@@ -380,6 +455,14 @@ def _identity_matches(name: str, context: str) -> bool:
 
 def _text(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
+
+
+def _optional_positive_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("pagination state values must be positive integers")
+    return value
 
 
 def _optional_text(value: Any) -> str:
