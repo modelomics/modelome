@@ -1,0 +1,20 @@
+# The official YOLOv5 README pairs P6 detection, segmentation, and
+# classification variants with direct v7.0 GitHub release checkpoints. The
+# standard 640-pixel detection rows link to successor platform pages; the
+# configured variant filter intentionally selects only explicit checkpoint URLs.
+[[source]]
+name = "ultralytics-yolov5-pretrained-checkpoints"
+adapter = "markdown_model_table"
+enabled = false
+entry_tags = ["field:computer-vision", "ecosystem:ultralytics", "model-family:yolov5", "kind:checkpoint", "evidence:first-party-checkpoint-table"]
+repository = "ultralytics/yolov5"
+branch = "master"
+document_path = "README.md"
+provider_namespace = "ultralytics:yolov5-checkpoint"
+model_column = 0
+model_header_pattern = "^Model$"
+model_name_pattern = "^(YOLOv5(?:[nsmlx]6|[nsmlx]-(?:seg|cls)))$"
+identity_include_heading = false
+schedule = "weekly"
+max_response_bytes = 8388608
+max_rows = 1000

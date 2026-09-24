@@ -42,9 +42,11 @@ _NGC_TEAM = re.compile(
     r"(?P<name>[A-Za-z0-9_.-]+)$"
 )
 _SAFE_MODEL_NAME = re.compile(r"^[^\x00-\x1f]{1,512}$")
-_NGC_WEIGHT_URL = re.compile(
-    r"https://api\.ngc\.nvidia\.com/v2/models/nvidia/nemo/"
+_WEIGHT_URL = re.compile(
+    r"(?:https://api\.ngc\.nvidia\.com/v2/models/nvidia/nemo/"
     r"[A-Za-z0-9_.-]+/versions/[A-Za-z0-9_.-]+/files/[A-Za-z0-9_.-]+"
+    r"|https://huggingface\.co/[A-Za-z0-9][A-Za-z0-9_.-]*/"
+    r"[A-Za-z0-9][A-Za-z0-9_.-]*/resolve/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"
     r"(?=$|[\s)`>])"
 )
 
@@ -80,7 +82,8 @@ class NemoCheckpointCatalogSourceAdapter:
         "a Hugging Face or NVIDIA NGC model-card URL. It does not invoke "
         "list_available_models(), infer checkpoint URLs, fetch provider cards, or "
         "treat citations and prose mentions as releases. Literal versioned NeMo NGC "
-        "file URLs in an admitted row are preserved as weight links."
+        "file URLs and Hugging Face resolve URLs in an admitted row are preserved "
+        "as weight links."
     )
 
     def __init__(
@@ -114,7 +117,7 @@ class NemoCheckpointCatalogSourceAdapter:
                 "max_response_bytes": self.max_response_bytes,
                 "max_entries": self.max_entries,
                 "admission": "model table row with direct Hugging Face or NGC card",
-                "weights": "literal versioned NeMo NGC file URLs in admitted rows",
+                "weights": "literal NeMo NGC or Hugging Face file URLs in admitted rows",
             }
         )
 
@@ -278,7 +281,7 @@ def _checkpoints(parser: _CatalogHtmlParser, base_url: str, source: str) -> tupl
             for cell in row.cells:
                 weight_urls.extend(
                     canonicalize_url(match.group(0))
-                    for match in _NGC_WEIGHT_URL.finditer(cell.text)
+                    for match in _WEIGHT_URL.finditer(cell.text)
                 )
                 for anchor in cell.anchors:
                     card_url = canonicalize_url(urljoin(base_url, anchor.href))

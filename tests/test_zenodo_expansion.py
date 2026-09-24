@@ -54,6 +54,31 @@ def test_zenodo_preserves_version_graph_and_related_identifier_relation() -> Non
     assert ("https://doi.org/10.5281/zenodo.41", "version_of") in links
 
 
+def test_zenodo_preserves_datacite_concept_doi_version_relations() -> None:
+    record = {
+        "id": 42,
+        "metadata": {
+            "title": "Versioned model",
+            "resource_type": {"type": "model"},
+            "related_identifiers": [
+                {"identifier": "10.5281/zenodo.40", "relation": "IsVersionOf"},
+                {"identifier": "10.5281/zenodo.43", "relation": "HasVersion"},
+            ],
+        },
+        "links": {
+            "self": "https://zenodo.org/api/records/42",
+            "self_html": "https://zenodo.org/records/42",
+        },
+    }
+    payload = {"hits": {"hits": [record], "total": 1}, "links": {}}
+
+    page = ZenodoModelRecordsSourceAdapter(client=_Client(payload)).fetch_page({})
+
+    links = {(link.url, link.relation) for link in page.records[0].links}
+    assert ("https://doi.org/10.5281/zenodo.40", "version_of") in links
+    assert ("https://doi.org/10.5281/zenodo.43", "has_version") in links
+
+
 def test_zenodo_adds_exact_doi_identity_bridge_only_for_is_identical_to() -> None:
     record = {
         "id": 42,

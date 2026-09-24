@@ -1,0 +1,18 @@
+# The official FourCastNet README identifies a public NERSC HTML index whose
+# bounded listing contains backbone.ckpt and precip.ckpt.
+[[source]]
+name = "nvlabs-fourcastnet-checkpoint-registry"
+adapter = "fourcastnet_checkpoint_registry"
+enabled = false
+entry_tags = ["field:weather-machine-learning", "ecosystem:nvlabs-fourcastnet", "kind:pretrained-checkpoint"]
+repository = "NVlabs/FourCastNet"
+branch = "master"
+source_path = "README.md"
+provider_namespace = "fourcastnet:checkpoint"
+max_response_bytes = 2097152
+max_entries = 2
+
+[evidence]
+first_party_readme = "https://github.com/NVlabs/FourCastNet/blob/master/README.md"
+public_index = "https://portal.nersc.gov/project/m4134/FCN_weights_v0/"
+checkpoint_restriction = "Only backbone.ckpt and precip.ckpt; no file bodies are downloaded"

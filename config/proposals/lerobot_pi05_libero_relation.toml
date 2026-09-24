@@ -1,0 +1,14 @@
+# LeRobot's first-party Pi0.5 guide connects one exact checkpoint release to
+# the exact LIBERO dataset used in its quickstart and reported results.
+[[source]]
+name = "lerobot-pi05-libero-relation"
+adapter = "lerobot_pi05_libero_relation"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:lerobot", "kind:checkpoint-lineage"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# Source: https://github.com/huggingface/lerobot/blob/main/docs/source/pi05.mdx
+# Checkpoint: https://huggingface.co/lerobot/pi05_libero_finetuned_v044
+# Dataset: https://huggingface.co/datasets/lerobot/libero
+# The adapter records only this exact first-party checkpoint-to-dataset relation.

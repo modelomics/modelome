@@ -9,6 +9,7 @@ from modelome.http import HttpResponse
 from modelome.sources.catalog import create_source
 from modelome.sources.github_historical_release_assets import (
     GitHubHistoricalReleaseAssetsSourceAdapter,
+    plan_github_repository_id_ranges,
 )
 
 
@@ -246,6 +247,55 @@ def test_empty_repository_page_cannot_claim_completion_with_next_cursor() -> Non
 
     with pytest.raises(ValueError, match="next cursor without a row"):
         adapter.fetch_page({})
+
+
+def test_range_planner_makes_disjoint_bounded_slices_with_cost_estimates() -> None:
+    plans = plan_github_repository_id_ranges(
+        initial_since=10,
+        max_repository_id=26,
+        shard_count=3,
+        source_name_prefix="history-part",
+        page_size=4,
+        max_releases_per_repository=2,
+        max_assets_per_release=3,
+        max_release_pages_per_repository=2,
+        max_asset_pages_per_release=2,
+        max_http_attempts=2,
+    )
+
+    assert [(plan.initial_since, plan.max_repository_id) for plan in plans] == [
+        (10, 16),
+        (16, 21),
+        (21, 26),
+    ]
+    assert [plan.name for plan in plans] == [
+        "history-part-11-16",
+        "history-part-17-21",
+        "history-part-22-26",
+    ]
+    assert [plan.max_repositories for plan in plans] == [6, 5, 5]
+    assert [plan.max_page_requests for plan in plans] == [38, 32, 32]
+    assert [plan.max_api_requests for plan in plans] == [76, 64, 64]
+
+    adapter = GitHubHistoricalReleaseAssetsSourceAdapter(**plans[0].adapter_kwargs())
+    assert adapter.initial_since == plans[0].initial_since
+    assert adapter.max_repository_id == plans[0].max_repository_id
+    assert adapter.max_repositories == plans[0].max_repositories
+
+
+@pytest.mark.parametrize(
+    ("initial_since", "max_repository_id", "shard_count"),
+    [(3, 3, 1), (0, 10, 11), (0, 20_001, 1)],
+)
+def test_range_planner_rejects_empty_or_unbounded_slices(
+    initial_since: int, max_repository_id: int, shard_count: int
+) -> None:
+    with pytest.raises(ValueError):
+        plan_github_repository_id_ranges(
+            initial_since=initial_since,
+            max_repository_id=max_repository_id,
+            shard_count=shard_count,
+        )
 
 
 def test_exact_full_terminal_pages_without_link_are_accepted() -> None:

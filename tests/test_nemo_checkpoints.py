@@ -256,3 +256,28 @@ def test_checkpoint_catalog_rejects_near_match_ngc_weight_suffixes() -> None:
     page = adapter.fetch_page({})
 
     assert page.records[0].releases[0].metadata["weight_urls"] == []
+
+
+def test_checkpoint_catalog_preserves_tts_huggingface_resolve_weight_urls() -> None:
+    model_id = "nvidia/low-frame-rate-speech-codec-22khz"
+    weight_url = (
+        f"https://huggingface.co/{model_id}/resolve/main/"
+        "low-frame-rate-speech-codec-22khz.nemo"
+    )
+    body = f"""
+    <table>
+      <tr><th>Model Name</th><th>Overview</th><th>Checkpoint</th></tr>
+      <tr><td>{model_id}</td>
+      <td><a href="https://huggingface.co/{model_id}">card</a></td>
+      <td><code>{weight_url}</code></td></tr>
+    </table>
+    """
+    adapter = NemoCheckpointCatalogSourceAdapter(
+        name="nemo-tts-checkpoints",
+        url="https://docs.nvidia.com/nemo-framework/user-guide/latest/tts/checkpoints.html",
+        client=_QueuedClient(_response(body)),
+    )
+
+    page = adapter.fetch_page({})
+
+    assert page.records[0].releases[0].metadata["weight_urls"] == [weight_url]

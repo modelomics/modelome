@@ -36,6 +36,7 @@ from modelome.sources.biorxiv_jats_supplementary import (
 )
 from modelome.sources.bpemb_registry import BPEmbPretrainedVectorRegistrySourceAdapter
 from modelome.sources.cellpose_registry import CellposeRegistrySourceAdapter
+from modelome.sources.cgschnet_pretrained_bundle import CGSchNetPretrainedBundleSourceAdapter
 from modelome.sources.chem_ml_extra import (
     ChempropCheMeleonCheckpointSourceAdapter,
     UniMofCheckpointSourceAdapter,
@@ -59,6 +60,9 @@ from modelome.sources.espnet_model_zoo import EspnetModelZooSourceAdapter
 from modelome.sources.europe_pmc import EuropePmcSourceAdapter
 from modelome.sources.fairseq_language_models import FairseqPretrainedLanguageModelSourceAdapter
 from modelome.sources.fengwu_checkpoint_registry import FengWuCheckpointRegistrySourceAdapter
+from modelome.sources.fourcastnet_checkpoint_registry import (
+    FourCastNetCheckpointRegistrySourceAdapter,
+)
 from modelome.sources.fs_mol_checkpoints import FSMolCheckpointSourceAdapter
 from modelome.sources.galaxea_vla_checkpoints import GalaxeaVLACheckpointSourceAdapter
 from modelome.sources.generative_extra import (
@@ -96,6 +100,7 @@ from modelome.sources.keras_hub_preset_registry import KerasHubPresetRegistrySou
 from modelome.sources.lerobot_molmoact2_relation import (
     LeRobotMolmoAct2RelationSourceAdapter,
 )
+from modelome.sources.lerobot_pi05_libero_relation import LeRobotPi05LiberoRelationSourceAdapter
 from modelome.sources.line_checkpoint_card_catalog import (
     LineCheckpointCardCatalogSourceAdapter,
 )
@@ -108,6 +113,7 @@ from modelome.sources.markdown_checkpoint_list import MarkdownCheckpointListSour
 from modelome.sources.markdown_model_card_list import MarkdownModelCardListSourceAdapter
 from modelome.sources.markdown_model_table import MarkdownModelTableSourceAdapter
 from modelome.sources.mediapipe_model_catalog import MediaPipeModelCatalogSourceAdapter
+from modelome.sources.microsoft_aurora_checkpoints import MicrosoftAuroraCheckpointSourceAdapter
 from modelome.sources.mindspore_registry import MindSporeModelZooSourceAdapter
 from modelome.sources.modelscope import ModelScopeModelsSourceAdapter
 from modelome.sources.molecular_registry import OpenFoldCheckpointRegistrySourceAdapter
@@ -129,6 +135,7 @@ from modelome.sources.octo_checkpoints import OctoCheckpointSourceAdapter
 from modelome.sources.ollama_library_tags import OllamaLibraryTagCatalogAdapter
 from modelome.sources.onnx_model_zoo import OnnxModelZooSourceAdapter
 from modelome.sources.open_x_rt1x_checkpoint import OpenXRT1XCheckpointSourceAdapter
+from modelome.sources.openai_gpt2_checkpoints import OpenAIGPT2CheckpointSourceAdapter
 from modelome.sources.openai_models import OpenAIModelsSourceAdapter
 from modelome.sources.openaire import OpenAireGraphSourceAdapter
 from modelome.sources.openalex import OpenAlexSourceAdapter
@@ -183,6 +190,7 @@ from modelome.sources.proteinmpnn import ProteinMpnSourceAdapter
 from modelome.sources.pubmed import PubMedBulkSourceAdapter
 from modelome.sources.pyg_dimenet_checkpoints import PyGDimeNetCheckpointSourceAdapter
 from modelome.sources.pyg_gpse_registry import PyGGPSECheckpointRegistrySourceAdapter
+from modelome.sources.pyg_schnet_qm9_registry import PyGSchNetQM9RegistrySourceAdapter
 from modelome.sources.pytorch_hub_load_calls import PyTorchHubLoadCallSourceAdapter
 from modelome.sources.qualcomm_ai_hub_models import QualcommAIHubModelsSourceAdapter
 from modelome.sources.replicate import ReplicateModelsSourceAdapter
@@ -677,6 +685,66 @@ def create_source(
                 4 * 1024 * 1024,
             ),
             max_entries=_integer(expanded.get("max_entries"), 100_000),
+            **injected,
+        )
+
+    if adapter == "openai_gpt2_checkpoints":
+        return OpenAIGPT2CheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "fourcastnet_checkpoint_registry":
+        return FourCastNetCheckpointRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 2),
+            **injected,
+        )
+
+    if adapter == "pyg_schnet_qm9_registry":
+        return PyGSchNetQM9RegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "cgschnet_pretrained_bundle":
+        return CGSchNetPretrainedBundleSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "microsoft_aurora_checkpoints":
+        return MicrosoftAuroraCheckpointSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "lerobot_pi05_libero_relation":
+        return LeRobotPi05LiberoRelationSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
             **injected,
         )
 

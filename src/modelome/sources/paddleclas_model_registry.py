@@ -28,6 +28,8 @@ Clock = Callable[[], datetime]
 _COMMIT = re.compile(r"^[0-9a-f]{40}$")
 _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _SAFE_MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_./-]{0,255}$")
+_HGNETV2_DOC_PATH = "docs/en/models/PP-HGNetV2_en.md"
+_HGNETV2_LINK = re.compile(r"\[[^\]]+\]\((https://[^)]+)\)")
 
 
 def _utcnow() -> datetime:
@@ -47,18 +49,18 @@ class PaddleClasModelRegistrySourceAdapter:
     """Enumerate literal PaddleClas inference-model declarations at one commit.
 
     ``paddleclas.py`` is the upstream command-line registry that maps public
-    model names to archive URL templates. This adapter parses its literal
-    ImageNet-series and PULC lists paired with their templates, and resolves
-    the ShiTu selector to the literal archive handles used by its runtime
-    downloader. It neither imports PaddleClas nor follows/downloads an archive.
+    model names to archive URL templates. The adapter parses its literal
+    ImageNet-series and PULC lists and ShiTu runtime archive handles. It also
+    preserves the separate stage-1/stage-2/inference links in PaddleClas's
+    PP-HGNetV2 model table. It neither imports PaddleClas nor downloads archives.
     """
 
     disable_derived_extraction = True
     coverage_limitation = (
-        "Covers ImageNet-series, PULC, and ShiTu inference models explicitly declared "
-        "by PaddleClas's public static registry at one commit. It does not execute "
-        "PaddleClas, infer undocumented models, verify archive availability, or "
-        "download checkpoints."
+        "Covers ImageNet-series, PULC, and ShiTu inference models plus the explicit "
+        "PP-HGNetV2 stage-1, stage-2, and inference model-table links at one commit. "
+        "It does not execute PaddleClas, infer undocumented models, verify archive "
+        "availability, or download checkpoints."
     )
 
     def __init__(
@@ -141,11 +143,35 @@ class PaddleClasModelRegistrySourceAdapter:
         if len(response.body) > self.max_response_bytes:
             raise ValueError(f"{self.name}: source file exceeds {self.max_response_bytes} bytes")
         entries = _parse_source(response.text(), self.name, self.source_path)
+        # This official historical model page declares stage-1, stage-2, and
+        # inference artifacts in separate table columns. The CLI registry
+        # above only carries one generic inference archive template.
+        document_url = (
+            f"https://raw.githubusercontent.com/{self.repository}/"
+            f"{quote(revision, safe='')}/{quote(_HGNETV2_DOC_PATH, safe='/')}"
+        )
+        document_response = self.client.get(
+            document_url, headers={"Accept": "text/markdown,text/plain"}
+        )
+        if document_response.status != 200:
+            raise ValueError(
+                f"{self.name}: PP-HGNetV2 model table returned HTTP {document_response.status}"
+            )
+        if len(document_response.body) > self.max_response_bytes:
+            raise ValueError(f"{self.name}: PP-HGNetV2 model table exceeds response limit")
+        entries += _parse_hgnetv2_table(document_response.text(), self.name, _HGNETV2_DOC_PATH)
         if len(entries) > self.max_entries:
             raise ValueError(f"{self.name}: static registry exceeds {self.max_entries} models")
         if not entries:
             raise ValueError(f"{self.name}: static registry contains no admissible models")
-        records = tuple(self._record(entry, revision, response.body) for entry in entries)
+        records = tuple(
+            self._record(
+                entry,
+                revision,
+                document_response.body if entry.catalog == "HGNetV2" else response.body,
+            )
+            for entry in entries
+        )
         next_state: dict[str, Any] = {
             "completed_revision": revision,
             "checked_at": checked_at,
@@ -180,7 +206,11 @@ class PaddleClasModelRegistrySourceAdapter:
         identity = f"{entry.catalog}:{entry.name}"
         local_id = f"model:{identity}"
         model_identifier = Identifier("paddleclas:model", identity)
-        source_url = self.blob_url(revision)
+        entry_source_path = _HGNETV2_DOC_PATH if entry.catalog == "HGNetV2" else self.source_path
+        source_url = (
+            f"{self.repository_url}/blob/{quote(revision, safe='')}/"
+            f"{quote(entry_source_path, safe='/')}"
+        )
         weight_url = _render_url_template(entry.url_template, entry.name, self.name)
         model = ModelHint(
             local_id=local_id,
@@ -322,6 +352,56 @@ def _parse_source(source: str, name: str, path: str) -> tuple[_ModelEntry, ...]:
         if key in seen:
             raise ValueError(f"{name}: duplicate static model declaration {key!r}")
         seen.add(key)
+    return tuple(entries)
+
+
+def _parse_hgnetv2_table(document: str, source: str, path: str) -> tuple[_ModelEntry, ...]:
+    """Preserve the model and each direct artifact column from the official table."""
+    entries: list[_ModelEntry] = []
+    for line_number, line in enumerate(document.splitlines(), start=1):
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) != 7 or not re.fullmatch(r"PPHGNetV2_B[0-6]", cells[0]):
+            continue
+        model_name = cells[0]
+        artifacts = []
+        for cell, variant in zip(
+            cells[4:], ("stage1_pretrained", "stage2_pretrained", "inference"), strict=True
+        ):
+            match = _HGNETV2_LINK.fullmatch(cell)
+            if match is None:
+                raise ValueError(f"{source}: invalid PP-HGNetV2 {variant} table link")
+            url = match.group(1)
+            parsed = urlsplit(url)
+            expected_path = (
+                f"/dygraph/legendary_models/{model_name}_ssld_stage1_pretrained.pdparams"
+                if variant == "stage1_pretrained"
+                else f"/dygraph/legendary_models/{model_name}_ssld_pretrained.pdparams"
+                if variant == "stage2_pretrained"
+                else f"/dygraph/inference/{model_name}_ssld_infer.tar"
+            )
+            if (
+                parsed.scheme != "https"
+                or parsed.hostname != "paddle-imagenet-models-name.bj.bcebos.com"
+                or parsed.path != expected_path
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError(f"{source}: unexpected PP-HGNetV2 artifact URL")
+            artifacts.append((variant, url))
+        for variant, url in artifacts:
+            entries.append(
+                _ModelEntry(
+                    catalog="HGNetV2",
+                    family=variant,
+                    name=f"{model_name}__{variant}",
+                    url_template=url,
+                    locator=f"{path}:line:{line_number}:{variant}",
+                )
+            )
+    if not entries:
+        raise ValueError(f"{source}: PP-HGNetV2 model table contains no supported artifact rows")
     return tuple(entries)
 
 

@@ -117,7 +117,9 @@ class KaggleModelsSourceAdapter:
         if not _is_sequence(items):
             raise ValueError(f"{self.name}: response models must be a list")
         raw_items_seen = (raw_items_seen or 0) + len(items)
-        response_total = _optional_nonnegative_int(payload.get("totalResults"))
+        response_total = _optional_nonnegative_int(
+            payload.get("totalResults", payload.get("total_results"))
+        )
         total_drift = (
             response_total is not None
             and scan_total is not None
@@ -146,7 +148,9 @@ class KaggleModelsSourceAdapter:
                     )
                 )
 
-        next_token = _optional_text(payload.get("nextPageToken"))
+        next_token = _optional_text(
+            payload.get("nextPageToken", payload.get("next_page_token"))
+        )
         if next_token is not None and (
             next_token == token or next_token in seen_tokens
         ):

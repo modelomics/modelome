@@ -1,0 +1,15 @@
+# First-party cG-SchNet README names two pretrained models in one DOI bundle.
+[[source]]
+name = "cgschnet-pretrained-bundle"
+adapter = "cgschnet_pretrained_bundle"
+enabled = false
+repository = "atomistic-machine-learning/cG-SchNet"
+branch = "main"
+source_path = "published_data/README.md"
+entry_tags = ["field:computational-chemistry", "ecosystem:cgschnet", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# Both model records retain this shared bundle reference only:
+# https://dx.doi.org/10.14279/depositonce-14978
+# No per-model artifact URL or binary reachability is asserted.

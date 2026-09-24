@@ -1,0 +1,13 @@
+# Microsoft documents these exact Aurora model variants and publishes their
+# checkpoint files in the official Hugging Face repository. The adapter only
+# projects these named files and pins them to the Hub repository revision.
+[[source]]
+name = "microsoft-aurora-checkpoints"
+adapter = "microsoft_aurora_checkpoints"
+enabled = false
+entry_tags = ["field:weather-machine-learning", "ecosystem:microsoft-aurora", "kind:pretrained-checkpoint"]
+max_response_bytes = 4194304
+
+[evidence]
+checkpoint_documentation = "https://microsoft.github.io/aurora/models.html"
+checkpoint_repository = "https://huggingface.co/microsoft/aurora"

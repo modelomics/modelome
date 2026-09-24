@@ -1,0 +1,26 @@
+# Fireworks' public model library lists currently available serverless cards.
+# Detail pages explicitly pair each model-card slug with its API model path
+# (accounts/fireworks/models/<slug>), so retain the stable API slug rather than
+# the marketing title. This is a live catalog and is intentionally disabled.
+[[source]]
+name = "fireworks-serverless-models"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:fireworks", "kind:hosted-model"]
+url = "https://fireworks.ai/models?modelTypes=Serverless&show=serverless"
+provider_namespace = "fireworks:model"
+artifact_kind = "model_card"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 200
+
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://fireworks\.ai/models/[a-z0-9][a-z0-9.-]*/[a-z0-9][a-z0-9.-]*$'
+identity_source = "url"
+identity_pattern = '^https://fireworks\.ai/models/[a-z0-9][a-z0-9.-]*/(?P<id>[a-z0-9][a-z0-9.-]*)$'
+name_source = "identity"
+relation = "model_documentation"
+crawl = false
+require_url = true

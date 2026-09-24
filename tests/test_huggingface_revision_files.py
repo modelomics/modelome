@@ -284,3 +284,62 @@ def test_lfs_metadata_checkpoint_is_byte_bounded_and_truncation_is_explicit() ->
     assert metadata["weight_files"] == ["model.safetensors"]
     assert metadata.get("weight_file_metadata", {}) == {}
     assert metadata["weight_file_metadata_truncated"] is True
+
+
+def test_lfs_metadata_stays_with_each_commit_across_queue_resume() -> None:
+    repo = "lab/revision-model"
+    commits = f"https://huggingface.co/api/models/{repo}/commits/refs%2Fheads%2Fmain"
+    tree_a = f"https://huggingface.co/api/models/{repo}/tree/commit-a?recursive=true&expand=false"
+    tree_b = f"https://huggingface.co/api/models/{repo}/tree/commit-b?recursive=true&expand=false"
+    routes = _revision_routes(repo)
+    routes[commits] = (200, [{"id": "commit-a"}, {"id": "commit-b"}], {})
+    routes[tree_a] = (
+        200,
+        [
+            {
+                "type": "file",
+                "path": "model.safetensors",
+                "size": 111,
+                "lfs": {"size": 111, "sha256": "a" * 64},
+            }
+        ],
+        {},
+    )
+    routes[tree_b] = (
+        200,
+        [
+            {
+                "type": "file",
+                "path": "model.safetensors",
+                "size": 222,
+                "lfs": {"size": 222, "sha256": "b" * 64},
+            }
+        ],
+        {},
+    )
+    client = _RouteClient(routes)
+    adapter = HuggingFaceSourceAdapter(
+        client=client,
+        include_revisions=True,
+        include_revision_files=True,
+    )
+
+    state = _drain_to_tree(adapter, {})
+    first_commit = adapter.fetch_page(state)
+    assert first_commit.records[0].releases[0].revision == "commit-a"
+    assert first_commit.records[0].releases[0].metadata["weight_file_metadata"] == {
+        "model.safetensors": {"size_bytes": 111, "lfs_sha256": "a" * 64}
+    }
+
+    # The queued second commit resumes independently and cannot inherit the
+    # first commit's file metadata despite reusing the same filename.
+    resumed = HuggingFaceSourceAdapter(
+        client=client,
+        include_revisions=True,
+        include_revision_files=True,
+    )
+    second_commit = resumed.fetch_page(first_commit.next_state)
+    assert second_commit.records[0].releases[0].revision == "commit-b"
+    assert second_commit.records[0].releases[0].metadata["weight_file_metadata"] == {
+        "model.safetensors": {"size_bytes": 222, "lfs_sha256": "b" * 64}
+    }

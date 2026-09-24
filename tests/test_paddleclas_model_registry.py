@@ -27,6 +27,22 @@ def _check_input_model(model_name):
         check_model_file("shitu", "PP-ShiTuV2/general_PPLCNetV2_base_pretrained_v1.0")
         check_model_file("shitu", "picodet_PPLCNet_x2_5_mainbody_lite_v1.0")
 """
+_HGNETV2_ROW = (
+    b"| PPHGNetV2_B0 | 77.77 | 93.91 | 0.52 |"
+    b" [Download](https://paddle-imagenet-models-name.bj.bcebos.com/dygraph/"
+    b"legendary_models/PPHGNetV2_B0_ssld_stage1_pretrained.pdparams) |"
+    b" [Download](https://paddle-imagenet-models-name.bj.bcebos.com/dygraph/"
+    b"legendary_models/PPHGNetV2_B0_ssld_pretrained.pdparams) |"
+    b" [Download](https://paddle-imagenet-models-name.bj.bcebos.com/dygraph/"
+    b"inference/PPHGNetV2_B0_ssld_infer.tar) |"
+)
+_HGNETV2_DOC = b"\n".join(
+    (
+        b"| Model | Top1 | Top5 | Latency | Stage 1 | Stage 2 | Inference |",
+        b"|:--: |:--: |:--: |:--: |:--: |:--: |:--: |",
+        _HGNETV2_ROW,
+    )
+)
 
 
 class _QueuedClient:
@@ -48,7 +64,7 @@ def _commit() -> HttpResponse:
 
 
 def test_paddleclas_registry_enumerates_only_explicit_inference_models() -> None:
-    client = _QueuedClient(_commit(), _response(_SOURCE))
+    client = _QueuedClient(_commit(), _response(_SOURCE), _response(_HGNETV2_DOC))
     adapter = PaddleClasModelRegistrySourceAdapter(
         repository="example/PaddleClas",
         branch="release/2.6",
@@ -59,8 +75,13 @@ def test_paddleclas_registry_enumerates_only_explicit_inference_models() -> None
     page = adapter.fetch_page({})
 
     assert page.authoritative_snapshot
-    assert page.upstream_count == 6
-    assert page.next_state["catalog_counts"] == {"IMN": 3, "PULC": 1, "SHITU": 2}
+    assert page.upstream_count == 9
+    assert page.next_state["catalog_counts"] == {
+        "HGNetV2": 3,
+        "IMN": 3,
+        "PULC": 1,
+        "SHITU": 2,
+    }
     assert client.calls[1][0].endswith(f"/{_REVISION}/paddleclas.py")
     resnet = next(record for record in page.records if record.title == "ResNet50")
     assert resnet.identifiers == (Identifier("paddleclas:model", "IMN:ResNet50"),)
@@ -90,6 +111,21 @@ def test_paddleclas_registry_enumerates_only_explicit_inference_models() -> None
     assert shitu_links == {
         "https://paddle-imagenet-models-name.bj.bcebos.com/dygraph/rec/models/inference/PP-ShiTuV2/general_PPLCNetV2_base_pretrained_v1.0_infer.tar",
         "https://paddle-imagenet-models-name.bj.bcebos.com/dygraph/rec/models/inference/picodet_PPLCNet_x2_5_mainbody_lite_v1.0_infer.tar",
+    }
+    hgnet_records = [
+        record for record in page.records if record.identifiers[0].value.startswith("HGNetV2:")
+    ]
+    assert {record.releases[0].metadata["family"] for record in hgnet_records} == {
+        "stage1_pretrained",
+        "stage2_pretrained",
+        "inference",
+    }
+    assert {
+        link.url for record in hgnet_records for link in record.links if link.relation == "weights"
+    } == {
+        "https://paddle-imagenet-models-name.bj.bcebos.com/dygraph/legendary_models/PPHGNetV2_B0_ssld_stage1_pretrained.pdparams",
+        "https://paddle-imagenet-models-name.bj.bcebos.com/dygraph/legendary_models/PPHGNetV2_B0_ssld_pretrained.pdparams",
+        "https://paddle-imagenet-models-name.bj.bcebos.com/dygraph/inference/PPHGNetV2_B0_ssld_infer.tar",
     }
 
 

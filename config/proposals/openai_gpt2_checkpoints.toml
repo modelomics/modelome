@@ -1,0 +1,15 @@
+# The archived OpenAI GPT-2 repository declares four model sizes and a direct
+# Azure Blob URL template for their TensorFlow weight shards. Disabled pending
+# catalog review; the adapter reads only repository text and never fetches weights.
+[[source]]
+name = "openai-gpt2-checkpoints"
+adapter = "openai_gpt2_checkpoints"
+enabled = false
+entry_tags = ["field:natural-language-processing", "model-family:gpt-2", "era:historical", "kind:checkpoint"]
+repository = "openai/gpt-2"
+branch = "master"
+source_path = "download_model.py"
+provider_namespace = "openai:gpt2-checkpoint"
+schedule = "monthly"
+max_response_bytes = 4194304
+max_entries = 100

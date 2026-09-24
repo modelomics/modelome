@@ -109,6 +109,35 @@ def test_model_list_rejects_total_drift_between_pages() -> None:
     assert client.calls[2][1] == {"sortBy": "createTime", "pageSize": 100}
 
 
+def test_model_list_snake_case_cursor_and_total_fields_enforce_drift_guard() -> None:
+    client = _Client(
+        {
+            "models": [{"ref": "google/first"}],
+            "next_page_token": "next",
+            "total_results": 2,
+        },
+        {"models": [{"ref": "google/second"}], "total_results": 3},
+        {
+            "models": [{"ref": "google/first"}],
+            "next_page_token": "restart-next",
+            "total_results": 3,
+        },
+        {"models": [{"ref": "google/second"}, {"ref": "google/third"}], "total_results": 3},
+    )
+    adapter = KaggleModelsSourceAdapter(client=client)
+
+    first = adapter.fetch_page({})
+    drift = adapter.fetch_page(first.next_state)
+    assert drift.issues[0].stage == "source_pagination"
+    assert drift.retry_state == {}
+
+    restarted = adapter.fetch_page(drift.retry_state)
+    completed = adapter.fetch_page(restarted.next_state)
+    assert completed.complete
+    assert client.calls[1][1]["pageToken"] == "next"
+    assert "pageToken" not in client.calls[2][1]
+
+
 def test_model_list_pagination_cycle_fails_instead_of_rereading_pages() -> None:
     client = _Client(
         {"models": [{"ref": "google/first"}], "nextPageToken": "first"},

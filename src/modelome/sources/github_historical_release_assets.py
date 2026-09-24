@@ -12,6 +12,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qsl, quote, urljoin, urlsplit
 
@@ -25,6 +26,131 @@ _PAGE_SIZE = 100
 _API_VERSION = "2026-03-10"
 _LINK_RE = re.compile(r"<([^>]+)>\s*((?:;\s*[^,]+)*)")
 _REL_RE = re.compile(r'\brel\s*=\s*(?:"([^"]+)"|([^;\s,]+))', re.I)
+
+
+@dataclass(frozen=True, slots=True)
+class GitHubRepositoryIdRangePlan:
+    """One contiguous, disjoint slice compatible with the scanner options."""
+
+    name: str
+    initial_since: int
+    max_repository_id: int
+    max_repositories: int
+    page_size: int
+    max_releases_per_repository: int
+    max_assets_per_release: int
+    max_release_pages_per_repository: int
+    max_asset_pages_per_release: int
+    max_http_attempts: int
+    max_page_requests: int
+    max_api_requests: int
+
+    def adapter_kwargs(self) -> dict[str, Any]:
+        """Return options that instantiate this exact bounded slice."""
+
+        return {
+            "name": self.name,
+            "initial_since": self.initial_since,
+            "max_repository_id": self.max_repository_id,
+            "max_repositories": self.max_repositories,
+            "page_size": self.page_size,
+            "max_releases_per_repository": self.max_releases_per_repository,
+            "max_assets_per_release": self.max_assets_per_release,
+            "max_release_pages_per_repository": self.max_release_pages_per_repository,
+            "max_asset_pages_per_release": self.max_asset_pages_per_release,
+        }
+
+
+def plan_github_repository_id_ranges(
+    *,
+    initial_since: int,
+    max_repository_id: int,
+    shard_count: int,
+    source_name_prefix: str = "github-historical-release-assets",
+    page_size: int = _PAGE_SIZE,
+    max_releases_per_repository: int = 10,
+    max_assets_per_release: int = 100,
+    max_release_pages_per_repository: int = 10,
+    max_asset_pages_per_release: int = 10,
+    max_http_attempts: int = 4,
+) -> tuple[GitHubRepositoryIdRangePlan, ...]:
+    """Partition ``(initial_since, max_repository_id]`` into safe scan slices.
+
+    Each slice uses the previous slice's inclusive upper ID as its exclusive
+    ``initial_since``. A slice's repository count cap equals its numeric width,
+    so missing IDs cannot consume the cap and make the slice stop early. Widths
+    above the adapter's 10,000-repository bound require more shards.
+    """
+
+    lower = _integer(initial_since, "initial_since", minimum=0)
+    upper = _integer(max_repository_id, "max_repository_id", minimum=1)
+    if upper <= lower:
+        raise ValueError("max_repository_id must be greater than initial_since")
+    shard_count = _integer(shard_count, "shard_count", minimum=1)
+    span = upper - lower
+    if shard_count > span:
+        raise ValueError("shard_count cannot exceed the number of IDs in the range")
+    if not isinstance(source_name_prefix, str) or not re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._-]*", source_name_prefix.strip()
+    ):
+        raise ValueError("source_name_prefix must be a simple source-name token")
+    prefix = source_name_prefix.strip()
+    page_size = _integer(page_size, "page_size", minimum=1, maximum=_PAGE_SIZE)
+    max_releases = _integer(
+        max_releases_per_repository,
+        "max_releases_per_repository",
+        minimum=1,
+        maximum=1_000,
+    )
+    max_assets = _integer(
+        max_assets_per_release,
+        "max_assets_per_release",
+        minimum=1,
+        maximum=1_000,
+    )
+    release_pages = _integer(
+        max_release_pages_per_repository,
+        "max_release_pages_per_repository",
+        minimum=1,
+        maximum=100,
+    )
+    asset_pages = _integer(
+        max_asset_pages_per_release,
+        "max_asset_pages_per_release",
+        minimum=1,
+        maximum=100,
+    )
+    attempts = _integer(max_http_attempts, "max_http_attempts", minimum=1, maximum=10)
+
+    base_width, remainder = divmod(span, shard_count)
+    cursor = lower
+    plans: list[GitHubRepositoryIdRangePlan] = []
+    for index in range(shard_count):
+        width = base_width + (1 if index < remainder else 0)
+        if width > 10_000:
+            raise ValueError("each range must cover at most 10000 IDs; increase shard_count")
+        end = cursor + width
+        page_requests = math.ceil(width / page_size) + width * (
+            release_pages + max_releases * asset_pages
+        )
+        plans.append(
+            GitHubRepositoryIdRangePlan(
+                name=f"{prefix}-{cursor + 1}-{end}",
+                initial_since=cursor,
+                max_repository_id=end,
+                max_repositories=width,
+                page_size=page_size,
+                max_releases_per_repository=max_releases,
+                max_assets_per_release=max_assets,
+                max_release_pages_per_repository=release_pages,
+                max_asset_pages_per_release=asset_pages,
+                max_http_attempts=attempts,
+                max_page_requests=page_requests,
+                max_api_requests=page_requests * attempts,
+            )
+        )
+        cursor = end
+    return tuple(plans)
 
 
 class GitHubHistoricalReleaseAssetsSourceAdapter:
@@ -776,4 +902,8 @@ def _query_positive_integer(value: Any, label: str) -> int:
     return result
 
 
-__all__ = ["GitHubHistoricalReleaseAssetsSourceAdapter"]
+__all__ = [
+    "GitHubHistoricalReleaseAssetsSourceAdapter",
+    "GitHubRepositoryIdRangePlan",
+    "plan_github_repository_id_ranges",
+]

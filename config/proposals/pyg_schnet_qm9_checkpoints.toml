@@ -1,0 +1,14 @@
+# PyG's SchNet loader declares one legacy HTTP archive containing target-specific
+# best_model members. Disabled pending review of the non-TLS upstream URL.
+[[source]]
+name = "pytorch-geometric-schnet-qm9-checkpoints"
+adapter = "pyg_schnet_qm9_registry"
+enabled = false
+entry_tags = ["field:graph-machine-learning", "field:computational-chemistry", "ecosystem:pytorch-geometric", "task:qm9-property-prediction", "kind:checkpoint"]
+repository = "pyg-team/pytorch_geometric"
+branch = "master"
+source_path = "torch_geometric/nn/models/schnet.py"
+provider_namespace = "pytorch-geometric:schnet-qm9-checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100

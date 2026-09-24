@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **372 enabled
-source entries** (357 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **381 enabled
+source entries** (366 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -44,6 +44,14 @@ Additional enabled inventories cover DeepChem Mol2Vec, Tencent GROVER, Microsoft
 VQ-Diffusion, AlphaChip, PaddleNLP sentiment, sherpa source separation, and OpenVLA.
 They also cover ADMET-AI Chemprop ensembles, DIPY neuroimaging weights, PaddleNLP
 knowledge-mining checkpoints, Octo policies, and sherpa audio tagging.
+The historical checkpoint catalogs also include the original OpenAI GPT-2 weight
+shards, YOLOv5 release links, FourCastNet's two public NERSC files, and the twelve
+PyG SchNet QM9 archive members. The two cG-SchNet names point to one shared DOI
+bundle without a claimed per-model download URL. Microsoft Aurora is scoped to
+the checkpoint filenames named in its documentation. Fireworks contributes
+current serverless model cards, while NeMo's separate all-checkpoints page adds
+older ASR rows. These sources record metadata and links; enabling them does not
+download checkpoint files.
 The GitLab adapter scans public project release metadata one request per page and emits
 low-confidence model-file candidates. The Cohere and Mistral Models API proposals
 remain opt-in because their authenticated lists can include caller-owned models.

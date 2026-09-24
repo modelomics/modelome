@@ -428,6 +428,11 @@ def _related_identifier_relation(value: Any, resource_type: Any) -> str:
     """
     relation = re.sub(r"[^a-z]", "", _text(value).casefold())
     relation_names = {
+        # DataCite uses these when a concept DOI represents a family of
+        # version-specific records. Preserve direction just as we do for the
+        # pair of relations used between successive versions.
+        "isversionof": "version_of",
+        "hasversion": "has_version",
         "isnewversionof": "version_of",
         "ispreviousversionof": "previous_version_of",
         "isvariantformof": "variant_of",

@@ -217,6 +217,48 @@ def test_checkpoint_url_does_not_join_ambiguous_multi_model_catalog_link() -> No
     assert len(result.entries) == 3
 
 
+def test_shared_doi_or_archive_resource_does_not_merge_distinct_model_variants() -> None:
+    cgschnet_records = []
+    for handle in ("comp_relenergy", "gap_relenergy"):
+        record = _seed(
+            f"cgschnet:{handle}",
+            [{"namespace": "cgschnet:checkpoint", "value": handle}],
+        )
+        record["source"] = "cgschnet-pretrained-bundle"
+        record["canonical_url"] = "https://doi.org/10.14279/depositonce-14978"
+        record["links"] = [
+            {
+                "url": "https://doi.org/10.14279/depositonce-14978",
+                "relation": "bundle_reference",
+            }
+        ]
+        cgschnet_records.append(record)
+
+    pyg_records = []
+    archive_url = (
+        "http://www.quantum-machine.org/datasets/trained_schnet_models.zip"
+    )
+    for target in ("dipole_moment", "homo"):
+        record = _seed(
+            f"pyg-schnet:{target}",
+            [
+                {
+                    "namespace": "pytorch-geometric:schnet-qm9-checkpoint",
+                    "value": f"schnet:qm9:{target}",
+                }
+            ],
+        )
+        record["source"] = "pytorch-geometric-schnet-qm9"
+        record["canonical_url"] = archive_url
+        record["links"] = [{"url": archive_url, "relation": "weights"}]
+        pyg_records.append(record)
+
+    result = build_entries([*cgschnet_records, *pyg_records])
+
+    assert len(result.entries) == 4
+    assert sorted(len(entry.members) for entry in result.entries) == [1, 1, 1, 1]
+
+
 def test_entry_seed_attaches_evidence_only_checkpoint_by_exact_record_identifier() -> None:
     model_record = _seed(
         "paper-record",
