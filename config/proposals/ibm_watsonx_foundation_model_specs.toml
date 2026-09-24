@@ -1,0 +1,33 @@
+# IBM's first-party foundation_model_specs API lists hosted model specs that
+# IBM provides for immediate inference, including exact model IDs and model
+# metadata. The listing is region-specific and requires a short-lived IBM IAM
+# bearer token supplied by the operator. This source deliberately does not
+# query custom deployments or model definitions scoped to a tenant.
+# The `next.href` pagination URL carries the provider-issued `start` token.
+# Primary sources:
+# https://cloud.ibm.com/docs/apis/watsonx-ai
+# https://www.ibm.com/docs/en/software-hub/5.1.x?topic=specifications-wx-ai-foundation-model-list-models
+[[source]]
+name = "ibm-watsonx-foundation-model-specs"
+adapter = "json_catalog"
+enabled = false
+activation_env = "IBM_WATSONX_BEARER_TOKEN"
+entry_tags = ["field:machine-learning", "ecosystem:ibm-watsonx", "kind:hosted-model", "evidence:current-api-availability"]
+url = "https://us-south.ml.cloud.ibm.com/ml/v1/foundation_model_specs?version=2024-05-01"
+provider_namespace = "ibm:watsonx-model"
+model_card_url_template = "https://dataplatform.cloud.ibm.com/docs/content/wsj/analyze-data/fm-models.html?context=wx"
+model_page_crawl = false
+auth_env = "IBM_WATSONX_BEARER_TOKEN"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+page_size = 200
+page_size_param = "limit"
+schedule = "daily"
+max_response_bytes = 16777216
+
+[source.mapping]
+items_path = "resources"
+id_path = "model_id"
+name_path = "label"
+next_url_path = "next.href"
+total_path = "total_count"

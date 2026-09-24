@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **443 enabled
-source entries** (419 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **455 enabled
+source entries** (430 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -117,6 +117,14 @@ requires a Google Cloud token. A separate SageMaker Public Hub version source
 requires `MODELOME_SAGEMAKER_PUBLIC_HUB_REGION`, AWS credentials, and the
 optional `aws` dependency; it reports the versions visible to that principal
 in that region, not a global inventory.
+The 0.1.0 release also includes first-party NVIDIA EDM, FTW, CHGNet, Medigan,
+PaddleNLP ERNIE, Geom2Vec, PMT, and historical timm EfficientNet checkpoint
+inventories. Sherpa's separate ASR release lists 453 model archives through
+its paginated asset API. PMLR walks its volume index and retains each paper's
+declared code and supplement links without treating generic supplements as
+weights. IBM watsonx's model specs source requires
+`IBM_WATSONX_BEARER_TOKEN` and reports offerings in its configured region;
+the Gemini 1.5 lifecycle source preserves three documented retired IDs.
 The GitLab adapter scans public project release metadata one request per page and emits
 low-confidence model-file candidates. The Cohere and Mistral Models API proposals
 remain opt-in because their authenticated lists can include caller-owned models.

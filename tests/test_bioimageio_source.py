@@ -196,6 +196,11 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
                     "source": "weights.onnx.data",
                     "sha256": "d" * 64,
                 },
+                "attachments": {
+                    "files": [
+                        {"source": "onnx-metadata.bin", "sha256": "e" * 64}
+                    ]
+                },
             },
         },
     }
@@ -299,6 +304,9 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
             "sha256": "c" * 64,
             "external_data_source": "weights.onnx.data",
             "external_data_sha256": "d" * 64,
+            "attachment_files": [
+                {"source": "onnx-metadata.bin", "sha256": "e" * 64}
+            ],
         },
         {
             "format": "pytorch_state_dict",
@@ -324,6 +332,11 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
     assert (
         "weights",
         f"{ARTIFACT_BASE}/first-model/files/weights.onnx.data?version=v0",
+        False,
+    ) in relation_urls
+    assert (
+        "weights",
+        f"{ARTIFACT_BASE}/first-model/files/onnx-metadata.bin?version=v0",
         False,
     ) in relation_urls
     assert (

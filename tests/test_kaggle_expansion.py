@@ -724,3 +724,50 @@ def test_version_rows_for_another_variation_are_rejected() -> None:
     assert not page.records
     assert len(page.issues) == 1
     assert "belongs to model instance 13, expected 12" in page.issues[0].error
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_error"),
+    [
+        ("ownerSlug", "other-owner", "belongs to owner 'other-owner', expected 'google'"),
+        ("model_slug", "other-model", "belongs to model slug 'other-model', expected 'gemma'"),
+    ],
+)
+def test_version_rows_for_another_parent_model_are_rejected(
+    field: str,
+    value: str,
+    expected_error: str,
+) -> None:
+    client = _Client(
+        {
+            "models": [
+                {
+                    "ref": "google/gemma",
+                    "instances": [{"id": 12, "slug": "2b", "framework": "PyTorch"}],
+                }
+            ],
+            "totalResults": 1,
+        },
+        {"instances": [{"id": 12, "slug": "2b", "framework": "PyTorch"}]},
+        {
+            "versionList": {
+                "versions": [
+                    {
+                        "id": 101,
+                        "versionNumber": 1,
+                        "modelInstanceId": 12,
+                        field: value,
+                    }
+                ]
+            }
+        },
+    )
+
+    page = KaggleModelsSourceAdapter(
+        client=client,
+        include_all_versions=True,
+    ).fetch_page({})
+
+    assert not page.records
+    assert len(page.issues) == 1
+    assert expected_error in page.issues[0].error

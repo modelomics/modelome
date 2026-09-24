@@ -2331,6 +2331,41 @@ def test_catalog_activation_env_skips_unprovisioned_optional_source() -> None:
     )
 
 
+def test_vertex_sources_require_project_substitution_when_activated() -> None:
+    configs = load_source_configs(Path("config/sources.toml"))
+    vertex_names = {
+        config["name"]
+        for config in configs
+        if config.get("activation_env") == "VERTEX_AI_ACCESS_TOKEN"
+        and config.get("headers", {}).get("x-goog-user-project")
+        == "${GOOGLE_CLOUD_PROJECT}"
+    }
+    assert vertex_names
+
+    with pytest.raises(ValueError, match="GOOGLE_CLOUD_PROJECT"):
+        load_sources(
+            Path("config/sources.toml"),
+            client=QueuedClient(),
+            clock=lambda: NOW,
+            environ={"VERTEX_AI_ACCESS_TOKEN": "dummy-token"},
+        )
+
+    sources = load_sources(
+        Path("config/sources.toml"),
+        client=QueuedClient(),
+        clock=lambda: NOW,
+        environ={
+            "VERTEX_AI_ACCESS_TOKEN": "dummy-token",
+            "GOOGLE_CLOUD_PROJECT": "fixture-project",
+        },
+    )
+    assert vertex_names <= set(sources)
+    assert all(
+        sources[name]._static_headers["x-goog-user-project"] == "fixture-project"
+        for name in vertex_names
+    )
+
+
 def test_paid_openalex_update_stream_activates_only_with_its_sync_key() -> None:
     sources = load_sources(
         Path("config/sources.toml"),

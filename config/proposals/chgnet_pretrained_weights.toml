@@ -1,0 +1,16 @@
+# CHGNet.load declares three supported model_name values, each mapped to an
+# exact package-relative weight path. GitHub's pinned tree confirms each file.
+[[source]]
+name = "chgnet-pretrained-weights"
+adapter = "chgnet_pretrained_weights"
+enabled = false
+repository = "CederGroupHub/chgnet"
+branch = "main"
+model_source_path = "chgnet/model/model.py"
+tree_path = "chgnet/pretrained"
+entry_tags = ["field:computational-materials-science", "ecosystem:chgnet", "model-family:chgnet", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 12582912
+
+# Exact source-declared map: 0.2.0, 0.3.0, r2scan. The adapter records pinned
+# raw GitHub file URLs and Git blob SHA/size metadata without fetching weights.

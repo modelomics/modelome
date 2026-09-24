@@ -69,7 +69,7 @@ def plan_github_repository_id_ranges(
     shard_count: int,
     source_name_prefix: str = "github-historical-release-assets",
     page_size: int = _PAGE_SIZE,
-    max_releases_per_repository: int = 10,
+    max_releases_per_repository: int = 100,
     max_assets_per_release: int = 1_000,
     max_release_pages_per_repository: int = 10,
     max_asset_pages_per_release: int = 10,
@@ -188,7 +188,7 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
         max_repository_id: int,
         max_repositories: int = 10,
         page_size: int = _PAGE_SIZE,
-        max_releases_per_repository: int = 10,
+        max_releases_per_repository: int = 100,
         max_assets_per_release: int = 1_000,
         max_release_pages_per_repository: int = 10,
         max_asset_pages_per_release: int = 10,
@@ -600,18 +600,22 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
         )
         response = self._get(request_url)
         if response.status == 404:
+            more_releases = bool(release_queue or release_url)
             return self._state_page(
                 state,
-                current_repo=current_repo,
+                current_repo=current_repo if more_releases else None,
                 repo_queue=repo_queue,
                 repo_url=repo_url,
                 repo_started=repo_started,
                 repos_seen=repos_seen,
                 release_queue=release_queue,
                 release_url=release_url,
-                release_page=release_page,
-                releases_seen=releases_seen,
+                release_page=release_page if more_releases else 1,
+                releases_seen=releases_seen if more_releases else 0,
                 current_release=None,
+                asset_next_url=None,
+                asset_page=1,
+                assets_seen=0,
                 truncated_release_count=truncated_release_count,
                 truncated_asset_release_count=truncated_asset_release_count,
             )

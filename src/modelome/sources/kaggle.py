@@ -667,8 +667,25 @@ class KaggleModelsSourceAdapter:
         # explicit association fields when present as a guard against malformed
         # or unexpectedly mixed pages. ModelInstanceVersion identifies both its
         # owning instance and variation in the first-party schema.
+        expected_owner, _, expected_model_slug = model_ref.partition("/")
         expected_instance_id = _optional_text(instance.get("id"))
         for version in versions:
+            version_owner = _optional_text(
+                version.get("ownerSlug", version.get("owner_slug"))
+            )
+            if version_owner is not None and version_owner != expected_owner:
+                raise ValueError(
+                    f"{self.name}: version row belongs to owner {version_owner!r}, "
+                    f"expected {expected_owner!r}"
+                )
+            version_model_slug = _optional_text(
+                version.get("modelSlug", version.get("model_slug"))
+            )
+            if version_model_slug is not None and version_model_slug != expected_model_slug:
+                raise ValueError(
+                    f"{self.name}: version row belongs to model slug "
+                    f"{version_model_slug!r}, expected {expected_model_slug!r}"
+                )
             associated_instance_id = _optional_text(
                 version.get("modelInstanceId", version.get("model_instance_id"))
             )

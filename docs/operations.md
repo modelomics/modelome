@@ -17,10 +17,22 @@ specific source-coverage decision authorizes it.
 uv sync --extra dev
 uv run modelome init
 uv run modelome sources
-uv run modelome benchmarks
-uv run modelome stats
-uv run modelome status
+uv run modelome --store data/store sync \
+  --source huggingface --max-pages 1 --no-frontier
+uv run modelome --store data/store status
 ```
+
+This is a bounded metadata-only smoke test. Hugging Face's public listing needs no
+credential; it records repository metadata and exact source-declared links without
+downloading weight files. `--no-frontier` prevents following those links. The report
+includes per-source page and completion status; one page may leave the scan partial, and
+the same command resumes from the store checkpoint. Other public sources also run without
+credentials; optional provider keys documented in `.env.example` can improve API limits.
+The CLI does not load `.env` automatically.
+
+`modelome sources` lists enabled source names and their credential requirements. For the
+current enabled-source count, see the README's catalog summary; the count describes
+configuration, not completed upstream coverage.
 
 `--max-pages` is a per-source budget and defaults to 1000 for `sync`. One page is
 a smoke test, not a complete scan. Global options precede the subcommand:

@@ -1,0 +1,12 @@
+# PMLR exposes a full first-party proceedings volume index. The adapter freezes
+# that index in checkpoint state and visits one volume page per subsequent page.
+[[source]]
+name = "pmlr"
+adapter = "pmlr"
+enabled = true
+entry_tags = ["field:machine-learning", "kind:paper"]
+index_url = "https://proceedings.mlr.press/"
+max_response_bytes = 16777216
+max_volumes = 2000
+max_papers_per_volume = 5000
+schedule = "weekly"

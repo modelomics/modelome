@@ -1,0 +1,11 @@
+# sherpa-onnx publishes a finite first-party ASR asset inventory under this release.
+# The paginated release-assets API is authoritative; the embedded asset array can lag.
+# It contains 453 model archives in the live inventory verified on 2026-09-24.
+[[source]]
+name = "sherpa-asr-model-release"
+adapter = "sherpa_asr_model_release"
+enabled = false
+entry_tags = ["field:speech", "task:automatic-speech-recognition", "ecosystem:sherpa-onnx", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 16777216
+max_assets = 1200

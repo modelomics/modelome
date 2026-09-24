@@ -1,0 +1,13 @@
+# PMT declares exact pretrained policy files in its first-party README and
+# publishes the associated assets in its documented Hugging Face mirror.
+[[source]]
+name = "pmt-pretrained-checkpoints"
+adapter = "pmt_pretrained_checkpoints"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:pmt", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 32
+
+# Source: https://github.com/Mondo-Robotics/PMT/blob/main/checkpoints/pretrained/README.md
+# Asset index: https://huggingface.co/datasets/aCodeDog/PMT-assets/tree/main/checkpoints/pretrained

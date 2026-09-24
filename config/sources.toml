@@ -7977,3 +7977,199 @@ page_size = 10
 created_at_sweep_interval_days = 30
 max_response_bytes = 16777216
 max_checkpoint_files = 10000
+
+
+# Google's release notes identify these exact Gemini 1.5 API IDs as shut down
+# on 2025-09-29. They are absent from the current Gemini deprecation table.
+[[source]]
+name = "google-gemini-retired-2025-09-29-gemini-15"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:google-gemini", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history", "lifecycle:retired", "retired-on:2025-09-29"]
+url = "https://ai.google.dev/gemini-api/docs/changelog"
+provider_namespace = "google:gemini-api-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 100
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '\b(?P<name>gemini-1[.]5-(?:flash-8b|pro|flash))(?![A-Za-z0-9-])'
+identity_source = "name"
+require_url = false
+
+
+# IBM's first-party foundation_model_specs API lists hosted model specs that
+# IBM provides for immediate inference, including exact model IDs and model
+# metadata. The listing is region-specific and requires a short-lived IBM IAM
+# bearer token supplied by the operator. This source deliberately does not
+# query custom deployments or model definitions scoped to a tenant.
+# The `next.href` pagination URL carries the provider-issued `start` token.
+# Primary sources:
+# https://cloud.ibm.com/docs/apis/watsonx-ai
+# https://www.ibm.com/docs/en/software-hub/5.1.x?topic=specifications-wx-ai-foundation-model-list-models
+[[source]]
+name = "ibm-watsonx-foundation-model-specs"
+adapter = "json_catalog"
+enabled = true
+activation_env = "IBM_WATSONX_BEARER_TOKEN"
+entry_tags = ["field:machine-learning", "ecosystem:ibm-watsonx", "kind:hosted-model", "evidence:current-api-availability"]
+url = "https://us-south.ml.cloud.ibm.com/ml/v1/foundation_model_specs?version=2024-05-01"
+provider_namespace = "ibm:watsonx-model"
+model_card_url_template = "https://dataplatform.cloud.ibm.com/docs/content/wsj/analyze-data/fm-models.html?context=wx"
+model_page_crawl = false
+auth_env = "IBM_WATSONX_BEARER_TOKEN"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+page_size = 200
+page_size_param = "limit"
+schedule = "daily"
+max_response_bytes = 16777216
+
+[source.mapping]
+items_path = "resources"
+id_path = "model_id"
+name_path = "label"
+next_url_path = "next.href"
+total_path = "total_count"
+
+
+# Four distinct checkpoint links declared in NVIDIA's EDM README model examples.
+# This deliberately does not treat the linked directories as an exhaustive index.
+[[source]]
+name = "nvlabs-edm-checkpoints"
+adapter = "nvlabs_edm_checkpoints"
+enabled = true
+entry_tags = ["field:generative-image-modeling", "ecosystem:nvidia", "model-family:edm", "kind:checkpoint", "evidence:first-party-model-example-url"]
+repository = "NVlabs/edm"
+branch = "main"
+document_path = "README.md"
+max_response_bytes = 4194304
+max_checkpoints = 100
+
+
+# Geom2Vec publishes a finite table of twelve ViSNet, TorchMD-ET, and TensorNet
+# checkpoints; filenames and files are present in its first-party repository.
+[[source]]
+name = "dinner-group-geom2vec-checkpoints"
+adapter = "geom2vec_checkpoint_files"
+enabled = true
+entry_tags = ["field:graph-machine-learning", "field:molecular-dynamics", "ecosystem:geom2vec", "model-family:visnet", "model-family:torchmd-et", "model-family:tensornet", "kind:checkpoint"]
+repository = "dinner-group/geom2vec"
+branch = "main"
+provider_namespace = "geom2vec:checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100000
+
+
+# The FTW first-party README names four direct v1 GitHub release checkpoint
+# URLs: FULL and CC-BY-only variants for 2- and 3-class segmentation.
+[[source]]
+name = "ftw-release-checkpoints"
+adapter = "ftw_release_checkpoints"
+enabled = true
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:fields-of-the-world", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+
+# CHGNet.load declares three supported model_name values, each mapped to an
+# exact package-relative weight path. GitHub's pinned tree confirms each file.
+[[source]]
+name = "chgnet-pretrained-weights"
+adapter = "chgnet_pretrained_weights"
+enabled = true
+repository = "CederGroupHub/chgnet"
+branch = "main"
+model_source_path = "chgnet/model/model.py"
+tree_path = "chgnet/pretrained"
+entry_tags = ["field:computational-materials-science", "ecosystem:chgnet", "model-family:chgnet", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 12582912
+
+# Exact source-declared map: 0.2.0, 0.3.0, r2scan. The adapter records pinned
+# raw GitHub file URLs and Git blob SHA/size metadata without fetching weights.
+
+
+# Medigan's first-party config/global.json enumerates model IDs and exact
+# Zenodo ZIP package links. The adapter records package archives without
+# asserting paths for checkpoint files inside each ZIP.
+[[source]]
+name = "medigan-first-party-model-index"
+adapter = "medigan_registry"
+enabled = true
+entry_tags = ["field:biomedical", "ecosystem:medigan", "kind:pretrained-weights"]
+repository = "RichardObi/medigan"
+branch = "main"
+source_path = "config/global.json"
+max_response_bytes = 4194304
+max_entries = 500
+
+
+# PaddleNLP's ERNIE configuration module pairs these model IDs with literal
+# model_state checkpoint URLs. The family map complements Taskflow task maps.
+[[source]]
+name = "paddlenlp-ernie-pretrained-registry"
+adapter = "paddlenlp_ernie_registry"
+enabled = true
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/transformers/ernie/configuration.py"
+provider_namespace = "paddlenlp:transformer-model"
+max_response_bytes = 4194304
+
+
+# sherpa-onnx publishes a finite first-party ASR asset inventory under this release.
+# The paginated release-assets API is authoritative; the embedded asset array can lag.
+# It contains 453 model archives in the live inventory verified on 2026-09-24.
+[[source]]
+name = "sherpa-asr-model-release"
+adapter = "sherpa_asr_model_release"
+enabled = true
+entry_tags = ["field:speech", "task:automatic-speech-recognition", "ecosystem:sherpa-onnx", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 16777216
+max_assets = 1200
+
+
+# timm v0.6.13's EfficientNet config declares 95 literal direct checkpoint
+# URLs, including original PyTorch model releases. The finite adapter reads
+# only this pinned tag and module.
+[[source]]
+name = "timm-legacy-efficientnet-v0613"
+adapter = "timm_legacy_efficientnet"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:timm", "kind:checkpoint"]
+schedule = "weekly"
+
+
+# PMT declares exact pretrained policy files in its first-party README and
+# publishes the associated assets in its documented Hugging Face mirror.
+[[source]]
+name = "pmt-pretrained-checkpoints"
+adapter = "pmt_pretrained_checkpoints"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:pmt", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 32
+
+# Source: https://github.com/Mondo-Robotics/PMT/blob/main/checkpoints/pretrained/README.md
+# Asset index: https://huggingface.co/datasets/aCodeDog/PMT-assets/tree/main/checkpoints/pretrained
+
+
+# PMLR exposes a full first-party proceedings volume index. The adapter freezes
+# that index in checkpoint state and visits one volume page per subsequent page.
+[[source]]
+name = "pmlr"
+adapter = "pmlr"
+enabled = true
+entry_tags = ["field:machine-learning", "kind:paper"]
+index_url = "https://proceedings.mlr.press/"
+max_response_bytes = 16777216
+max_volumes = 2000
+max_papers_per_volume = 5000
+schedule = "weekly"

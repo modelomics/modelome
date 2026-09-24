@@ -1,0 +1,13 @@
+# timm v0.6.13's EfficientNet config declares 95 literal direct checkpoint
+# URLs, including original PyTorch model releases. The finite adapter reads
+# only this pinned tag and module.
+[[source]]
+name = "timm-legacy-efficientnet-v0613"
+adapter = "timm_legacy_efficientnet"
+enabled = false
+entry_tags = ["field:computer-vision", "ecosystem:timm", "kind:checkpoint"]
+schedule = "weekly"
+
+[evidence]
+timm_efficientnet_source = "https://github.com/huggingface/pytorch-image-models/blob/v0.6.13/timm/models/efficientnet.py"
+timm_efficientnet_module = "https://raw.githubusercontent.com/huggingface/pytorch-image-models/v0.6.13/timm/models/efficientnet.py"

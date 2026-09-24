@@ -279,6 +279,37 @@ def test_archive_normalizes_only_zwnj_in_explicit_handle_and_preserves_heading(
     assert record.releases[0].metadata["normalized_declared_title_handle"] == canonical_handle
 
 
+def test_archive_preserves_lite_deployment_and_exact_parent_model_link() -> None:
+    path = "assets/docs/google/models/lite-model/foo/1.md"
+    client = _QueuedClient(
+        _response({"sha": _REVISION}),
+        _response(
+            _archive(
+                {
+                    path: """\
+# Lite google/lite-model/foo/1
+Lite deployment of the SavedModel.
+
+<!-- asset-path: https://storage.googleapis.com/example/foo.tflite -->
+<!-- parent-model: google/foo/2 -->
+"""
+                }
+            )
+        ),
+    )
+
+    record = TensorFlowHubArchiveSourceAdapter(client=client).fetch_page({}).records[0]
+
+    assert record.canonical_url == "https://tfhub.dev/google/lite-model/foo/1"
+    assert record.releases[0].metadata["document_type"] == "lite"
+    assert record.releases[0].metadata["metadata"]["parent_model"] == "google/foo/2"
+    assert record.releases[0].metadata["metadata"]["asset_path"].endswith("foo.tflite")
+    assert any(
+        link.url == "https://tfhub.dev/google/foo/2" and link.relation == "parent_model"
+        for link in record.links
+    )
+
+
 def test_archive_enforces_document_count_limit() -> None:
     archive = _archive(
         {

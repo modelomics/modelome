@@ -758,6 +758,27 @@ class BioImageIoSourceAdapter:
                                 crawl=False,
                             )
                         )
+                attachments = descriptor.get("attachments")
+                attachment_files = (
+                    attachments.get("files") if isinstance(attachments, Mapping) else None
+                )
+                if _is_sequence(attachment_files):
+                    for file_index, file_value in enumerate(attachment_files):
+                        if not isinstance(file_value, Mapping):
+                            continue
+                        attachment_locator = (
+                            "$.artifact.manifest.weights."
+                            f"{weight_format}.attachments.files[{file_index}].source"
+                        )
+                        if url := self._reference_url(file_value, alias, version):
+                            links.append(
+                                Link(
+                                    url,
+                                    relation="weights",
+                                    locator=attachment_locator,
+                                    crawl=False,
+                                )
+                            )
                 architecture = descriptor.get("architecture")
                 if isinstance(architecture, Mapping):
                     architecture_locator = (
@@ -1075,6 +1096,19 @@ def _weight_metadata(value: Any) -> tuple[list[str], list[dict[str, Any]]]:
             source_entry["external_data_sha256"] = _optional_text(
                 external_data.get("sha256"), 64
             )
+        attachments = descriptor.get("attachments")
+        attachment_files = (
+            attachments.get("files") if isinstance(attachments, Mapping) else None
+        )
+        if _is_sequence(attachment_files):
+            source_entry["attachment_files"] = [
+                {
+                    "source": _text(file_value.get("source")) or None,
+                    "sha256": _optional_text(file_value.get("sha256"), 64),
+                }
+                for file_value in attachment_files
+                if isinstance(file_value, Mapping)
+            ]
         sources.append(source_entry)
     return formats, sources
 

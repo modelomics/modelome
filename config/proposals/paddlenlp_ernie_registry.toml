@@ -1,0 +1,11 @@
+# PaddleNLP's ERNIE configuration module pairs these model IDs with literal
+# model_state checkpoint URLs. The family map complements Taskflow task maps.
+[[source]]
+name = "paddlenlp-ernie-pretrained-registry"
+adapter = "paddlenlp_ernie_registry"
+enabled = false
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/transformers/ernie/configuration.py"
+provider_namespace = "paddlenlp:transformer-model"
+max_response_bytes = 4194304

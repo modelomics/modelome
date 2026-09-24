@@ -371,9 +371,7 @@ class DataCiteSourceAdapter:
             published_at=_published_date(attributes),
             modified_at=_scalar_text(attributes.get("updated")) or None,
             identifiers=tuple(
-                dict.fromkeys(
-                    (Identifier("doi", doi), *_identical_related_dois(attributes))
-                )
+                dict.fromkeys((Identifier("doi", doi), *_identical_related_dois(attributes)))
             ),
             links=_unique_links(_links(attributes, doi_url, primary_url)),
         )
@@ -462,16 +460,27 @@ def _links(
     for index, raw in enumerate(_sequence(attributes.get("relatedItems"))):
         if not isinstance(raw, Mapping):
             continue
+        identifier = raw.get("relatedItemIdentifier")
+        identifier_type = raw.get("relatedItemIdentifierType")
+        # DataCite's REST API JSON representation nests the identifier value
+        # and type under relatedItemIdentifier; accept the flattened form too
+        # for older/alternate harvests.
+        if isinstance(identifier, Mapping):
+            identifier_type = identifier.get("relatedItemIdentifierType", identifier_type)
+            identifier = identifier.get("relatedItemIdentifier")
         url = _related_url(
-            raw.get("relatedItemIdentifier"),
-            raw.get("relatedItemIdentifierType"),
+            identifier,
+            identifier_type,
         )
         if not url:
             continue
+        locator = f"$.attributes.relatedItems[{index}].relatedItemIdentifier"
+        if isinstance(raw.get("relatedItemIdentifier"), Mapping):
+            locator += ".relatedItemIdentifier"
         yield Link(
             url,
             relation=_relation_name(raw.get("relationType")),
-            locator=f"$.attributes.relatedItems[{index}].relatedItemIdentifier",
+            locator=locator,
         )
 
 
@@ -667,8 +676,7 @@ def _related_url(identifier: Any, identifier_type: Any) -> str:
         return _safe_url(value)
     if category == "swhid" and _is_swhid(value):
         return _safe_url(
-            "https://archive.softwareheritage.org/"
-            + quote(value, safe=":;=,&%._~+-/")
+            "https://archive.softwareheritage.org/" + quote(value, safe=":;=,&%._~+-/")
         )
     if category == "pmid" and value.isascii() and value.isdigit():
         return canonicalize_url(f"https://pubmed.ncbi.nlm.nih.gov/{value}/")

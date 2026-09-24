@@ -23,6 +23,7 @@ jobs:
       - run: python -m pip install uv
       - run: uv sync --locked --extra dev
       - run: uv run --frozen pytest
+      - run: uv run --frozen ruff check .
       - run: uv build
       - name: Test installed wheel outside checkout
         shell: bash
@@ -33,6 +34,7 @@ jobs:
           cd "$RUNNER_TEMP"
           "$RUNNER_TEMP/modelome-smoke/bin/modelome" --version
           "$RUNNER_TEMP/modelome-smoke/bin/modelome" --json sources > sources.json
+          grep -q '"name": "kaggle-models"' sources.json
           "$RUNNER_TEMP/modelome-smoke/bin/modelome" --store store build-dataset \
             --input papers.jsonl --output dataset
           test -s dataset/entries/entries.jsonl

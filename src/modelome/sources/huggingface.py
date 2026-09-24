@@ -32,10 +32,12 @@ _WEIGHT_SUFFIXES = (
     ".gguf",
     ".ggml",
     ".h5",
+    ".keras",
     ".mlmodel",
     ".mlpackage",
     ".msgpack",
     ".onnx",
+    ".onnx_data",
     ".pb",
     ".pt",
     ".pt2",
@@ -1208,8 +1210,19 @@ class HuggingFaceDatasetCheckpointSourceAdapter(HuggingFaceSourceAdapter):
             payload = None
         else:
             if response.status != 200:
-                raise ValueError(f"{self.name}: dataset detail returned HTTP {response.status}")
-            if len(response.body) > self.max_response_bytes:
+                if response.status in {401, 403, 404}:
+                    issues = (
+                        self._detail_issue(
+                            repo_id,
+                            f"dataset detail is unavailable (HTTP {response.status})",
+                        ),
+                    )
+                    payload = None
+                else:
+                    raise ValueError(
+                        f"{self.name}: dataset detail returned HTTP {response.status}"
+                    )
+            elif len(response.body) > self.max_response_bytes:
                 issues = (
                     self._detail_issue(
                         repo_id,

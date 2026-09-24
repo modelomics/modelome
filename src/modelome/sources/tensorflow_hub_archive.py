@@ -29,7 +29,9 @@ _MODEL_DOCUMENT = re.compile(
     r"^assets/docs/(?P<publisher>[^/]+)/models/(?P<model>.+)/(?P<version>[0-9]+)\.md$"
 )
 _TITLE = re.compile(
-    r"^#\s+Module\s+(?P<handle>\S+)(?:\s+(?P<summary>.*))?$", re.MULTILINE
+    r"^#\s+(?P<kind>Module|Placeholder|Tfjs|Lite|Coral)\s+"
+    r"(?P<handle>\S+)(?:\s+(?P<summary>.*))?$",
+    re.MULTILINE,
 )
 _COMMENT_METADATA = re.compile(r"<!--\s*(?P<key>[a-z][a-z0-9-]*):\s*(?P<value>.*?)\s*-->", re.I)
 
@@ -74,7 +76,7 @@ class TensorFlowHubArchiveSourceAdapter:
         self.client = client or HttpClient(max_response_bytes=self.max_archive_bytes)
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "tensorflow-hub-archive-v2",
+                "adapter": "tensorflow-hub-archive-v3",
                 "repository": _REPOSITORY,
                 "branch": "master",
                 "max_archive_bytes": self.max_archive_bytes,
@@ -82,9 +84,9 @@ class TensorFlowHubArchiveSourceAdapter:
                 "max_documents": self.max_documents,
                 "max_records": self.max_records,
                 "admission": (
-                    "versioned docs paths; explicit module handle must match "
-                    "publisher/version and path slug, allowing a leading "
-                    "models/ segment"
+                    "versioned docs paths; explicit model/deployment heading "
+                    "must match publisher/version and path slug, allowing a "
+                    "leading models/ segment; preserve declared parent-model"
                 ),
             }
         )
@@ -220,6 +222,7 @@ class TensorFlowHubArchiveSourceAdapter:
             "path_handle_candidate": path_handle,
             "declared_title_handle": title_handle,
             "normalized_declared_title_handle": normalized_title_handle,
+            "document_type": title_match.group("kind").lower() if title_match else None,
             "availability": "unverified",
             "archive_path": path,
             "metadata": metadata,
@@ -252,6 +255,15 @@ class TensorFlowHubArchiveSourceAdapter:
             links.append(
                 Link(asset, relation="weights", locator=locator, crawl=False,
                      model_local_ids=(model_local_id,))
+            )
+        if parent_handle := metadata.get("parent_model"):
+            links.append(
+                Link(
+                    f"https://tfhub.dev/{quote(parent_handle, safe='/')}",
+                    relation="parent_model",
+                    locator=locator,
+                    crawl=False,
+                )
             )
         summary = (title_match.group("summary") or "") if title_match is not None else ""
         text = "\n".join((handle, summary, *(f"{key}: {value}" for key, value in metadata.items())))
@@ -326,7 +338,18 @@ def _model_documents(
 
 
 def _document_metadata(document: str) -> dict[str, str]:
-    allowed = {"asset-path", "task", "network-architecture", "format", "fine-tunable", "license"}
+    allowed = {
+        "asset-path",
+        "parent-model",
+        "task",
+        "module-type",
+        "network-architecture",
+        "format",
+        "fine-tunable",
+        "license",
+        "dataset",
+        "language",
+    }
     result = {}
     for match in _COMMENT_METADATA.finditer(document):
         key = match.group("key").lower()
@@ -337,6 +360,8 @@ def _document_metadata(document: str) -> dict[str, str]:
             if not value.startswith(("https://", "http://")):
                 continue
             key = "asset_path"
+        elif key == "parent-model":
+            key = "parent_model"
         result[key] = value
     return result
 

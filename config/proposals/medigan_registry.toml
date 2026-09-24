@@ -1,0 +1,18 @@
+# Medigan's first-party config/global.json enumerates model IDs and exact
+# Zenodo ZIP package links. The adapter records package archives without
+# asserting paths for checkpoint files inside each ZIP.
+[[source]]
+name = "medigan-first-party-model-index"
+adapter = "medigan_registry"
+enabled = false
+entry_tags = ["field:biomedical", "ecosystem:medigan", "kind:pretrained-weights"]
+repository = "RichardObi/medigan"
+branch = "main"
+source_path = "config/global.json"
+max_response_bytes = 4194304
+max_entries = 500
+
+[evidence]
+index = "https://github.com/RichardObi/medigan/blob/main/config/global.json"
+repository = "https://github.com/RichardObi/medigan"
+scope = "First-party named medical generative models with exact Zenodo ZIP package links; package contents are not enumerated"

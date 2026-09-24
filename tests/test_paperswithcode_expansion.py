@@ -431,3 +431,50 @@ def test_evaluation_model_links_project_exact_modelscope_model_identity() -> Non
     assert linked_model.confidence == 0.65
     model_link = next(link for link in records[0].links if link.relation == "model_artifact")
     assert model_link.model_local_ids == (linked_model.local_id,)
+
+
+def test_evaluation_model_links_project_exact_civitai_model_version() -> None:
+    from modelome.sources.paperswithcode import _evaluation_records
+
+    # Civitai's first-party model-version response uses this downloadUrl shape.
+    row = {
+        "model_name": "Civitai Published Model",
+        "paper_url": "https://arxiv.org/abs/2401.12345",
+        "paper_title": "Civitai Published Model paper",
+        "model_links": [
+            {
+                "url": "https://civitai.com/api/download/models/2514310",
+                "title": "Civitai model version",
+            }
+        ],
+    }
+    records, rejected, _ = _evaluation_records(
+        [{"task": "Classification", "datasets": [{"dataset": "Example", "sota": {"rows": [row]}}]}],
+        revision="c" * 40,
+        data_path="data/train.parquet",
+        dataset_id="pwc-archive/evaluation-tables",
+        license="CC-BY-SA-4.0",
+        max_model_rows=10,
+    )
+
+    assert rejected == {}
+    linked_model = next(
+        model for model in records[0].models if model.name == "Civitai model version"
+    )
+    assert linked_model.identifiers == (Identifier("civitai:model-version", "2514310"),)
+    assert linked_model.status is ModelStatus.CANDIDATE
+    assert linked_model.confidence == 0.65
+    model_link = next(link for link in records[0].links if link.relation == "model_artifact")
+    assert model_link.model_local_ids == (linked_model.local_id,)
+
+
+def test_evaluation_model_page_links_project_civitai_model_identity() -> None:
+    from modelome.sources.paperswithcode import _evaluation_model_identifier_from_url
+
+    assert _evaluation_model_identifier_from_url(
+        "https://civitai.com/models/827184/model-name"
+    ) == Identifier("civitai:model", "827184")
+    assert (
+        _evaluation_model_identifier_from_url("https://civitai.com/api/download/images/123")
+        is None
+    )

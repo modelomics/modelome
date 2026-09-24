@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import quote, unquote, urlsplit
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 from xml.etree import ElementTree
 
 import pyarrow as pa
@@ -34,6 +34,7 @@ _CONTROL_CHARACTER = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _TOKEN = re.compile(r"[a-z][a-z0-9+-]*", re.IGNORECASE)
 _KAGGLE_VERSION = re.compile(r"^[1-9][0-9]*$")
 _ZENODO_DOI = re.compile(r"^10\.5281/zenodo\.([1-9][0-9]*)$", re.IGNORECASE)
+_CIVITAI_ID = re.compile(r"^[1-9][0-9]*$")
 _TITLE_STOPWORDS = frozenset(
     {
         "a",
@@ -1024,6 +1025,25 @@ def _evaluation_model_identifier_from_url(value: str) -> Identifier | None:
     parts = urlsplit(canonicalize_url(value))
     host = (parts.hostname or "").casefold()
     path_segments = [segment for segment in parts.path.split("/") if segment]
+    if host in {"civitai.com", "www.civitai.com"}:
+        version_id = None
+        model_id = None
+        if (
+            path_segments[:3] in (["api", "download", "models"], ["api", "v1", "model-versions"])
+            and len(path_segments) >= 4
+        ):
+            version_id = path_segments[3]
+        elif path_segments[:3] == ["api", "v1", "models"] and len(path_segments) >= 4:
+            model_id = path_segments[3]
+        elif path_segments[:1] == ["models"] and len(path_segments) >= 2:
+            model_id = path_segments[1]
+        query_version = parse_qs(parts.query).get("modelVersionId", [])
+        if query_version and _CIVITAI_ID.fullmatch(query_version[0]):
+            version_id = query_version[0]
+        if version_id and _CIVITAI_ID.fullmatch(version_id):
+            return Identifier("civitai:model-version", version_id)
+        if model_id and _CIVITAI_ID.fullmatch(model_id):
+            return Identifier("civitai:model", model_id)
     if host in {"doi.org", "dx.doi.org"}:
         doi_match = _ZENODO_DOI.fullmatch("/".join(path_segments))
         if doi_match:

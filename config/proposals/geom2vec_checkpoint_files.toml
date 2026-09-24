@@ -1,0 +1,13 @@
+# Geom2Vec publishes a finite table of twelve ViSNet, TorchMD-ET, and TensorNet
+# checkpoints; filenames and files are present in its first-party repository.
+[[source]]
+name = "dinner-group-geom2vec-checkpoints"
+adapter = "geom2vec_checkpoint_files"
+enabled = false
+entry_tags = ["field:graph-machine-learning", "field:molecular-dynamics", "ecosystem:geom2vec", "model-family:visnet", "model-family:torchmd-et", "model-family:tensornet", "kind:checkpoint"]
+repository = "dinner-group/geom2vec"
+branch = "main"
+provider_namespace = "geom2vec:checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100000

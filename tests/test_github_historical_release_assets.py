@@ -435,6 +435,70 @@ def test_default_asset_item_cap_matches_ten_documented_pages() -> None:
     assert assets_second in client.calls
 
 
+def test_default_release_cap_includes_checkpoint_on_eleventh_public_release() -> None:
+    repo_url = "https://api.github.com/repositories?per_page=20&since=100"
+    releases_url = "https://api.github.com/repos/lab/model/releases?per_page=20&page=1"
+    release_rows = [
+        {
+            "id": 500 + index,
+            "tag_name": f"b{index}",
+            "name": f"Build {index}",
+            "body": "Neural model checkpoint release",
+            "html_url": f"https://github.com/lab/model/releases/tag/b{index}",
+            "published_at": "2026-01-01T00:00:00Z",
+        }
+        for index in range(1, 12)
+    ]
+    client_routes: dict[str, tuple[Any, dict[str, str]]] = {
+        repo_url: ([{"id": 101, "full_name": "lab/model", "private": False}], {}),
+        releases_url: (release_rows, {}),
+    }
+    for index in range(1, 12):
+        asset_url = (
+            f"https://api.github.com/repos/lab/model/releases/{500 + index}"
+            "/assets?per_page=100&page=1"
+        )
+        assets = (
+            [
+                {
+                    "id": 700,
+                    "name": "resnet50.safetensors",
+                    "browser_download_url": (
+                        f"https://github.com/lab/model/releases/download/b{index}/"
+                        "resnet50.safetensors"
+                    ),
+                }
+            ]
+            if index == 11
+            else []
+        )
+        client_routes[asset_url] = (assets, {})
+    client = RouteClient(client_routes)
+    adapter = GitHubHistoricalReleaseAssetsSourceAdapter(
+        initial_since=100,
+        max_repository_id=200,
+        max_repositories=1,
+        page_size=20,
+        client=client,
+    )
+
+    state: dict[str, Any] = {}
+    records = []
+    for _ in range(30):
+        page = adapter.fetch_page(state)
+        state = dict(page.next_state)
+        records.extend(page.records)
+        if page.complete:
+            break
+    else:
+        pytest.fail("bounded scan did not complete after 11 releases")
+
+    assert adapter.max_releases_per_repository == 100
+    assert [record.source_record_id for record in records] == ["github-release-asset:101:511:700"]
+    assert state["truncated_release_count"] == 0
+    assert len(client.calls) == 13
+
+
 def test_release_cap_is_reported_and_scan_advances_to_later_repository() -> None:
     repository_url = "https://api.github.com/repositories?per_page=2&since=100"
     first_releases = "https://api.github.com/repos/lab/first/releases?per_page=2&page=1"
@@ -571,3 +635,67 @@ def test_asset_cap_is_reported_and_later_release_is_still_scanned() -> None:
         "github-release-asset:101:502:603",
     ]
     assert second_assets in client.calls
+
+
+def test_deleted_last_release_asset_advances_to_the_next_repository() -> None:
+    repository_url = "https://api.github.com/repositories?per_page=2&since=100"
+    first_releases = "https://api.github.com/repos/lab/first/releases?per_page=2&page=1"
+    deleted_assets = (
+        "https://api.github.com/repos/lab/first/releases/501/assets?per_page=100&page=1"
+    )
+    second_releases = "https://api.github.com/repos/lab/second/releases?per_page=2&page=1"
+    client = RouteClient(
+        {
+            repository_url: (
+                [
+                    {"id": 101, "full_name": "lab/first", "private": False},
+                    {"id": 102, "full_name": "lab/second", "private": False},
+                ],
+                {},
+            ),
+            first_releases: (
+                [
+                    {
+                        "id": 501,
+                        "tag_name": "v1",
+                        "name": "First release",
+                        "body": "",
+                        "html_url": "https://github.com/lab/first/releases/tag/v1",
+                    }
+                ],
+                {},
+            ),
+            second_releases: ([], {}),
+        }
+    )
+    # RouteClient emits HTTP 200 for configured entries; override this one
+    # response to model a release deleted between the two API requests.
+    original_get = client.get
+
+    def get(url: str, *, headers=None) -> HttpResponse:
+        if url == deleted_assets:
+            client.calls.append(url)
+            return HttpResponse(status=404, headers={}, body=b"{}", url=url)
+        return original_get(url, headers=headers)
+
+    client.get = get  # type: ignore[method-assign]
+    adapter = GitHubHistoricalReleaseAssetsSourceAdapter(
+        initial_since=100,
+        max_repository_id=200,
+        max_repositories=2,
+        page_size=2,
+        client=client,
+    )
+
+    state: dict[str, Any] = {}
+    for _ in range(20):
+        page = adapter.fetch_page(state)
+        state = dict(page.next_state)
+        if page.complete:
+            break
+    else:
+        pytest.fail("scan stalled after the last release disappeared")
+
+    assert page.complete is True
+    assert client.calls.count(first_releases) == 1
+    assert second_releases in client.calls

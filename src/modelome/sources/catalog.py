@@ -45,6 +45,7 @@ from modelome.sources.chem_ml_extra import (
     ChempropCheMeleonCheckpointSourceAdapter,
     UniMofCheckpointSourceAdapter,
 )
+from modelome.sources.chgnet_pretrained_weights import CHGNetPretrainedWeightsSourceAdapter
 from modelome.sources.civitai import CivitaiModelsSourceAdapter
 from modelome.sources.cloud_extra import OciGenerativeAIModelCatalog
 from modelome.sources.cloudflare_workers_ai_deprecations import CloudflareWorkersAIDeprecations
@@ -77,6 +78,7 @@ from modelome.sources.fourcastnet_checkpoint_registry import (
     FourCastNetCheckpointRegistrySourceAdapter,
 )
 from modelome.sources.fs_mol_checkpoints import FSMolCheckpointSourceAdapter
+from modelome.sources.ftw_release_checkpoints import FTWReleaseCheckpointSourceAdapter
 from modelome.sources.galaxea_vla_checkpoints import GalaxeaVLACheckpointSourceAdapter
 from modelome.sources.generative_extra import (
     CompVisLatentDiffusionDownloadsSourceAdapter,
@@ -84,6 +86,7 @@ from modelome.sources.generative_extra import (
     CompVisStableDiffusionFirstStagesSourceAdapter,
 )
 from modelome.sources.gensim_registry import GensimDownloaderModelRegistrySourceAdapter
+from modelome.sources.geom2vec_checkpoint_files import Geom2VecCheckpointFilesSourceAdapter
 from modelome.sources.geospatial_registry import GeospatialRegistrySourceAdapter
 from modelome.sources.gharchive import GhArchiveSourceAdapter
 from modelome.sources.github_historical_release_assets import (
@@ -145,6 +148,7 @@ from modelome.sources.markdown_checkpoint_list import MarkdownCheckpointListSour
 from modelome.sources.markdown_model_card_list import MarkdownModelCardListSourceAdapter
 from modelome.sources.markdown_model_table import MarkdownModelTableSourceAdapter
 from modelome.sources.mediapipe_model_catalog import MediaPipeModelCatalogSourceAdapter
+from modelome.sources.medigan_registry import MediganRegistrySourceAdapter
 from modelome.sources.meta_sam3_checkpoints import MetaSAM3CheckpointSourceAdapter
 from modelome.sources.microsoft_aurora_checkpoints import MicrosoftAuroraCheckpointSourceAdapter
 from modelome.sources.mindspore_registry import MindSporeModelZooSourceAdapter
@@ -166,6 +170,7 @@ from modelome.sources.nvidia_cosmos3_checkpoints import NvidiaCosmos3CheckpointS
 from modelome.sources.nvidia_earth2 import NvidiaEarth2SourceAdapter
 from modelome.sources.nvidia_groot_n17_checkpoints import NvidiaGR00TN17CheckpointSourceAdapter
 from modelome.sources.nvidia_nim_lifecycle import NvidiaNimLifecycle
+from modelome.sources.nvlabs_edm_checkpoints import NVlabsEDMCheckpointSourceAdapter
 from modelome.sources.ocp_model_registry import OCPModelRegistrySourceAdapter
 from modelome.sources.octo_checkpoints import OctoCheckpointSourceAdapter
 from modelome.sources.ollama_library_tags import OllamaLibraryTagCatalogAdapter
@@ -202,6 +207,7 @@ from modelome.sources.paddlegan_tutorial_model_zoo import (
     PaddleGanTutorialModelZooSourceAdapter,
 )
 from modelome.sources.paddlehelix_gem_checkpoint import PaddleHelixGemCheckpointSourceAdapter
+from modelome.sources.paddlenlp_ernie_registry import PaddleNlpErnieRegistrySourceAdapter
 from modelome.sources.paddlenlp_taskflow_knowledge_mining import (
     PaddleNlpTaskflowKnowledgeMiningSourceAdapter,
 )
@@ -236,6 +242,8 @@ from modelome.sources.pelican_vla_checkpoint_registry import (
 from modelome.sources.piper_voice_catalog import PiperVoiceCatalogSourceAdapter
 from modelome.sources.plos import PlosSourceAdapter
 from modelome.sources.pmc import PmcSourceAdapter
+from modelome.sources.pmlr import PmlrSourceAdapter
+from modelome.sources.pmt_pretrained_checkpoints import PMTPretrainedCheckpointSourceAdapter
 from modelome.sources.proteinmpnn import ProteinMpnSourceAdapter
 from modelome.sources.pubmed import PubMedBulkSourceAdapter
 from modelome.sources.pyg_dimenet_checkpoints import PyGDimeNetCheckpointSourceAdapter
@@ -254,6 +262,7 @@ from modelome.sources.rosettafold_checkpoints import RoseTTAFoldCheckpointAdapte
 from modelome.sources.satmae_checkpoint_registry import SatMAECheckpointRegistrySourceAdapter
 from modelome.sources.sdss_ssl_checkpoints import SdssSslCheckpointsSourceAdapter
 from modelome.sources.semantic_scholar import SemanticScholarDatasetSourceAdapter
+from modelome.sources.sherpa_asr_model_release import SherpaAsrModelReleaseSourceAdapter
 from modelome.sources.sherpa_audio_tagging import SherpaAudioTaggingSourceAdapter
 from modelome.sources.sherpa_source_separation import SherpaSourceSeparationSourceAdapter
 from modelome.sources.sherpa_tts_model_release import SherpaTtsModelReleaseSourceAdapter
@@ -276,6 +285,7 @@ from modelome.sources.tensorflow_audioset_checkpoints import (
 from modelome.sources.tensorflow_garden import TensorFlowGardenSourceAdapter
 from modelome.sources.tensorflow_hub_archive import TensorFlowHubArchiveSourceAdapter
 from modelome.sources.tensorflow_tpu_efficientnet import TensorFlowTPUEfficientNetSourceAdapter
+from modelome.sources.timm_legacy_efficientnet import TimmLegacyEfficientNetSourceAdapter
 from modelome.sources.timm_legacy_poolformer import TimmLegacyPoolFormerSourceAdapter
 from modelome.sources.timm_legacy_resnetv2 import TimmLegacyResNetV2SourceAdapter
 from modelome.sources.timm_model_registry import TimmModelRegistrySourceAdapter
@@ -384,6 +394,23 @@ def create_source(
     if config.get("_catalog_role") == "benchmark":
         raise ValueError("benchmark configuration cannot be used as an ingestion source")
     environment = os.environ if environ is None else environ
+    name_hint = _text(config.get("name")) or "source"
+    auth_env = _text(config.get("auth_env"))
+    missing_auth = auth_env and not _text(environment.get(auth_env))
+    missing_environment = (
+        []
+        if missing_auth
+        else sorted(
+            variable
+            for variable in _environment_references(config)
+            if not _text(environment.get(variable))
+        )
+    )
+    if missing_environment:
+        raise ValueError(
+            f"{name_hint}: required environment variable(s) are unset: "
+            + ", ".join(missing_environment)
+        )
     expanded = _expand_environment(dict(config), environment)
     name = _required_text(expanded, "name")
     adapter = _required_text(expanded, "adapter").casefold()
@@ -1384,7 +1411,7 @@ def create_source(
             max_repositories=_integer(expanded.get("max_repositories"), 10),
             page_size=_integer(expanded.get("page_size"), 100),
             max_releases_per_repository=_integer(
-                expanded.get("max_releases_per_repository"), 10
+                expanded.get("max_releases_per_repository"), 100
             ),
             max_assets_per_release=_integer(expanded.get("max_assets_per_release"), 100),
             token=token or None,
@@ -1839,6 +1866,16 @@ def create_source(
             "zatom_checkpoint_registry",
             "zatom_zenodo_checkpoint_record",
             "huggingface_dataset_checkpoints",
+            "nvlabs_edm_checkpoints",
+            "geom2vec_checkpoint_files",
+            "ftw_release_checkpoints",
+            "chgnet_pretrained_weights",
+            "medigan_registry",
+            "paddlenlp_ernie_registry",
+            "sherpa_asr_model_release",
+            "timm_legacy_efficientnet",
+            "pmt_pretrained_checkpoints",
+            "pmlr",
         }
         else _required_text(expanded, "url")
     )
@@ -3178,6 +3215,94 @@ def create_source(
             **injected,
         )
 
+    if adapter == "nvlabs_edm_checkpoints":
+        return NVlabsEDMCheckpointSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "NVlabs/edm",
+            branch=_text(expanded.get("branch")) or "main",
+            document_path=_text(expanded.get("document_path")) or "README.md",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_checkpoints=_integer(expanded.get("max_checkpoints"), 100),
+            client=injected["client"],
+        )
+
+    if adapter == "geom2vec_checkpoint_files":
+        return Geom2VecCheckpointFilesSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "dinner-group/geom2vec",
+            branch=_text(expanded.get("branch")) or "main",
+            provider_namespace=_text(expanded.get("provider_namespace"))
+            or "geom2vec:checkpoint",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100_000),
+            **injected,
+        )
+
+    if adapter == "ftw_release_checkpoints":
+        return FTWReleaseCheckpointSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "chgnet_pretrained_weights":
+        return CHGNetPretrainedWeightsSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 12 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "medigan_registry":
+        return MediganRegistrySourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "RichardObi/medigan",
+            branch=_text(expanded.get("branch")) or "main",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 500),
+            **injected,
+        )
+
+    if adapter == "paddlenlp_ernie_registry":
+        return PaddleNlpErnieRegistrySourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "PaddlePaddle/PaddleNLP",
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_text(expanded.get("source_path"))
+            or "paddlenlp/transformers/ernie/configuration.py",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "sherpa_asr_model_release":
+        return SherpaAsrModelReleaseSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 16 * 1024 * 1024),
+            max_assets=_integer(expanded.get("max_assets"), 1200),
+            **injected,
+        )
+
+    if adapter == "timm_legacy_efficientnet":
+        return TimmLegacyEfficientNetSourceAdapter(name=name, **injected)
+
+    if adapter == "pmt_pretrained_checkpoints":
+        return PMTPretrainedCheckpointSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 32),
+            **injected,
+        )
+
+    if adapter == "pmlr":
+        return PmlrSourceAdapter(
+            name=name,
+            index_url=_text(expanded.get("index_url"))
+            or "https://proceedings.mlr.press/",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 16 * 1024 * 1024),
+            max_volumes=_integer(expanded.get("max_volumes"), 2_000),
+            max_papers_per_volume=_integer(expanded.get("max_papers_per_volume"), 5_000),
+            **injected,
+        )
+
     raise ValueError(f"{name}: unknown source adapter {adapter!r}")
 
 
@@ -3241,6 +3366,16 @@ def _expand_environment(value: Any, environ: Mapping[str, str]) -> Any:
     if isinstance(value, list):
         return [_expand_environment(item, environ) for item in value]
     return value
+
+
+def _environment_references(value: Any) -> set[str]:
+    if isinstance(value, str):
+        return set(_ENV_REFERENCE.findall(value))
+    if isinstance(value, Mapping):
+        return set().union(*(_environment_references(item) for item in value.values()))
+    if isinstance(value, list):
+        return set().union(*(_environment_references(item) for item in value))
+    return set()
 
 
 def _required_text(config: Mapping[str, Any], key: str, *, section: str = "source") -> str:

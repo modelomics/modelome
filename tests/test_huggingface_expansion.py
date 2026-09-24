@@ -52,6 +52,9 @@ def test_huggingface_records_additional_checkpoint_formats_and_shard_indexes() -
         "model.flax",
         "model.ggml",
         "model.tflite",
+        # ONNX external tensor data is stored separately from its graph file.
+        "onnx/model.onnx_data",
+        "model.keras",
         "model.mlpackage",
         "bert_model.ckpt.index",
         "bert_model.ckpt.data-00000-of-00001",

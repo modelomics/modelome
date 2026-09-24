@@ -17,10 +17,12 @@ class _Client:
         *,
         listing_headers: dict[str, str] | None = None,
         details: dict[str, object] | None = None,
+        detail_status: dict[str, int] | None = None,
     ) -> None:
         self.listing = listing
         self.listing_headers = listing_headers or {}
         self.details = details or {}
+        self.detail_status = detail_status or {}
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
     def get(self, url: str, *, params=None, headers=None) -> HttpResponse:
@@ -28,11 +30,13 @@ class _Client:
         if params:
             payload = self.listing
             response_headers = self.listing_headers
+            status = 200
         else:
             payload = self.details[url]
             response_headers = {}
+            status = self.detail_status.get(url, 200)
         return HttpResponse(
-            status=200,
+            status=status,
             headers=response_headers,
             body=json.dumps(payload).encode(),
             url=url,
@@ -65,6 +69,7 @@ def test_dataset_listing_is_unfiltered_and_emits_only_exact_weight_candidates() 
                     {"rfilename": "model.safetensors"},
                     {"rfilename": "metadata.json"},
                     {"rfilename": "nested/model.gguf"},
+                    {"rfilename": "keras/model.keras"},
                     {"rfilename": "unsafe/../pytorch_model.bin"},
                 ],
             },
@@ -102,7 +107,11 @@ def test_dataset_listing_is_unfiltered_and_emits_only_exact_weight_candidates() 
     assert record.models[0].status is ModelStatus.CANDIDATE
     assert record.models[0].identifiers[0].namespace == "huggingface:dataset-checkpoint-candidate"
     assert record.raw["gated"] is True
-    assert record.raw["weight_files"] == ["model.safetensors", "nested/model.gguf"]
+    assert record.raw["weight_files"] == [
+        "keras/model.keras",
+        "model.safetensors",
+        "nested/model.gguf",
+    ]
     assert record.releases[0].metadata["repo_type"] == "dataset"
     assert all(link.crawl is False for link in record.links)
     assert page.upstream_count == 2
@@ -174,6 +183,45 @@ def test_dataset_detail_sha_drift_is_reported_and_does_not_admit_files() -> None
         "detail_sha": changed_sha,
         "file_inventory_status": "revision_drift_incomplete",
     }
+
+
+def test_unavailable_dataset_detail_advances_queue_to_next_repository() -> None:
+    first_repo = "dataset-owner/deleted-after-listing"
+    second_repo = "dataset-owner/available"
+    revision = "e" * 40
+    first_url = f"https://huggingface.co/api/datasets/{first_repo}"
+    second_url = f"https://huggingface.co/api/datasets/{second_repo}"
+    client = _Client(
+        [
+            {"id": first_repo, "sha": revision},
+            {"id": second_repo, "sha": revision},
+        ],
+        details={
+            first_url: {"error": "not found"},
+            second_url: {
+                "id": second_repo,
+                "sha": revision,
+                "siblings": [{"rfilename": "model.safetensors"}],
+            },
+        },
+        detail_status={first_url: 404},
+    )
+    adapter = HuggingFaceDatasetCheckpointSourceAdapter(client=client)
+
+    queued = adapter.fetch_page({})
+    first_detail = adapter.fetch_page(queued.next_state)
+    second_detail = adapter.fetch_page(first_detail.next_state)
+
+    assert first_detail.records == ()
+    assert first_detail.complete is False
+    assert first_detail.advance_on_source_issues is True
+    assert first_detail.issues[0].summary == {
+        "dataset_id": first_repo,
+        "file_inventory_status": "incomplete",
+    }
+    assert first_url in [url for url, _ in client.calls]
+    assert second_detail.records[0].source_record_id == f"{second_repo}@{revision}"
+    assert second_detail.complete is True
 
 
 def test_live_acronym_dataset_detail_contains_no_checkpoint_candidate() -> None:

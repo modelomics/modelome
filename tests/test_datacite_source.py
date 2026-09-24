@@ -266,10 +266,14 @@ def test_controlled_resource_type_drives_artifact_kind(
 
 
 def test_explicit_artifact_kind_override_is_supported() -> None:
-    record = adapter(
-        QueuedClient(response([resource()], total=1)),
-        artifact_kind="provider_page",
-    ).fetch_page({}).records[0]
+    record = (
+        adapter(
+            QueuedClient(response([resource()], total=1)),
+            artifact_kind="provider_page",
+        )
+        .fetch_page({})
+        .records[0]
+    )
 
     assert record.kind is ArtifactKind.PROVIDER_PAGE
 
@@ -430,6 +434,32 @@ def test_related_item_software_url_is_preserved_as_an_exact_relation_link() -> N
     assert record.models == ()
 
 
+def test_nested_related_item_identifier_from_datacite_rest_api_is_projected() -> None:
+    item = resource()
+    item["attributes"]["relatedItems"] = [
+        {
+            "relatedItemType": "Software",
+            "relatedItemIdentifier": {
+                "relatedItemIdentifier": ("https://zenodo.org/records/123/files/model.safetensors"),
+                "relatedItemIdentifierType": "URL",
+            },
+            "relationType": "IsSupplementedBy",
+        }
+    ]
+
+    page = adapter(QueuedClient(response([item], total=1))).fetch_page({})
+
+    artifact_link = next(
+        link
+        for link in page.records[0].links
+        if link.url == "https://zenodo.org/records/123/files/model.safetensors"
+    )
+    assert artifact_link.relation == "is_supplemented_by"
+    assert artifact_link.locator == (
+        "$.attributes.relatedItems[0].relatedItemIdentifier.relatedItemIdentifier"
+    )
+
+
 def test_related_item_doi_and_alternate_identifiers_preserve_explicit_identity() -> None:
     item = resource()
     item["attributes"]["relatedItems"] = [
@@ -458,12 +488,12 @@ def test_related_item_doi_and_alternate_identifiers_preserve_explicit_identity()
     page = adapter(QueuedClient(response([item], total=1))).fetch_page({})
 
     record = page.records[0]
-    doi_relation = next(link for link in record.links if link.url == "https://doi.org/10.9999/weights.v1")
+    doi_relation = next(
+        link for link in record.links if link.url == "https://doi.org/10.9999/weights.v1"
+    )
     assert doi_relation.relation == "is_version_of"
     assert doi_relation.locator == "$.attributes.relatedItems[0].relatedItemIdentifier"
-    alternate_links = [
-        link for link in record.links if link.relation == "alternate_identifier"
-    ]
+    alternate_links = [link for link in record.links if link.relation == "alternate_identifier"]
     assert len(alternate_links) == 1
     assert alternate_links[0].url == "https://host.example/model/weights.bin"
     assert alternate_links[0].locator == "$.attributes.identifiers[0].identifier"
