@@ -65,7 +65,7 @@ class FigshareModelCandidatesWorkflow:
         self.clock = clock
         self.checkpoint_signature = content_hash(
             {
-                "workflow": "figshare-model-candidates-daily-oai-v1",
+                "workflow": "figshare-model-candidates-daily-oai-v2",
                 "start": self.start.isoformat(),
                 "end": self.end.isoformat(),
                 "window_days": window_days,

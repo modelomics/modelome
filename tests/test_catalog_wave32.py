@@ -66,6 +66,7 @@ def test_azure_asset_gallery_factory_uses_only_post_capable_injected_clients() -
         "page_size": 100,
         "max_pages": 500,
         "max_response_bytes": 8 * 1024 * 1024,
+        "max_hf_origin_details_per_page": 100,
     }
     source = create_source(config)
 
@@ -73,6 +74,7 @@ def test_azure_asset_gallery_factory_uses_only_post_capable_injected_clients() -
     assert source.page_size == 100
     assert source.max_pages == 500
     assert source.max_response_bytes == 8 * 1024 * 1024
+    assert source.max_hf_origin_details_per_page == 100
     assert source.client is None
 
     client = HttpClient()
@@ -103,7 +105,8 @@ def test_azure_load_sources_uses_native_post_when_given_shared_httpclient(
     config_path.write_text(
         '[[source]]\nname = "azure-test"\nadapter = "azure_asset_gallery_v2"\n'
         'url = "https://api.catalog.azureml.ms/asset-gallery/v1.0/models"\n'
-        'page_size = 100\nmax_pages = 500\nmax_response_bytes = 8388608\n',
+        'page_size = 100\nmax_pages = 500\nmax_response_bytes = 8388608\n'
+        'max_hf_origin_details_per_page = 100\n',
         encoding="utf-8",
     )
 
@@ -133,6 +136,7 @@ def test_azure_load_sources_uses_native_post_when_given_shared_httpclient(
 
     assert isinstance(source, AzureAssetGalleryV2Adapter)
     assert source.client is None
+    assert source.max_hf_origin_details_per_page == 100
     assert source.fetch_page({}).complete
 
 

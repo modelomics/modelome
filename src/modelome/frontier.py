@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+from bisect import insort
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -117,6 +118,20 @@ class FrontierCrawler:
                 limit=limit,
                 lease_seconds=self.claim_lease_seconds,
             )
+            if len(items) < limit:
+                promoted_urls = _promote_declared_model_file_urls(
+                    self.database,
+                    limit=limit - len(items),
+                )
+                for url in promoted_urls:
+                    self.database.update_frontier(url, "pending")
+                if promoted_urls:
+                    items.extend(
+                        self.database.claim_frontier(
+                            limit=limit - len(items),
+                            lease_seconds=self.claim_lease_seconds,
+                        )
+                    )
             declared_weight_urls = _declared_weight_urls(self.database, items)
             declared_document_urls = _declared_document_urls(self.database, items)
             reference_fetcher = _DeclaredWeightReferenceFetcher(declared_weight_urls)
@@ -314,13 +329,65 @@ def _declared_weight_urls(database: Database, items: list[dict[str, Any]]) -> se
     }
     if not url_by_id:
         return set()
-    return {
-        url_by_id[str(row["url_id"])]
-        for row in database.table_rows("url_discoveries")
-        if str(row.get("url_id")) in url_by_id
-        and str(row.get("relation", "")).casefold() in {"weights", "checkpoint"}
-        and not _TEXT_MENTION_LOCATOR.fullmatch(str(row.get("locator") or ""))
-    }
+    result: set[str] = set()
+    for row in database.declared_url_discoveries_for_ids(set(url_by_id)):
+        url_id = str(row.get("url_id"))
+        if url_id not in url_by_id:
+            continue
+        if _TEXT_MENTION_LOCATOR.fullmatch(str(row.get("locator") or "")):
+            continue
+        relation = str(row.get("relation", "")).casefold()
+        url = url_by_id[url_id]
+        if relation in {"weights", "checkpoint"} or (
+            relation == "model_artifact" and _is_declared_model_file_url(url)
+        ):
+            result.add(url)
+    return result
+
+
+def _promote_declared_model_file_urls(database: Database, *, limit: int) -> list[str]:
+    """Admit bounded, source-declared direct model files left as observed links.
+
+    Some source adapters retain model files as ``model_artifact`` links with
+    ``crawl=False``. Recognized checkpoint files can be represented by the
+    metadata-only reference fetcher; their bytes are never requested here.
+    """
+
+    if limit < 1:
+        return []
+    selected: list[tuple[str, str]] = []
+    seen_urls: set[str] = set()
+    url_policy = PublicUrlPolicy()
+    relations = {"weights", "checkpoint", "model_artifact"}
+    for frontier, row in database.observed_declared_url_discoveries(relations):
+        relation = str(row.get("relation", "")).casefold()
+        if relation not in {"weights", "checkpoint", "model_artifact"}:
+            continue
+        if _TEXT_MENTION_LOCATOR.fullmatch(str(row.get("locator") or "")):
+            continue
+        url = canonicalize_url(str(frontier["url"]))
+        if (
+            url in seen_urls
+            or database.has_weight_artifact_url(url)
+            or not _is_declared_model_file_url(url)
+        ):
+            continue
+        if not url_policy.allows(url, resolve=False):
+            continue
+        first_seen = str(frontier.get("first_seen_at") or "")
+        insort(selected, (first_seen, url))
+        seen_urls.add(url)
+        if len(selected) > limit:
+            _, removed_url = selected.pop()
+            seen_urls.discard(removed_url)
+    return [url for _, url in selected]
+
+
+def _is_declared_model_file_url(url: str) -> bool:
+    """Recognize exact weight-file locators suitable for reference-only capture."""
+
+    suffix = PurePosixPath(urlsplit(url).path).suffix.casefold()
+    return suffix in REFERENCE_WEIGHT_SUFFIXES or _is_reference_only_checkpoint_url(url)
 
 
 def _declared_document_urls(database: Database, items: list[dict[str, Any]]) -> set[str]:
@@ -339,7 +406,7 @@ def _declared_document_urls(database: Database, items: list[dict[str, Any]]) -> 
     }
     return {
         url_by_id[str(row["url_id"])]
-        for row in database.table_rows("url_discoveries")
+        for row in database.declared_url_discoveries_for_ids(set(url_by_id))
         if str(row.get("url_id")) in url_by_id
         and str(row.get("relation", "")).casefold() in document_relations
         and not _TEXT_MENTION_LOCATOR.fullmatch(str(row.get("locator") or ""))

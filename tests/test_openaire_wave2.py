@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from modelome.artifact_relations import ArtifactRelationMaterializer
+from modelome.entries import build_entries, read_entry_seeds
+from modelome.entry_seed_export import export_current_entry_seeds
 from modelome.lake import LakeRecord, ParquetLandingZone, ShardApplicationOrder
-from modelome.models import ArtifactKind
+from modelome.models import ArtifactKind, Identifier, ModelHint
 from modelome.openaire_projection import (
     OpenAireSoftwareProjector,
     project_openaire_relation,
@@ -277,6 +281,116 @@ def test_projects_explicit_software_to_dataset_relation_as_non_model_evidence() 
     assert record.raw["target_product_type"] == "dataset"
     assert record.raw["relation_validated"] is True
     assert record.raw["model_classification_performed"] is False
+
+
+def test_projects_inverse_paper_to_software_relation_without_reversing_the_edge() -> None:
+    record = project_openaire_relation(
+        {
+            "source": {"id": "paper-8", "type": "publication"},
+            "target": {"id": "software-9", "type": "software"},
+            "reltype": {"type": "relationship", "name": "IsSupplementedBy"},
+            "validated": True,
+        }
+    )
+
+    assert record is not None
+    assert record.canonical_url.endswith("/paper-8")
+    assert record.links[0].url.endswith("/software-9")
+    assert record.raw["source_product_id"] == "paper-8"
+    assert record.raw["target_product_id"] == "software-9"
+    assert record.raw["relation_predicate"] == "IsSupplementedBy"
+
+
+def test_inverse_relation_survives_artifact_projection_and_entry_join(tmp_path: Path) -> None:
+    relation_evidence = project_openaire_relation(
+        {
+            "source": {"id": "paper-join-1", "type": "publication"},
+            "target": {"id": "software-join-2", "type": "software"},
+            "reltype": {"type": "relationship", "name": "IsSupplementedBy"},
+            "validated": True,
+        }
+    )
+    assert relation_evidence is not None
+    assert relation_evidence.models == ()
+
+    # Entry export requires a separately asserted model claim. Attach one only
+    # to the test paper so this test covers the relation join, not classification.
+    model_paper = replace(
+        relation_evidence,
+        kind=ArtifactKind.PAPER,
+        models=(
+            ModelHint(
+                "paper-model",
+                "Example Model",
+                identifiers=(Identifier("test:model", "example"),),
+            ),
+        ),
+    )
+    software = project_openaire_software(
+        {
+            "id": "software-join-2",
+            "type": "software",
+            "mainTitle": "Model implementation",
+            "codeRepositoryUrl": ["https://github.com/example/model-implementation"],
+        }
+    )
+    unrelated = project_openaire_software(
+        {
+            "id": "software-unrelated",
+            "type": "software",
+            "mainTitle": "Unrelated package",
+            "codeRepositoryUrl": ["https://github.com/example/unrelated"],
+        }
+    )
+    assert software is not None and unrelated is not None
+
+    store_path = tmp_path / "store"
+    store = Database(store_path)
+    store.initialize()
+    store.ingest_page(
+        "openaire-graph",
+        (model_paper, software, unrelated),
+        extractor="fixture",
+        complete=True,
+    )
+    materializer = ArtifactRelationMaterializer(store_path)
+    projection = materializer.materialize()
+    relation_rows = [
+        row
+        for batch in materializer.iter_batches(projection)
+        for row in batch.to_pylist()
+    ]
+    directed = [
+        row
+        for row in relation_rows
+        if row["predicate"] == "openaire_related_issupplementedby"
+    ]
+    assert len(directed) == 1
+    assert directed[0]["subject_source_record_id"] == model_paper.source_record_id
+    assert directed[0]["target_source_record_id"] == software.source_record_id
+
+    seed_path = tmp_path / "seeds.jsonl"
+    export_current_entry_seeds(
+        store_path,
+        seed_path,
+        relation_root=materializer.output_root,
+    )
+    seed = read_entry_seeds(seed_path)[0]
+    entry = build_entries((seed,)).entries[0]
+    relation_resources = [
+        resource
+        for resource in entry.resources
+        if resource.relation == "openaire_related_issupplementedby"
+    ]
+    resolved_relations = [
+        resource for resource in relation_resources if resource.relation_evidence is not None
+    ]
+    assert len(resolved_relations) == 1
+    assert resolved_relations[0].url.endswith("/software-join-2")
+    assert resolved_relations[0].relation_evidence.direction == "outgoing"
+    assert {resource.url for resource in relation_resources} == {
+        "https://api.openaire.eu/graph/v3/research-products/software-join-2"
+    }
 
 
 def test_projects_nested_relation_nodes_and_rejects_non_product_targets() -> None:

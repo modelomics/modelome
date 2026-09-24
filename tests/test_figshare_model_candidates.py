@@ -79,6 +79,32 @@ def historical_only_record() -> str:
     </record>"""
 
 
+def druggen_record() -> str:
+    return """<record>
+      <header><identifier>oai:figshare.com:article/29119205</identifier></header>
+      <metadata><mets:mets xmlns:mets="http://www.loc.gov/METS/"
+          xmlns:dc="http://purl.org/dc/elements/1.1/"
+          xmlns:dcterms="http://purl.org/dc/terms/">
+        <mets:dmdSec><mets:mdWrap><mets:xmlData>
+          <dc:title>DrugGEN Resource Collection: Training Data, Model Weights,
+            Generated Molecules, Docking and MD Analyses</dc:title>
+          <dc:description>&lt;p&gt;The DrugGEN dataset repository archives the full training
+            datasets,
+            the pre-trained weight files for all targeted and non-targeted model variants,
+            and all result artefacts.&lt;/p&gt;
+            &lt;li&gt;experiments/models/ — Pre-trained weights
+            (DrugGEN-AKT1, DrugGEN-CDK2, NoTarget)&lt;/li&gt;</dc:description>
+          <dc:relation>https://figshare.com/articles/dataset/DrugGEN/29119205</dc:relation>
+          <dcterms:hasVersion>3</dcterms:hasVersion>
+          <dcterms:hasPart>https://ndownloader.figshare.com/files/54835826</dcterms:hasPart>
+          <dcterms:hasPart>https://ndownloader.figshare.com/files/54835847</dcterms:hasPart>
+          <dcterms:hasPart>https://ndownloader.figshare.com/files/54835850</dcterms:hasPart>
+          <dcterms:hasPart>https://ndownloader.figshare.com/files/54835853</dcterms:hasPart>
+        </mets:xmlData></mets:mdWrap></mets:dmdSec>
+      </mets:mets></metadata>
+    </record>"""
+
+
 def list_records(records: str, token: str = "") -> str:
     token_xml = (
         f'<resumptionToken expirationDate="2026-09-24T11:00:00Z">{token}</resumptionToken>'
@@ -271,6 +297,84 @@ def test_older_candidate_is_found_when_latest_version_has_no_model_cues() -> Non
     assert candidate.source_record_id == "article:19105067:version:1"
     assert candidate.raw["article_version"] == "1"
     assert candidate.raw["matched_files"][0]["name"] == "wssnet.zip"
+
+
+def test_generic_pretrained_weight_context_selects_serialization_files_from_live_shape() -> None:
+    article = {
+        "id": 29119205,
+        "version": 3,
+        "title": (
+            "DrugGEN Resource Collection: Training Data, Model Weights, Generated "
+            "Molecules, Docking and MD Analyses"
+        ),
+        "description": (
+            "<p>The DrugGEN dataset repository archives the full training datasets, "
+            "the pre-trained weight files for all targeted and non-targeted model variants, "
+            "and all result artefacts.</p>"
+            "<li>experiments/models/ — Pre-trained weights "
+            "(DrugGEN-AKT1, DrugGEN-CDK2, NoTarget)</li>"
+        ),
+        "url_public_html": "https://figshare.com/articles/dataset/DrugGEN/29119205/3",
+        "defined_type_name": "dataset",
+        "files": [
+            {
+                "id": 54835826,
+                "name": "transformer_multiple_12_PAPYRUS_200_16_3_vocab_src.pth",
+                "download_url": "https://ndownloader.figshare.com/files/54835826",
+            },
+            {
+                "id": 54835847,
+                "name": "DrugGEN-G.ckpt",
+                "download_url": "https://ndownloader.figshare.com/files/54835847",
+            },
+            {
+                "id": 54835850,
+                "name": "NoTarget-G.ckpt",
+                "download_url": "https://ndownloader.figshare.com/files/54835850",
+            },
+            {
+                "id": 54835853,
+                "name": "DrugGEN-G.ckpt",
+                "download_url": "https://ndownloader.figshare.com/files/54835853",
+            },
+        ],
+    }
+
+    class DrugGENClient(Client):
+        def get(self, url: str, *, params=None, headers=None) -> HttpResponse:
+            self.calls.append((url, dict(params or {})))
+            if url.endswith("/versions"):
+                body = [{"version": 3, "url": f"{url}/3"}]
+            elif url.endswith("/versions/3"):
+                body = article
+            else:
+                return self.responses.pop(0)
+            return response(json.dumps(body), url, "application/json")
+
+    client = DrugGENClient(response(list_records(druggen_record())))
+    adapter = FigshareModelCandidatesSourceAdapter(
+        from_date="2025-05-27", until_date="2025-05-28", client=client
+    )
+
+    page = adapter.fetch_page({})
+
+    assert [record.raw["article_version"] for record in page.records] == ["3"]
+    record = page.records[0]
+    assert record.raw["defined_type_name"] == "dataset"
+    assert record.raw["candidate_signal"] == (
+        "model metadata identifies pretrained weights and version lists checkpoint-like files"
+    )
+    assert [item["id"] for item in record.raw["matched_files"]] == [
+        "54835847",
+        "54835850",
+        "54835853",
+    ]
+    assert [item["name"] for item in record.raw["matched_files"]] == [
+        "DrugGEN-G.ckpt",
+        "NoTarget-G.ckpt",
+        "DrugGEN-G.ckpt",
+    ]
+    assert all(model.status.value == "candidate" for model in record.models)
 
 
 def test_half_open_window_and_token_expiry_are_validated() -> None:

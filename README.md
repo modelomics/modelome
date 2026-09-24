@@ -23,6 +23,9 @@ source catalog is bundled in the wheel; use `--sources-file` or `MODELOME_SOURCE
 supply a custom catalog. Credentials are read from environment variables; `.env.example`
 documents them and `.env` is not loaded automatically. Most sources are public and need no
 credentials; optional API keys can raise provider rate limits.
+Set `GITHUB_TOKEN` before a broad first run: many checkpoint sources read GitHub
+repository metadata, and anonymous requests can exhaust the public API quota.
+The token is sent only to GitHub's API and is not stored in the registry.
 
 Initialize a local store, inspect the configured sources, then run one bounded public
 source as a smoke test:
@@ -34,7 +37,7 @@ modelome --store data/store sync --source huggingface --max-pages 1 --no-frontie
 modelome --store data/store status
 ```
 
-The default catalog contains **509 enabled sources** (484 loadable without provider
+The default catalog contains **521 enabled sources** (495 loadable without provider
 credentials). The Hugging Face smoke test reads one page of public repository metadata and
 records source-declared links. It does not download model weights or crawl linked pages.
 The run report shows whether the bounded scan is partial; repeat `sync` with the same
@@ -136,7 +139,7 @@ The following are available capabilities, not a directive to run every source or
 loader now. During the entry-first phase, use only the bounded source or link operations
 needed to validate the per-paper workflow. Their later corpus-scale role is documented in
 [Entry-first modelome](docs/entry-first.md#path-to-complete-paper-ingestion).
-The default catalog currently has **509 enabled sources** (484 loadable without provider credentials); this is a configuration count,
+The default catalog currently has **521 enabled sources** (495 loadable without provider credentials); this is a configuration count,
 not a claim that all upstream inventories have been exhausted.
 
 The default catalog enables independent, unfiltered streams for:

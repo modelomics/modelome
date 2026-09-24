@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from hashlib import sha256
 from typing import Any
 from urllib.error import HTTPError
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
 
 from modelome.models import (
@@ -18,15 +18,19 @@ from modelome.models import (
     ModelHint,
     ModelStatus,
     ReleaseHint,
+    SourceIssue,
     SourcePage,
     SourceRecord,
 )
-from modelome.normalize import canonicalize_url, content_hash
+from modelome.normalize import canonicalize_url, content_hash, identifier_from_url
 
 _URL = "https://api.catalog.azureml.ms/asset-gallery/v1.0/models"
 _DETAIL_BASE = "https://api.catalog.azureml.ms/asset-gallery/v1.0"
 _CATALOG_URL = "https://ai.azure.com/catalog/models/"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_ORIGINAL_MODEL_CARD_LINK_RE = re.compile(
+    r"\[\s*Original Model Card\s*\]\(\s*(https?://[^\s)]+)\s*\)"
+)
 
 
 class AzureAssetGalleryV2Adapter:
@@ -53,6 +57,7 @@ class AzureAssetGalleryV2Adapter:
         max_pages: int = 500,
         max_scan_restarts: int = 3,
         max_response_bytes: int = 8 * 1024 * 1024,
+        max_hf_origin_details_per_page: int = 0,
         timeout: float = 30.0,
         client: Any | None = None,
     ) -> None:
@@ -62,16 +67,19 @@ class AzureAssetGalleryV2Adapter:
             raise ValueError("page_size must be between 1 and 1000")
         if max_pages < 1 or max_scan_restarts < 1 or max_response_bytes < 1 or timeout <= 0:
             raise ValueError("pagination, response, and timeout bounds must be positive")
+        if not 0 <= max_hf_origin_details_per_page <= 100:
+            raise ValueError("max_hf_origin_details_per_page must be between 0 and 100")
         self.name = name
         self.page_size = page_size
         self.max_pages = max_pages
         self.max_scan_restarts = max_scan_restarts
         self.max_response_bytes = max_response_bytes
+        self.max_hf_origin_details_per_page = max_hf_origin_details_per_page
         self.timeout = timeout
         self.client = client
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "azure-asset-gallery-v2-v1",
+                "adapter": "azure-asset-gallery-v2-v2",
                 "url": _URL,
                 "query": {
                     "order": [{"field": "name", "direction": "asc"}],
@@ -80,6 +88,7 @@ class AzureAssetGalleryV2Adapter:
                 "max_pages": max_pages,
                 "max_scan_restarts": max_scan_restarts,
                 "max_response_bytes": max_response_bytes,
+                "max_hf_origin_details_per_page": max_hf_origin_details_per_page,
             }
         )
 
@@ -147,7 +156,33 @@ class AzureAssetGalleryV2Adapter:
         if len(summaries) > total:
             return self._restart_scan(state, total, "page rows exceed totalCount")
 
-        records = tuple(self._record(item) for item in summaries)
+        records: list[SourceRecord] = []
+        issues: list[SourceIssue] = []
+        detail_requests = 0
+        for item in summaries:
+            origin_url = None
+            is_hf_registry = (
+                isinstance(item, Mapping)
+                and (_optional_text(item.get("registryName")) or "").casefold()
+                == "huggingface"
+            )
+            if is_hf_registry:
+                if detail_requests < self.max_hf_origin_details_per_page:
+                    detail_requests += 1
+                    origin_url, issue = self._hf_origin_from_detail(item)
+                    if issue is not None:
+                        issues.append(issue)
+                elif self.max_hf_origin_details_per_page:
+                    issues.append(
+                        self._detail_issue(
+                            item,
+                            "HF origin not checked because the per-page detail "
+                            "budget was exhausted",
+                            status="budget_exhausted",
+                        )
+                    )
+            records.append(self._record(item, hf_origin_url=origin_url))
+        records = tuple(records)
         asset_hashes = [_digest(str(record.raw["assetId"])) for record in records]
         if len(set(asset_hashes)) != len(asset_hashes) or set(asset_hashes) & set(
             seen_asset_hashes
@@ -181,6 +216,8 @@ class AzureAssetGalleryV2Adapter:
             complete,
             upstream_count=total,
             authoritative_snapshot=False,
+            issues=tuple(issues),
+            advance_on_source_issues=bool(issues),
         )
 
     def _restart_scan(
@@ -223,13 +260,108 @@ class AzureAssetGalleryV2Adapter:
                 response_body = response.read(self.max_response_bytes + 1)
                 status = response.status
         except HTTPError as exc:
-            return exc.read(self.max_response_bytes + 1), exc.code
+            body = exc.read(self.max_response_bytes + 1)
+            if len(body) > self.max_response_bytes:
+                raise ValueError(f"{self.name}: response exceeds byte limit") from exc
+            return body, exc.code
         if len(response_body) > self.max_response_bytes:
             raise ValueError(f"{self.name}: response exceeds byte limit")
         return response_body, status
 
+    def _get(self, url: str) -> tuple[bytes, int]:
+        if self.client is not None:
+            response = self.client.get(url, headers={"Accept": "application/json"})
+            if response.url != url:
+                raise ValueError(f"{self.name}: unexpected detail redirect")
+            if len(response.body) > self.max_response_bytes:
+                raise ValueError(f"{self.name}: detail response exceeds byte limit")
+            return response.body, response.status
+        request = Request(url, headers={"Accept": "application/json"})
+        try:
+            with urlopen(request, timeout=self.timeout) as response:  # noqa: S310
+                if response.geturl() != url:
+                    raise ValueError(f"{self.name}: unexpected detail redirect")
+                body = response.read(self.max_response_bytes + 1)
+                status = response.status
+        except HTTPError as exc:
+            body = exc.read(self.max_response_bytes + 1)
+            if len(body) > self.max_response_bytes:
+                raise ValueError(f"{self.name}: detail response exceeds byte limit") from exc
+            return body, exc.code
+        if len(body) > self.max_response_bytes:
+            raise ValueError(f"{self.name}: detail response exceeds byte limit")
+        return body, status
+
+    def _hf_origin_from_detail(
+        self, item: Mapping[str, Any]
+    ) -> tuple[str | None, SourceIssue | None]:
+        registry = _required_text(item.get("registryName"), "registryName")
+        name = _required_text(item.get("name"), "name")
+        version = _required_text(item.get("version"), "version")
+        url = (
+            f"{_DETAIL_BASE}/{quote(registry, safe='')}/models/"
+            f"{quote(name, safe='')}/version/{quote(version, safe='')}"
+        )
+        body, status = self._get(url)
+        if status in {404, 410}:
+            return None, self._detail_issue(
+                item,
+                f"model detail unavailable (HTTP {status}); HF origin was not checked",
+                status=status,
+            )
+        if status != 200:
+            raise ValueError(f"{self.name}: model detail returned HTTP {status}")
+        try:
+            detail = json.loads(body)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError(f"{self.name}: model detail returned invalid JSON") from exc
+        if not isinstance(detail, Mapping):
+            raise ValueError(f"{self.name}: model detail is not an object")
+        for field, expected in (("name", name), ("version", version), ("registryName", registry)):
+            actual = _detail_value(detail, field)
+            if actual is None:
+                raise ValueError(f"{self.name}: model detail is missing {field}")
+            if actual != expected:
+                raise ValueError(f"{self.name}: model detail {field} does not match request")
+        expected_asset_id = (
+            f"azureml://registries/{registry}/models/{name}/versions/{version}"
+        )
+        asset_id = _detail_value(detail, "assetId")
+        if asset_id is not None and asset_id != expected_asset_id:
+            raise ValueError(f"{self.name}: model detail assetId does not match request")
+        description = _detail_value(detail, "description")
+        if not isinstance(description, str):
+            return None, None
+        for match in _ORIGINAL_MODEL_CARD_LINK_RE.finditer(description):
+            if _explicit_huggingface_model_identifier(match.group(1)) is not None:
+                return canonicalize_url(match.group(1)), None
+        return None, None
+
+    def _detail_issue(
+        self,
+        item: Mapping[str, Any],
+        error: str,
+        *,
+        status: int | str,
+    ) -> SourceIssue:
+        registry = _optional_text(item.get("registryName")) or "unknown"
+        name = _optional_text(item.get("name")) or "unknown"
+        version = _optional_text(item.get("version")) or "unknown"
+        return SourceIssue(
+            source_record_id=f"azureml:asset-version:{registry}/{name}@{version}",
+            stage="source_metadata",
+            error=error,
+            summary={
+                "registry": registry,
+                "name": name,
+                "version": version,
+                "detail_status": status,
+                "origin_identity_status": "not_verified",
+            },
+        )
+
     @staticmethod
-    def _record(item: Any) -> SourceRecord:
+    def _record(item: Any, *, hf_origin_url: str | None = None) -> SourceRecord:
         if not isinstance(item, Mapping):
             raise ValueError("azure asset gallery summary is not an object")
         name = _required_text(item.get("name"), "name")
@@ -248,6 +380,20 @@ class AzureAssetGalleryV2Adapter:
         )
         portal_url = f"{_CATALOG_URL}{quote(name, safe='')}?version={quote(version, safe='')}"
         identifiers = (Identifier("azureml:catalog-model", model_identity),)
+        model_identifiers = identifiers
+        links = [Link(portal_url, relation="documents_model", crawl=False)]
+        if hf_origin_url is not None:
+            hf_identifier = identifier_from_url(hf_origin_url)
+            assert hf_identifier is not None
+            model_identifiers = (*identifiers, hf_identifier)
+            links.append(
+                Link(
+                    hf_origin_url,
+                    relation="model_card",
+                    locator="$.description.Original Model Card",
+                    crawl=False,
+                )
+            )
         release_id = f"{model_identity}@{version}"
         release = ReleaseHint(
             local_id=f"version:{version}",
@@ -262,7 +408,7 @@ class AzureAssetGalleryV2Adapter:
             local_id=local_id,
             name=display_name,
             aliases=(name,),
-            identifiers=identifiers,
+            identifiers=model_identifiers,
             status=ModelStatus.DOCUMENTED,
             locator=f"registry={registry}, name={name}, version={version}",
         )
@@ -276,8 +422,9 @@ class AzureAssetGalleryV2Adapter:
                 f"Azure public model asset {registry}/{name}, version {version}; "
                 f"publisher: {_optional_text(item.get('publisher')) or 'unknown'}."
             ),
-            identifiers=identifiers + (Identifier("azureml:catalog-model-version", asset_id),),
-            links=(Link(portal_url, relation="documents_model", crawl=False),),
+            identifiers=model_identifiers
+            + (Identifier("azureml:catalog-model-version", asset_id),),
+            links=tuple(links),
             models=(model,),
             releases=(release,),
         )
@@ -291,6 +438,16 @@ def _required_text(value: Any, field: str) -> str:
 
 def _optional_text(value: Any) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _detail_value(detail: Mapping[str, Any], field: str) -> Any:
+    """Accept the lower-camel and PascalCase detail fields observed upstream."""
+
+    lower = detail.get(field)
+    pascal = detail.get(field[:1].upper() + field[1:])
+    if lower is not None and pascal is not None and lower != pascal:
+        raise ValueError(f"azure asset detail has conflicting {field} casing variants")
+    return lower if lower is not None else pascal
 
 
 def _nonnegative_int(value: Any, field: str) -> int:
@@ -307,6 +464,30 @@ def _state_int(value: Any, field: str) -> int:
 
 def _digest(value: str) -> str:
     return sha256(value.encode("utf-8")).hexdigest()
+
+
+def _explicit_huggingface_model_identifier(value: str) -> Identifier | None:
+    try:
+        url = canonicalize_url(value)
+    except ValueError:
+        return None
+    parts = urlsplit(url)
+    if (
+        parts.scheme != "https"
+        or (parts.hostname or "").casefold() not in {"huggingface.co", "www.huggingface.co"}
+        or parts.username is not None
+        or parts.password is not None
+        or parts.query
+        or parts.fragment
+        or len([part for part in parts.path.split("/") if part]) != 2
+    ):
+        return None
+    identifier = identifier_from_url(url)
+    return (
+        identifier
+        if identifier is not None and identifier.namespace == "huggingface:model"
+        else None
+    )
 
 
 def _hash_list(value: Any, field: str, maximum: int) -> list[str]:

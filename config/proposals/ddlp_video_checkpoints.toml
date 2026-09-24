@@ -1,0 +1,14 @@
+# The first-party DDLP model-zoo table lists eight pretrained image/video
+# bundles by model family and dataset. MEGA links identify encrypted bundles;
+# the adapter reads the README only and never downloads those bundles.
+[[source]]
+name = "ddlp-video-checkpoints"
+adapter = "ddlp_video_checkpoints"
+enabled = false
+entry_tags = ["field:computer-vision", "field:video-generation", "ecosystem:ddlp", "kind:pretrained-checkpoint-bundle"]
+repository = "taldatech/ddlp"
+branch = "main"
+document_path = "README.md"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_checkpoints = 8

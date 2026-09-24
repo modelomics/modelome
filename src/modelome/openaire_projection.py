@@ -259,7 +259,11 @@ def project_openaire_relation(payload: Mapping[str, Any]) -> SourceRecord | None
         raise TypeError("OpenAIRE relation payload must be a mapping")
     source_id, source_type = _relation_node(payload, "source")
     target_id, target_type = _relation_node(payload, "target")
-    if source_type != "software" or target_type not in {"publication", "dataset", "data"}:
+    product_types = {"publication", "dataset", "data"}
+    software_product_edge = (
+        source_type == "software" and target_type in product_types
+    ) or (target_type == "software" and source_type in product_types)
+    if not software_product_edge:
         return None
     relation = payload.get("relType") or payload.get("reltype")
     if isinstance(relation, Mapping):

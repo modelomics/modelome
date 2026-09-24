@@ -1,0 +1,24 @@
+# MiniMax's first-party OpenAPI document specifies an authenticated OpenAI
+# compatible list-models endpoint and declares these exact model IDs in its
+# response example. Live enumeration requires the user's API key.
+[[source]]
+name = "minimax-api-models"
+adapter = "json_catalog"
+enabled = false
+activation_env = "MINIMAX_API_KEY"
+entry_tags = ["field:machine-learning", "ecosystem:minimax", "kind:hosted-model", "evidence:current-api-availability"]
+url = "https://api.minimax.io/v1/models"
+provider_namespace = "minimax:model"
+model_card_url_template = "https://platform.minimax.io/docs/guides/models-intro"
+model_page_crawl = false
+auth_env = "MINIMAX_API_KEY"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+schedule = "daily"
+max_response_bytes = 4194304
+
+[source.mapping]
+items_path = "data"
+id_path = "id"
+name_path = "id"
+created_path = "created"

@@ -181,6 +181,7 @@ class StarVLAVLActCollectionAdapter:
         name = repo.rsplit("/", 1)[-1]
         local_id = f"model:{name.casefold()}"
         identifier = Identifier("starvla:model", repo)
+        huggingface_identifier = Identifier("huggingface:model", repo)
         artifact = f"https://huggingface.co/{repo}/resolve/{revision}/{quote(path, safe='/')}"
         note = item.get("note")
         note = note.get("text", "") if isinstance(note, Mapping) else ""
@@ -209,7 +210,8 @@ class StarVLAVLActCollectionAdapter:
                 Link(self.collection_url, relation="model_collection", crawl=False),
             ),
             models=(ModelHint(
-                local_id=local_id, name=name, identifiers=(identifier,), aliases=(repo,),
+                local_id=local_id, name=name,
+                identifiers=(identifier, huggingface_identifier), aliases=(repo,),
                 status=ModelStatus.RELEASED, locator=f"{_COLLECTION}:item:{repo}",
             ),),
             releases=(ReleaseHint(

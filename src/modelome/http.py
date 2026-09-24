@@ -53,6 +53,7 @@ class HttpClient:
         attempts: int = 4,
         max_response_bytes: int = 64 * 1024 * 1024,
         user_agent: str | None = None,
+        github_token: str | None = None,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         contact = os.environ.get("MODELOME_CONTACT_EMAIL", "").strip()
@@ -63,6 +64,7 @@ class HttpClient:
         self.attempts = attempts
         self.max_response_bytes = max_response_bytes
         self.user_agent = user_agent or default_agent
+        self._github_token = github_token.strip() if github_token and github_token.strip() else None
         self._sleep = sleep
         self._opener = build_opener(_SafeRedirectHandler(_require_public_redirect))
         self._github_commit_cache: dict[tuple[str, str, str], HttpResponse] = {}
@@ -79,13 +81,35 @@ class HttpClient:
         request_url = _with_params(url, params or {})
         request_headers = {"Accept": "application/json", "User-Agent": self.user_agent}
         request_headers.update(headers or {})
+        injected_github_token = False
+        parts = urlsplit(request_url)
+        if (
+            self._github_token
+            and parts.scheme.casefold() == "https"
+            and (parts.hostname or "").casefold() == "api.github.com"
+            and parts.port in {None, 443}
+            and parts.username is None
+            and parts.password is None
+            and not any(key.casefold() == "authorization" for key in request_headers)
+        ):
+            request_headers["Authorization"] = f"Bearer {self._github_token}"
+            injected_github_token = True
         cache_key = (
-            _github_commit_cache_key(request_url, request_headers)
+            _github_commit_cache_key(
+                request_url,
+                request_headers,
+                credential_scope="github-token" if injected_github_token else None,
+            )
             if redirect_validator is None
             else None
         )
         if cache_key is None:
-            return self._get_uncached(request_url, request_headers, redirect_validator)
+            return self._get_uncached(
+                request_url,
+                request_headers,
+                redirect_validator,
+                strip_authorization_on_redirect=injected_github_token,
+            )
 
         # Serialize only matching commit lookups. This prevents simultaneous
         # adapters from issuing the same anonymous API request before the first
@@ -94,7 +118,12 @@ class HttpClient:
             cached = self._github_commit_cache.get(cache_key)
             if cached is not None:
                 return cached
-            response = self._get_uncached(request_url, request_headers, None)
+            response = self._get_uncached(
+                request_url,
+                request_headers,
+                None,
+                strip_authorization_on_redirect=injected_github_token,
+            )
             if response.status == 200 and _origin(response.url) == _origin(request_url):
                 if len(self._github_commit_cache) >= _GITHUB_COMMIT_CACHE_MAX_ENTRIES:
                     self._github_commit_cache.pop(next(iter(self._github_commit_cache)))
@@ -112,6 +141,8 @@ class HttpClient:
         request_url: str,
         request_headers: Mapping[str, str],
         redirect_validator: Callable[[str], None] | None,
+        *,
+        strip_authorization_on_redirect: bool = False,
     ) -> HttpResponse:
         display_url = _redacted_url(request_url)
 
@@ -120,11 +151,14 @@ class HttpClient:
         if redirect_validator is not None:
             def validate_redirect(target: str) -> None:
                 _require_public_redirect(target)
-                redirect_validator(target)
+                if redirect_validator is not None:
+                    redirect_validator(target)
 
             opener = build_opener(_SafeRedirectHandler(validate_redirect))
         for attempt in range(self.attempts):
             request = Request(request_url, headers=request_headers, method="GET")
+            if strip_authorization_on_redirect:
+                request._modelome_strip_authorization_on_redirect = True
             try:
                 with opener.open(request, timeout=self.timeout) as response:  # noqa: S310
                     body = response.read(self.max_response_bytes + 1)
@@ -161,7 +195,9 @@ class HttpClient:
 def _github_commit_cache_key(
     url: str,
     headers: Mapping[str, str],
-) -> tuple[str, str, str] | None:
+    *,
+    credential_scope: str | None = None,
+) -> tuple[str, str, str, str] | None:
     parts = urlsplit(url)
     if (
         parts.scheme.casefold() != "https"
@@ -185,28 +221,42 @@ def _github_commit_cache_key(
         return None
     normalized_headers = {key.casefold(): value for key, value in headers.items()}
     safe_headers = {"accept", "user-agent", "x-github-api-version"}
+    if credential_scope == "github-token":
+        safe_headers.add("authorization")
     if set(normalized_headers) - safe_headers:
+        return None
+    if "authorization" in normalized_headers and credential_scope != "github-token":
         return None
     if "if-none-match" in normalized_headers or "if-modified-since" in normalized_headers:
         return None
+    accept = normalized_headers.get("accept", "").casefold()
+    if accept not in {"application/json", "application/vnd.github+json"}:
+        return None
     return (
         url,
-        normalized_headers.get("accept", ""),
+        "github-json",
         "\n".join(
             (
                 normalized_headers.get("user-agent", ""),
                 normalized_headers.get("x-github-api-version", ""),
             )
         ),
+        credential_scope or "anonymous",
     )
 
 
 class _SafeRedirectHandler(HTTPRedirectHandler):
     """Never forward credentials or source validators to another origin."""
 
-    def __init__(self, validator: Callable[[str], None] | None = None) -> None:
+    def __init__(
+        self,
+        validator: Callable[[str], None] | None = None,
+        *,
+        strip_authorization_on_redirect: bool = False,
+    ) -> None:
         super().__init__()
         self.validator = validator
+        self.strip_authorization_on_redirect = strip_authorization_on_redirect
 
     def redirect_request(
         self,
@@ -220,7 +270,15 @@ class _SafeRedirectHandler(HTTPRedirectHandler):
         if self.validator is not None:
             self.validator(newurl)
         redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
-        if redirected is None or _origin(req.full_url) == _origin(newurl):
+        if redirected is None:
+            return redirected
+        if _origin(req.full_url) == _origin(newurl):
+            if self.strip_authorization_on_redirect or getattr(
+                req, "_modelome_strip_authorization_on_redirect", False
+            ):
+                for name, _ in redirected.header_items():
+                    if name.casefold() == "authorization":
+                        redirected.remove_header(name)
             return redirected
         for name, _ in redirected.header_items():
             if name.casefold() not in _CROSS_ORIGIN_SAFE_HEADERS:

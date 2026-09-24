@@ -45,9 +45,11 @@ class _Opener:
     def __init__(self, responses):
         self.responses = iter(responses)
         self.calls = 0
+        self.requests = []
 
     def open(self, _request, timeout: float):
         self.calls += 1
+        self.requests.append(_request)
         result = next(self.responses)
         if isinstance(result, Exception):
             raise result
@@ -77,6 +79,25 @@ def test_anonymous_github_commit_get_is_reused_and_explicitly_clearable() -> Non
     assert opener.calls == 2
 
 
+def test_equivalent_github_json_accept_types_share_lookup_but_custom_types_bypass() -> None:
+    client, opener = _client_with_opener(
+        _Response(b'{"sha":"abc"}'),
+        _Response(b"diff representation"),
+        _Response(b"another diff representation"),
+    )
+    url = "https://api.github.com/repos/acme/model/commits/main"
+
+    default_json = client.get(url, headers={"Accept": "application/json"})
+    github_json = client.get(url, headers={"Accept": "application/vnd.github+json"})
+    custom_1 = client.get(url, headers={"Accept": "application/vnd.github.diff"})
+    custom_2 = client.get(url, headers={"Accept": "application/vnd.github.diff"})
+
+    assert default_json is github_json
+    assert custom_1.body == b"diff representation"
+    assert custom_2.body == b"another diff representation"
+    assert opener.calls == 3
+
+
 def test_authenticated_github_commit_response_never_enters_or_uses_cache() -> None:
     client, opener = _client_with_opener(
         _Response(b'{"sha":"private"}'),
@@ -93,6 +114,73 @@ def test_authenticated_github_commit_response_never_enters_or_uses_cache() -> No
     assert public.body == b'{"sha":"public"}'
     assert keyed.body == b'{"sha":"keyed"}'
     assert opener.calls == 3
+
+
+def test_configured_github_token_is_scoped_and_explicit_auth_wins() -> None:
+    client = HttpClient(github_token="configured-secret", attempts=1)
+    github_opener = _Opener([_Response(b'{"sha":"cached"}'), _Response(b"explicit")])
+    external_opener = _Opener([_Response(b"external"), _Response(b"alternate port")])
+    client._opener = github_opener
+    external_client = HttpClient(github_token="configured-secret", attempts=1)
+    external_client._opener = external_opener
+
+    client.get("https://api.github.com/repos/acme/model/commits/main")
+    client.get(
+        "https://api.github.com/repos/acme/private",
+        headers={"Authorization": "token explicit-secret"},
+    )
+    external_client.get("https://example.test/models")
+    external_client.get("https://api.github.com:444/repos/acme/model")
+
+    assert github_opener.requests[0].get_header("Authorization") == "Bearer configured-secret"
+    assert github_opener.requests[1].get_header("Authorization") == "token explicit-secret"
+    assert external_opener.requests[0].get_header("Authorization") is None
+    assert external_opener.requests[1].get_header("Authorization") is None
+    assert "configured-secret" not in repr(client._github_commit_cache)
+
+
+def test_configured_github_token_is_removed_on_same_origin_redirect() -> None:
+    client = HttpClient(github_token="configured-secret", attempts=1)
+    opener = _Opener([_Response(b'{"sha":"cached"}')])
+    client._opener = opener
+    client.get("https://api.github.com/repos/acme/model/commits/main")
+    request = opener.requests[0]
+
+    redirected = _SafeRedirectHandler(
+    ).redirect_request(
+        request,
+        None,
+        302,
+        "Found",
+        {},
+        "https://api.github.com/repos/acme/model/redirected",
+    )
+
+    assert redirected is not None
+    assert redirected.get_header("Authorization") is None
+    redirected_cross_origin = _SafeRedirectHandler().redirect_request(
+        request,
+        None,
+        302,
+        "Found",
+        {},
+        "https://cdn.example.test/commit",
+    )
+    assert redirected_cross_origin is not None
+    assert redirected_cross_origin.get_header("Authorization") is None
+
+
+def test_configured_github_token_is_absent_from_http_failure_diagnostics() -> None:
+    url = "https://api.github.com/repos/acme/model/commits/main"
+    failure = HTTPError(url, 403, "rate limited", Message(), None)
+    client, opener = _client_with_opener(failure)
+    client._github_token = "diagnostic-secret"
+
+    with pytest.raises(HttpFailure) as captured:
+        client.get(url)
+
+    assert opener.requests[0].get_header("Authorization") == "Bearer diagnostic-secret"
+    assert "diagnostic-secret" not in str(captured.value)
 
 
 def test_github_commit_errors_and_other_urls_are_not_cached() -> None:
@@ -158,8 +246,11 @@ def test_shared_http_client_two_source_load_reuses_public_commit(monkeypatch) ->
     )
     calls: list[str] = []
 
-    def get_uncached(url, headers, redirect_validator):
+    def get_uncached(
+        url, headers, redirect_validator, *, strip_authorization_on_redirect=False
+    ):
         del headers, redirect_validator
+        del strip_authorization_on_redirect
         calls.append(url)
         body = (
             f'{{"sha":"{sha}"}}'.encode()

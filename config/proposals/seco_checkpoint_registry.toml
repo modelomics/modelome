@@ -1,0 +1,13 @@
+# The first-party ServiceNow README lists four pretrained SeCo checkpoints with
+# exact Zenodo file URLs and MD5 checksums.
+[[source]]
+name = "seco-checkpoint-registry"
+adapter = "seco_checkpoint_registry"
+enabled = false
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:seasonal-contrast", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+max_response_bytes = 1048576
+
+[evidence]
+model_inventory = "https://github.com/ServiceNow/seasonal-contrast"
+checkpoint_scope = "Four README-declared ResNet pretrained checkpoints hosted as Zenodo files; no file bytes fetched"

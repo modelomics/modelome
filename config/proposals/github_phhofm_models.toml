@@ -1,0 +1,17 @@
+# Opt-in exact-repository release scan for a high-yield public model archive.
+# The repository README describes 111 released models, mostly as safetensors:
+# https://github.com/Phhofm/models/blob/main/README.md
+# Exact repository targeting avoids guessing its place in the global ID census.
+# This proposal remains disabled until the source adapter is wired into catalog.py.
+[[source]]
+name = "github-phhofm-models-release-assets"
+adapter = "github_curated_release_assets"
+enabled = false
+repository_names = ["Phhofm/models"]
+page_size = 100
+max_releases_per_repository = 120
+max_assets_per_release = 100
+max_release_pages_per_repository = 2
+max_asset_pages_per_release = 1
+schedule = "monthly"
+entry_tags = ["ecosystem:github", "kind:release-asset", "field:image-restoration"]

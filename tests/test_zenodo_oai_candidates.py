@@ -125,6 +125,82 @@ def test_oai_dcat_discovers_candidate_checkpoint_and_resumes_with_opaque_token()
     assert second.next_state["records_seen"] == 2
 
 
+def test_oai_dcat_admits_machine_learning_model_without_neural_wording() -> None:
+    record_xml = oai_record(
+        131,
+        title="Support Vector Machine learning model weights",
+        description="Trained machine learning model weights for the SVM classifier.",
+        filename="svm_model_weights.onnx",
+        url="https://zenodo.org/api/files/abc/svm_model_weights.onnx",
+    )
+    adapter = ZenodoOaiModelCandidatesSourceAdapter(
+        client=Client(response(harvest_page(record_xml))),
+        clock=lambda: datetime(2026, 9, 22, 12, 0, tzinfo=UTC),
+    )
+
+    page = adapter.fetch_page({})
+
+    assert len(page.records) == 1
+    assert page.records[0].source_record_id == "record:131"
+    assert page.records[0].models[0].name == "SVM"
+    assert any(
+        link.relation == "checkpoint" and link.url.endswith("svm_model_weights.onnx")
+        for link in page.records[0].links
+    )
+
+
+def test_oai_partition_passes_community_and_datestamp_window() -> None:
+    client = Client(
+        response(harvest_page("", "partition-token")),
+        response(harvest_page("")),
+    )
+    adapter = ZenodoOaiModelCandidatesSourceAdapter(
+        set_spec="user-cfa",
+        from_date="2026-09-01T00:00:00Z",
+        until_date="2026-09-07T23:59:59Z",
+        client=client,
+        clock=lambda: datetime(2026, 9, 22, 12, 0, tzinfo=UTC),
+    )
+
+    first = adapter.fetch_page({})
+    second = adapter.fetch_page(first.next_state)
+
+    assert first.complete is False
+    assert second.complete is True
+    assert client.calls == [
+        (
+            URL,
+            {
+                "verb": "ListRecords",
+                "metadataPrefix": "dcat",
+                "set": "user-cfa",
+                "from": "2026-09-01T00:00:00Z",
+                "until": "2026-09-07T23:59:59Z",
+            },
+        ),
+        (URL, {"verb": "ListRecords", "resumptionToken": "partition-token"}),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"from_date": "2026-09-01"}, "from_date must match"),
+        (
+            {
+                "from_date": "2026-09-02T00:00:00Z",
+                "until_date": "2026-09-01T00:00:00Z",
+            },
+            "from_date must not be after until_date",
+        ),
+        ({"set_spec": "user-cfa\n"}, "control characters"),
+    ],
+)
+def test_oai_partition_rejects_invalid_filters(kwargs, message) -> None:
+    with pytest.raises(ValueError, match=message):
+        ZenodoOaiModelCandidatesSourceAdapter(**kwargs)
+
+
 def test_resumption_token_timestamp_precedes_page_record_parsing() -> None:
     now = [datetime(2026, 9, 22, 12, 0, tzinfo=UTC)]
     record = oai_record(

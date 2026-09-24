@@ -1,0 +1,18 @@
+# Ultimate Vocal Remover's current public model manifest maps 27 VR and 30 MDX
+# model labels to filenames; its first-party app points these at the release tag.
+[[source]]
+name = "uvr-public-vr-mdx-model-files"
+adapter = "uvr_model_files"
+enabled = false
+manifest_url = "https://raw.githubusercontent.com/TRvlvr/application_data/main/filelists/download_checks.json"
+release_root = "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/"
+repository_url = "https://github.com/Anjok07/ultimatevocalremovergui"
+entry_tags = ["ecosystem:uvr", "modality:audio", "task:source-separation", "kind:checkpoint"]
+schedule = "weekly"
+min_models = 20
+max_models = 200
+max_response_bytes = 524288
+
+# Scope is limited to regular public VR and MDX maps. Demucs, VIP, MDX23, and
+# Roformer groups are omitted because those are separate registries or overlap
+# other checkpoint sources. Only the small JSON manifest is fetched.

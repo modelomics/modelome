@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from modelome.entries import build_entries, source_record_to_entry_seed
 from modelome.http import HttpResponse
 from modelome.models import ArtifactKind, Identifier
 from modelome.normalize import content_hash
@@ -204,6 +205,80 @@ def test_abstract_code_relation_requires_direct_release_wording() -> None:
     record = ArxivSourceAdapter()._record(element)
     code_link = next(link for link in record.links if link.url == repo)
     assert code_link.relation == "implementation"
+
+
+@pytest.mark.parametrize(
+    ("arxiv_id", "abstract", "url", "relation"),
+    [
+        (
+            "2605.12556",
+            "Code and pretrained weights are available at "
+            "https://github.com/YoussefAboelwafa/M2Retinexformer.",
+            "https://github.com/YoussefAboelwafa/M2Retinexformer",
+            "weights",
+        ),
+        (
+            "2609.26310",
+            "The code and datasets are available at https://github.com/LH-Czc/PreGS.",
+            "https://github.com/LH-Czc/PreGS",
+            "implementation",
+        ),
+    ],
+)
+def test_recent_public_arxiv_abstract_resource_phrases(
+    arxiv_id: str,
+    abstract: str,
+    url: str,
+    relation: str,
+) -> None:
+    """Exercise the extraction against two current public arXiv examples."""
+
+    root = ET.fromstring(oai_response(raw_record(arxiv_id, abstract=abstract)))
+    element = root.find(f"{{{OAI_NAMESPACE}}}record")
+    assert element is not None
+
+    record = ArxivSourceAdapter()._record(element)
+    resource = next(link for link in record.links if link.url == url)
+    assert resource.relation == relation
+    assert resource.locator is not None
+    assert resource.locator.startswith("metadata.abstract:")
+
+
+def test_arxiv_abstract_checkpoint_link_reaches_model_entry() -> None:
+    arxiv_id = "2204.06745"
+    repo = "https://github.com/EleutherAI/gpt-neox"
+    abstract = (
+        "We open-source the training and evaluation code, as well as the model weights, "
+        f"at {repo}."
+    )
+    root = ET.fromstring(oai_response(raw_record(arxiv_id, abstract=abstract)))
+    paper_element = root.find(f"{{{OAI_NAMESPACE}}}record")
+    assert paper_element is not None
+    paper = ArxivSourceAdapter()._record(paper_element)
+    paper_seed = source_record_to_entry_seed(paper, source="arxiv")
+    model_seed = {
+        "source": "gpt-neox-release",
+        "source_record_id": "EleutherAI/gpt-neox",
+        "canonical_url": repo,
+        "title": "GPT-NeoX-20B release",
+        "kind": "code_repository",
+        "identifiers": [{"namespace": "arxiv", "value": arxiv_id}],
+        "models": [{"local_id": "gpt-neox-20b", "name": "GPT-NeoX-20B"}],
+        "links": [],
+    }
+
+    result = build_entries([model_seed, paper_seed])
+    assert len(result.entries) == 1
+    resource = next(
+        item
+        for item in result.entries[0].resources
+        if item.url == repo and item.relation == "weights"
+    )
+    assert resource.relation == "weights"
+    assert resource.source == "arxiv"
+    assert resource.source_record_id == arxiv_id
+    assert resource.locator is not None
+    assert resource.locator.startswith("metadata.abstract:")
 
 
 def deleted_record(arxiv_id: str, datestamp: str) -> str:

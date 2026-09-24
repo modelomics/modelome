@@ -8,6 +8,7 @@ import pytest
 from modelome.http import HttpFailure, HttpResponse
 from modelome.sources.catalog import create_source
 from modelome.sources.github_historical_release_assets import (
+    GitHubCuratedReleaseAssetsSourceAdapter,
     GitHubHistoricalReleaseAssetsSourceAdapter,
     plan_github_repository_id_ranges,
     plan_github_repository_id_ranges_with_budget,
@@ -68,6 +69,103 @@ def test_historical_scan_factory_preserves_bounded_scope() -> None:
     assert source.max_repositories == 50
     assert source.max_releases_per_repository == 20
     assert source.max_assets_per_release == 25
+
+
+def test_curated_high_yield_repository_scan_projects_asset_and_completes_list() -> None:
+    release_url = "https://api.github.com/repos/Phhofm/models/releases?per_page=100&page=1"
+    asset_url = "https://api.github.com/repos/Phhofm/models/releases/501/assets?per_page=100&page=1"
+    client = RouteClient(
+        {
+            "https://api.github.com/repos/Phhofm/models": (
+                {"id": 887766, "full_name": "Phhofm/models", "private": False},
+                {},
+            ),
+            release_url: (
+                [
+                    {
+                        "id": 501,
+                        "tag_name": "4xNomosWebPhoto_esrgan",
+                        "name": "4x NomosWebPhoto ESRGAN model",
+                        "body": "A pretrained image restoration model checkpoint.",
+                        "html_url": (
+                            "https://github.com/Phhofm/models/releases/tag/4xNomosWebPhoto_esrgan"
+                        ),
+                        "published_at": "2024-06-16T00:00:00Z",
+                    }
+                ],
+                {},
+            ),
+            asset_url: (
+                [
+                    {
+                        "id": 601,
+                        "name": "4xNomosWebPhoto_esrgan.safetensors",
+                        "browser_download_url": (
+                            "https://github.com/Phhofm/models/releases/download/"
+                            "4xNomosWebPhoto_esrgan/4xNomosWebPhoto_esrgan.safetensors"
+                        ),
+                        "size": 1024,
+                    }
+                ],
+                {},
+            ),
+        }
+    )
+    adapter = GitHubCuratedReleaseAssetsSourceAdapter(
+        name="github-phhofm-models-release-assets",
+        repository_names=["Phhofm/models"],
+        max_releases_per_repository=120,
+        max_assets_per_release=100,
+        max_release_pages_per_repository=2,
+        max_asset_pages_per_release=1,
+        client=client,
+    )
+
+    state: dict[str, Any] = {}
+    pages = []
+    for _ in range(10):
+        page = adapter.fetch_page(state)
+        pages.append(page)
+        state = dict(page.next_state)
+        if page.complete:
+            break
+    else:
+        pytest.fail("curated repository scan did not complete")
+
+    candidates = [record for page in pages for record in page.records]
+    assert [record.source_record_id for record in candidates] == [
+        "github-release-asset:887766:501:601"
+    ]
+    assert candidates[0].identifiers[0].value == "887766"
+    assert candidates[0].identifiers[1].value == "Phhofm/models"
+    assert candidates[0].models[0].confidence == 0.2
+    assert client.calls == [
+        "https://api.github.com/repos/Phhofm/models",
+        release_url,
+        asset_url,
+    ]
+    assert state["coverage_status"] == "configured_repository_list_exhausted"
+    assert adapter.max_api_requests == 496
+    assert state["truncated_release_count"] == 0
+    assert state["truncated_asset_release_count"] == 0
+
+
+def test_curated_repository_list_identity_changes_checkpoint_and_rejects_duplicates() -> None:
+    one = GitHubCuratedReleaseAssetsSourceAdapter(
+        name="curated-a",
+        repository_names=["Phhofm/models"],
+    )
+    other = GitHubCuratedReleaseAssetsSourceAdapter(
+        name="curated-a",
+        repository_names=["openai/whisper"],
+    )
+    assert one.checkpoint_signature != other.checkpoint_signature
+    assert one.max_api_requests > one.max_page_requests
+    with pytest.raises(ValueError, match="unique names"):
+        GitHubCuratedReleaseAssetsSourceAdapter(
+            name="curated-duplicate",
+            repository_names=["Phhofm/models", "Phhofm/models"],
+        )
 
 
 def test_bounded_historical_scan_pages_repository_release_and_assets() -> None:

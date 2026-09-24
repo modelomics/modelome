@@ -67,6 +67,36 @@ def test_exact_repo_pilot_resumes_with_a_finite_request_budget_and_finds_old_wei
     assert metadata["weight_files_complete"] is True
 
 
+def test_multi_repo_pilot_keeps_later_repositories_queued_across_budget_boundary(
+    tmp_path,
+) -> None:
+    repos = ("lab/first-model", "lab/second-model")
+    routes: dict[str, object] = {}
+    for repo in repos:
+        routes.update(_routes(repo))
+    client = _RouteClient(routes)
+    source = HuggingFaceRevisionPilotSourceAdapter(repo_ids=repos, client=client)
+    database = Database(tmp_path / "multi-repo-pilot-store")
+    database.initialize()
+
+    first = run_huggingface_revision_pilot(database, source, request_budget=4)
+    assert first.status == "partial"
+    assert len(client.calls) == 4
+    state = database.get_source_state(source.name)
+    assert [item["model_id"] for item in state["revision_queue"]] == [repos[1]]
+    assert all(repos[0] in url for url in client.calls)
+
+    resumed = run_huggingface_revision_pilot(database, source, request_budget=4)
+    assert resumed.status == "complete"
+    assert len(client.calls) == 8
+    assert all(repos[1] in url for url in client.calls[4:])
+    revisions = {
+        row["revision"] for row in database.table_rows("model_releases")
+    }
+    assert revisions == {"head-sha", "historic-sha"}
+    assert database.stats()["artifacts"] == 4
+
+
 @pytest.mark.parametrize("repo_ids", [[], ["owner"], ["https://huggingface.co/a/b"]])
 def test_pilot_requires_exact_owner_repository_ids(repo_ids) -> None:
     with pytest.raises(ValueError, match="repo_ids"):

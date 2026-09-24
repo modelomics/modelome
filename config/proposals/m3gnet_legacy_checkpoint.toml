@@ -1,0 +1,14 @@
+# The archived first-party M3GNet repository names one Materials Project
+# potential and all four constituent TensorFlow checkpoint files.
+[[source]]
+name = "m3gnet-legacy-mp-2021-2-8-efs"
+adapter = "m3gnet_legacy_checkpoint"
+enabled = false
+entry_tags = ["field:graph-machine-learning", "field:materials-science", "ecosystem:m3gnet", "kind:checkpoint"]
+repository = "materialyzeai/m3gnet"
+branch = "main"
+source_path = "m3gnet/models/_m3gnet.py"
+provider_namespace = "m3gnet:checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 1

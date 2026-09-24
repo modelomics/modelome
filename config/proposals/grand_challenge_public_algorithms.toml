@@ -1,0 +1,14 @@
+# Anonymous public medical algorithm cards from Grand Challenge's paginated
+# REST API. Live inventory on 2026-09-24: 205 public algorithms. The API
+# exposes card metadata and interface schemas, not direct model checkpoints;
+# algorithm container contents remain outside this source's claims.
+# API docs: https://grand-challenge.org/documentation/grand-challenge-api/
+[[source]]
+name = "grand-challenge-public-algorithms"
+adapter = "grand_challenge_algorithms"
+enabled = false
+entry_tags = ["field:medical-ai", "ecosystem:grand-challenge", "kind:algorithm-card"]
+schedule = "weekly"
+page_size = 100
+max_entries = 5000
+max_response_bytes = 8388608

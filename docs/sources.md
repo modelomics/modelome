@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **509 enabled
-source entries** (484 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **521 enabled
+source entries** (495 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -738,7 +738,9 @@ Cloudflare's Workers AI changelog contributes 19 exact IDs in its documented
 Azure Asset Catalog V2's anonymous public listing reported 15,993 model asset versions
 at the last metadata check. The source follows its opaque continuation tokens and
 retains Azure asset identities as catalog releases; this does not assert hosted
-inference availability or equivalence to an origin model. Alibaba Model Studio's
+inference availability. For Hugging Face registry assets, it reads bounded detail
+metadata and joins to a Hugging Face entry only when the description explicitly
+links an original model card. Alibaba Model Studio's
 first-party rate-limit tables document 414 Qwen-family IDs across language, vision,
 audio, translation, image, embedding, and reranking. They are documentation evidence,
 including historical IDs, rather than a current availability list. RSNA ATLAS adds
@@ -750,6 +752,18 @@ Keras EfficientNet B0–B7 (16 weight assets), PANNs AudioSet (43 versioned atta
 StarVLA VLAct (11 pinned policy files), archived TF-Slim MobileNet V2 (22 float
 checkpoints), and timm v0.6.13 ViT (32 historical direct URLs). These counts are
 source observations and can overlap other catalogs; no model binaries are fetched.
+
+Grand Challenge's anonymous API contributes 205 public medical algorithm cards;
+the cards describe algorithms and interfaces, not container checkpoint files.
+Additional first-party checkpoint inventories include PHYRE DQN (40 exact policy
+paths), UVR VR/MDX (57 listed file names), timm's historical MobileViT (16),
+PaddleNLP T5 (7), FALCON-VLA (8 pinned policy files), DDLP (8 encrypted model
+bundles), SeCo (4), and MOFTransformer (3 Figshare files). The archived M3GNet
+source describes one model's four-file TensorFlow checkpoint bundle. A targeted
+GitHub release scanner follows Phhofm's public model archive; its README
+describes 111 models, while the scanner reports the actual assets it observes.
+MiniMax model IDs become loadable when `MINIMAX_API_KEY` is set. All these sources
+read metadata and record links without downloading checkpoint bytes.
 
 The 2025 ACL Anthology XML source adds paper and abstract evidence for 1,966 records in
 the current collection file. It extracts implementation links only when an abstract

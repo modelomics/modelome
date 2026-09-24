@@ -1,0 +1,10 @@
+# PaddleNLP's T5 config pairs seven model IDs with exact direct model_state URLs.
+[[source]]
+name = "paddlenlp-t5-pretrained-registry"
+adapter = "paddlenlp_t5_registry"
+enabled = false
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/transformers/t5/configuration.py"
+provider_namespace = "paddlenlp:transformer-model"
+max_response_bytes = 4194304

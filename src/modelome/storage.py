@@ -140,6 +140,9 @@ class Database:
         self._derived_extraction_keys: set[tuple[str, str]] = set()
         self._source_by_name: dict[str, dict[str, Any]] = {}
         self._frontier_by_url: dict[str, dict[str, Any]] = {}
+        self._url_discoveries_by_relation: dict[str, list[dict[str, Any]]] = {}
+        self._url_discoveries_by_url_id: dict[str, list[dict[str, Any]]] = {}
+        self._weight_artifact_urls: set[str] = set()
         self._reindex()
 
     def close(self) -> None:
@@ -185,6 +188,34 @@ class Database:
             raise KeyError(f"unknown logical table: {table}")
         self._read_current()
         return deepcopy(self._tables[table])
+
+    def observed_declared_url_discoveries(
+        self, relations: set[str]
+    ) -> Iterable[tuple[dict[str, Any], dict[str, Any]]]:
+        """Yield indexed observed URLs with structured discoveries for relations."""
+
+        self._read_current()
+        for relation in relations:
+            for discovery in self._url_discoveries_by_relation.get(relation, ()):
+                frontier = self._by_id["url_frontier"].get(discovery["url_id"])
+                if frontier is not None and frontier.get("status") == "observed":
+                    yield frontier, discovery
+
+    def declared_url_discoveries_for_ids(
+        self, url_ids: set[str]
+    ) -> Iterable[dict[str, Any]]:
+        """Yield indexed URL discoveries for a bounded set of frontier IDs."""
+
+        self._read_current()
+        for url_id in url_ids:
+            frontier = self._by_id["url_frontier"].get(url_id)
+            if frontier is None:
+                continue
+            yield from self._url_discoveries_by_url_id.get(url_id, ())
+
+    def has_weight_artifact_url(self, url: str) -> bool:
+        self._read_current()
+        return canonicalize_url(url) in self._weight_artifact_urls
 
     def get_source_state(self, name: str) -> dict[str, Any]:
         self._read_current()
@@ -2511,6 +2542,18 @@ class Database:
         }
         self._source_by_name = {row["source"]: row for row in self._tables["source_checkpoints"]}
         self._frontier_by_url = {row["url"]: row for row in self._tables["url_frontier"]}
+        discoveries_by_relation: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+        discoveries_by_url_id: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+        for row in self._tables["url_discoveries"]:
+            discoveries_by_relation[str(row.get("relation", "")).casefold()].append(row)
+            discoveries_by_url_id[str(row["url_id"])].append(row)
+        self._url_discoveries_by_relation = dict(discoveries_by_relation)
+        self._url_discoveries_by_url_id = dict(discoveries_by_url_id)
+        self._weight_artifact_urls = {
+            canonicalize_url(str(row["canonical_url"]))
+            for row in self._tables["artifacts"]
+            if row.get("kind") == ArtifactKind.WEIGHTS.value and row.get("canonical_url")
+        }
 
     def _validate_store_layout(self) -> None:
         for name in ("commits", ".staging"):

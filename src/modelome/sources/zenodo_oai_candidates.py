@@ -46,7 +46,8 @@ _TRAILING_FILE_MARKER = re.compile(
     r"(?:[._ -]+)(?:checkpoint|ckpt|model[_ -]?weights|weights|model)$", re.I
 )
 _NEURAL_SCOPE = re.compile(
-    r"\b(?:deep[ -]learning|neural[ -](?:network|model|architecture|operator)|"
+    r"\b(?:deep[ -]learning|machine[ -]learning[ -]models?|"
+    r"neural[ -](?:network|model|architecture|operator)|"
     r"artificial[ -]neural[ -](?:network|model))\b",
     re.I,
 )
@@ -64,7 +65,9 @@ class ZenodoOaiModelCandidatesSourceAdapter:
 
     coverage_limitation = (
         "Scans the public Zenodo OAI-PMH DCAT stream, one provider page per call. "
-        "Only records with neural-model wording and an explicitly named model, "
+        "Optional OAI set and datestamp bounds define a selective harvest; without them, "
+        "the source remains unfiltered. Only records with neural or machine-learning-model "
+        "wording and an explicitly named model, "
         "checkpoint, or weights file in a recognized model serialization format "
         "are emitted. "
         "This is candidate evidence, not a model declaration; restricted files are "
@@ -77,6 +80,9 @@ class ZenodoOaiModelCandidatesSourceAdapter:
         *,
         name: str = "zenodo-oai-model-candidates",
         url: str = "https://zenodo.org/oai2d",
+        set_spec: str | None = None,
+        from_date: str | None = None,
+        until_date: str | None = None,
         max_response_bytes: int = 16 * 1024 * 1024,
         client: HttpClient | Any | None = None,
         clock: Clock = _utcnow,
@@ -87,6 +93,15 @@ class ZenodoOaiModelCandidatesSourceAdapter:
             raise ValueError("max_response_bytes must be positive")
         self.name = name
         self.url = canonicalize_url(url)
+        self.set_spec = _optional_filter(set_spec, "set_spec", self.name)
+        self.from_date = _optional_oai_datetime(from_date, "from_date", self.name)
+        self.until_date = _optional_oai_datetime(until_date, "until_date", self.name)
+        if (
+            self.from_date is not None
+            and self.until_date is not None
+            and self.from_date > self.until_date
+        ):
+            raise ValueError(f"{self.name}: from_date must not be after until_date")
         self.max_response_bytes = max_response_bytes
         self.client = client or HttpClient(max_response_bytes=max_response_bytes)
         self.clock = clock
@@ -95,6 +110,9 @@ class ZenodoOaiModelCandidatesSourceAdapter:
                 "adapter": "zenodo-oai-dcat-model-candidates-v1",
                 "url": self.url,
                 "metadata_prefix": "dcat",
+                "set_spec": self.set_spec,
+                "from_date": self.from_date,
+                "until_date": self.until_date,
                 "max_response_bytes": max_response_bytes,
                 "admission": "neural model wording plus named model/checkpoint/weights file",
             }
@@ -117,6 +135,12 @@ class ZenodoOaiModelCandidatesSourceAdapter:
             if state:
                 raise ValueError(f"{self.name}: unexpected checkpoint without a resumption token")
             params = {"verb": "ListRecords", "metadataPrefix": "dcat"}
+            if self.set_spec is not None:
+                params["set"] = self.set_spec
+            if self.from_date is not None:
+                params["from"] = self.from_date
+            if self.until_date is not None:
+                params["until"] = self.until_date
 
         response: HttpResponse = self.client.get(
             self.url,
@@ -458,6 +482,33 @@ def _counter(value: Any, label: str, source: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f"{source}: checkpoint {label} must be a nonnegative integer")
     return value
+
+
+def _optional_filter(value: str | None, label: str, source: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip() or len(value) > 200:
+        raise ValueError(f"{source}: {label} must be non-empty text of at most 200 characters")
+    if any(ord(character) < 32 for character in value):
+        raise ValueError(f"{source}: {label} must not contain control characters")
+    return value.strip()
+
+
+def _optional_oai_datetime(value: str | None, label: str, source: str) -> str | None:
+    normalized = _optional_filter(value, label, source)
+    if normalized is None:
+        return None
+    try:
+        parsed = datetime.strptime(normalized, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        raise ValueError(
+            f"{source}: {label} must match Zenodo OAI granularity YYYY-MM-DDThh:mm:ssZ"
+        ) from None
+    if parsed.strftime("%Y-%m-%dT%H:%M:%SZ") != normalized:
+        raise ValueError(
+            f"{source}: {label} must match Zenodo OAI granularity YYYY-MM-DDThh:mm:ssZ"
+        )
+    return normalized
 
 
 def _parse_time(value: Any, source: str) -> datetime:

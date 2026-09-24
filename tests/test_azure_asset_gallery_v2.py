@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from modelome.entries import build_entries, source_record_to_entry_seed
 from modelome.http import HttpResponse
 from modelome.pipeline import SyncEngine
 from modelome.sources.azure_asset_gallery_v2 import AzureAssetGalleryV2Adapter
@@ -28,15 +29,33 @@ def _summary(name: str, version: str = "1") -> dict[str, Any]:
 
 
 class FixtureClient:
-    def __init__(self, responses: list[dict[str, Any]]) -> None:
+    def __init__(
+        self,
+        responses: list[dict[str, Any]],
+        details: dict[str, dict[str, Any]] | None = None,
+        detail_statuses: dict[str, int] | None = None,
+    ) -> None:
         self.responses = responses
         self.calls: list[tuple[str, bytes, dict[str, str]]] = []
+        self.details = details or {}
+        self.detail_statuses = detail_statuses or {}
+        self.detail_calls: list[str] = []
 
     def post(self, url: str, *, data: bytes, headers=None) -> HttpResponse:
         self.calls.append((url, data, dict(headers or {})))
         payload = self.responses[len(self.calls) - 1]
         return HttpResponse(
             status=200,
+            headers={"content-type": "application/json"},
+            body=json.dumps(payload).encode(),
+            url=url,
+        )
+
+    def get(self, url: str, *, headers=None) -> HttpResponse:
+        self.detail_calls.append(url)
+        payload = self.details[url]
+        return HttpResponse(
+            status=self.detail_statuses.get(url, 200),
             headers={"content-type": "application/json"},
             body=json.dumps(payload).encode(),
             url=url,
@@ -87,6 +106,281 @@ def test_asset_gallery_v2_uses_anonymous_cursor_pagination_and_exact_versions() 
         "Authorization" not in headers
         for _, _, headers in client.calls
     )
+
+
+def test_exact_original_model_card_detail_adds_hf_identity_and_model_card_link() -> None:
+    summary = _summary("01-ai-yi-1.5-34b")
+    detail_url = (
+        "https://api.catalog.azureml.ms/asset-gallery/v1.0/HuggingFace/models/"
+        "01-ai-yi-1.5-34b/version/1"
+    )
+    client = FixtureClient(
+        [{"totalCount": 1, "continuationToken": None, "summaries": [summary]}],
+        {
+            detail_url: {
+                "AssetId": (
+                    "azureml://registries/HuggingFace/models/"
+                    "01-ai-yi-1.5-34b/versions/1"
+                ),
+                "Name": "01-ai-yi-1.5-34b",
+                "Version": "1",
+                "RegistryName": "HuggingFace",
+                "Description": (
+                    "Read the original here: "
+                    "[Original Model Card](https://huggingface.co/01-ai/Yi-1.5-34B)"
+                ),
+            }
+        },
+    )
+    page = AzureAssetGalleryV2Adapter(
+        page_size=1,
+        client=client,
+        max_hf_origin_details_per_page=1,
+    ).fetch_page({})
+
+    record = page.records[0]
+    assert client.detail_calls == [detail_url]
+    assert any(
+        identifier.namespace == "huggingface:model"
+        and identifier.value == "01-ai/Yi-1.5-34B"
+        for identifier in record.models[0].identifiers
+    )
+    assert any(
+        link.url == "https://huggingface.co/01-ai/Yi-1.5-34B"
+        and link.relation == "model_card"
+        and link.locator == "$.description.Original Model Card"
+        for link in record.links
+    )
+    hf_seed = {
+        "source": "huggingface",
+        "source_record_id": "01-ai/Yi-1.5-34B",
+        "canonical_url": "https://huggingface.co/01-ai/Yi-1.5-34B",
+        "title": "Yi-1.5-34B",
+        "kind": "model_card",
+        "models": [
+            {
+                "local_id": "model",
+                "name": "Yi-1.5-34B",
+                "identifiers": [
+                    {"namespace": "huggingface:model", "value": "01-ai/Yi-1.5-34B"}
+                ],
+            }
+        ],
+    }
+    joined = build_entries(
+        [
+            source_record_to_entry_seed(record, source="azure-asset-gallery-v2"),
+            hf_seed,
+        ]
+    )
+    assert len(joined.entries) == 1
+    assert {member.source for member in joined.entries[0].members} == {
+        "azure-asset-gallery-v2",
+        "huggingface",
+    }
+
+
+def test_detail_link_requires_exact_label_and_direct_hf_model_card() -> None:
+    summary = _summary("example")
+    detail_url = (
+        "https://api.catalog.azureml.ms/asset-gallery/v1.0/HuggingFace/models/"
+        "example/version/1"
+    )
+    for description in (
+        "[Model Card](https://huggingface.co/org/model)",
+        "[Original Model Card](https://huggingface.co/org/model/tree/main)",
+        "[Original Model Card](https://huggingface.co/datasets/org/model)",
+    ):
+        client = FixtureClient(
+            [{"totalCount": 1, "continuationToken": None, "summaries": [summary]}],
+            {
+                detail_url: {
+                    "name": "example",
+                    "version": "1",
+                    "registryName": "HuggingFace",
+                    "description": description,
+                }
+            },
+        )
+        page = AzureAssetGalleryV2Adapter(
+            page_size=1,
+            client=client,
+            max_hf_origin_details_per_page=1,
+        ).fetch_page({})
+        assert not any(
+            identifier.namespace == "huggingface:model"
+            for identifier in page.records[0].models[0].identifiers
+        )
+
+
+def test_detail_enrichment_is_page_bounded_and_cursor_resume_keeps_rows() -> None:
+    first_url = (
+        "https://api.catalog.azureml.ms/asset-gallery/v1.0/HuggingFace/models/"
+        "first/version/1"
+    )
+    second_url = (
+        "https://api.catalog.azureml.ms/asset-gallery/v1.0/HuggingFace/models/"
+        "second/version/1"
+    )
+    client = FixtureClient(
+        [
+            {"totalCount": 2, "continuationToken": "next", "summaries": [_summary("first")]},
+            {"totalCount": 2, "continuationToken": None, "summaries": [_summary("second")]},
+        ],
+        {
+            first_url: {
+                "name": "first",
+                "version": "1",
+                "registryName": "HuggingFace",
+                "description": "[Original Model Card](https://huggingface.co/org/first)",
+            },
+            second_url: {
+                "name": "second",
+                "version": "1",
+                "registryName": "HuggingFace",
+                "description": "[Original Model Card](https://huggingface.co/org/second)",
+            },
+        },
+    )
+    adapter = AzureAssetGalleryV2Adapter(
+        page_size=1,
+        client=client,
+        max_hf_origin_details_per_page=1,
+    )
+
+    first = adapter.fetch_page({})
+    second = adapter.fetch_page(first.next_state)
+
+    assert len(first.records) == len(second.records) == 1
+    assert [
+        record.models[0].identifiers[-1].value
+        for record in (first.records[0], second.records[0])
+    ] == [
+        "org/first",
+        "org/second",
+    ]
+    assert client.detail_calls == [first_url, second_url]
+
+
+def test_detail_failure_does_not_advance_the_cursor_checkpoint() -> None:
+    summary = _summary("example")
+    detail_url = (
+        "https://api.catalog.azureml.ms/asset-gallery/v1.0/HuggingFace/models/"
+        "example/version/1"
+    )
+
+    class FailOnceClient(FixtureClient):
+        def get(self, url: str, *, headers=None) -> HttpResponse:
+            self.detail_calls.append(url)
+            if len(self.detail_calls) == 1:
+                return HttpResponse(503, {}, b"temporary failure", url)
+            return HttpResponse(
+                200,
+                {"content-type": "application/json"},
+                json.dumps(
+                    {
+                        "name": "example",
+                        "version": "1",
+                        "registryName": "HuggingFace",
+                        "description": "[Original Model Card](https://huggingface.co/org/model)",
+                    }
+                ).encode(),
+                url,
+            )
+
+    client = FailOnceClient(
+        [
+            {"totalCount": 1, "continuationToken": None, "summaries": [summary]},
+            {"totalCount": 1, "continuationToken": None, "summaries": [summary]},
+        ]
+    )
+    adapter = AzureAssetGalleryV2Adapter(
+        page_size=1,
+        client=client,
+        max_hf_origin_details_per_page=1,
+    )
+    checkpoint: dict[str, Any] = {}
+
+    with pytest.raises(ValueError, match="detail returned HTTP 503"):
+        adapter.fetch_page(checkpoint)
+    assert checkpoint == {}
+    retry = adapter.fetch_page(checkpoint)
+
+    assert retry.complete
+    assert retry.records[0].models[0].identifiers[-1].value == "org/model"
+    assert len(client.calls) == 2
+    assert client.detail_calls == [detail_url, detail_url]
+
+
+@pytest.mark.parametrize("status", [404, 410])
+def test_missing_detail_keeps_listing_record_and_reports_issue(status: int) -> None:
+    summary = _summary("deleted-detail")
+    detail_url = (
+        "https://api.catalog.azureml.ms/asset-gallery/v1.0/HuggingFace/models/"
+        "deleted-detail/version/1"
+    )
+    client = FixtureClient(
+        [{"totalCount": 1, "continuationToken": None, "summaries": [summary]}],
+        {detail_url: {}},
+        {detail_url: status},
+    )
+
+    page = AzureAssetGalleryV2Adapter(
+        page_size=1,
+        client=client,
+        max_hf_origin_details_per_page=1,
+    ).fetch_page({})
+
+    assert page.complete
+    assert len(page.records) == 1
+    assert not any(
+        identifier.namespace == "huggingface:model"
+        for identifier in page.records[0].models[0].identifiers
+    )
+    assert page.advance_on_source_issues
+    assert len(page.issues) == 1
+    assert page.issues[0].source_record_id == (
+        "azureml:asset-version:HuggingFace/deleted-detail@1"
+    )
+    assert page.issues[0].summary["detail_status"] == status
+
+
+def test_detail_budget_reports_unchecked_hf_summaries_and_advances_page() -> None:
+    first_url = (
+        "https://api.catalog.azureml.ms/asset-gallery/v1.0/HuggingFace/models/"
+        "first/version/1"
+    )
+    client = FixtureClient(
+        [
+            {
+                "totalCount": 2,
+                "continuationToken": "next",
+                "summaries": [_summary("first"), _summary("second")],
+            }
+        ],
+        {
+            first_url: {
+                "name": "first",
+                "version": "1",
+                "registryName": "HuggingFace",
+                "description": "[Original Model Card](https://huggingface.co/org/first)",
+            }
+        },
+    )
+
+    page = AzureAssetGalleryV2Adapter(
+        page_size=2,
+        client=client,
+        max_hf_origin_details_per_page=1,
+    ).fetch_page({})
+
+    assert not page.complete
+    assert page.next_state["continuation_token"] == "next"
+    assert [issue.source_record_id for issue in page.issues] == [
+        "azureml:asset-version:HuggingFace/second@1"
+    ]
+    assert page.advance_on_source_issues
+    assert client.detail_calls == [first_url]
 
 
 def test_asset_gallery_restarts_when_total_changes_and_rejects_bad_identity() -> None:

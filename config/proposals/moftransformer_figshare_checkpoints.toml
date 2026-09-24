@@ -1,0 +1,17 @@
+# First-party MOFTransformer release, deposited by the model authors on Figshare.
+# The article API returns exact file IDs, download URLs, byte sizes, and MD5
+# values. The adapter selects only its explicitly named checkpoint files.
+[[source]]
+name = "moftransformer-figshare-checkpoints"
+adapter = "moftransformer_figshare"
+enabled = false
+article_id = 21155506
+article_url = "https://figshare.com/articles/dataset/MOFTransformer/21155506"
+api_url = "https://api.figshare.com/v2/articles/21155506"
+entry_tags = ["field:materials-science", "ecosystem:moftransformer", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# Three exact checkpoint files are included: one pretrained MOFTransformer and
+# two fine-tuned checkpoints. Dataset archives in the same article are excluded;
+# the checkpoint file contents are not downloaded.

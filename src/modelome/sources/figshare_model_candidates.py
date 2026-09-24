@@ -25,8 +25,21 @@ from modelome.normalize import canonicalize_url, content_hash, normalize_name
 Clock = Callable[[], datetime]
 _OAI_ID = re.compile(r"^oai:figshare\.com:article/([1-9][0-9]*)$")
 _DOI = re.compile(r"^10\.\S+$", re.IGNORECASE)
-_MODEL_SCOPE = re.compile(r"\b(?:deep learning|neural network|neural model|trained model)\b", re.I)
+_MODEL_SCOPE = re.compile(
+    r"\b(?:deep learning|neural network|neural model|trained model|model weights?)\b",
+    re.I,
+)
 _WEIGHT_CUE = re.compile(r"\b(?:weight|weights|checkpoint|checkpoints)\b", re.I)
+_GENERIC_WEIGHT_CONTEXT = re.compile(
+    r"\bpre[- ]?trained\s+(?:model\s+)?weights?\b|\bmodel\s+weights?\b|"
+    r"\bweights?\s*\(",
+    re.I,
+)
+_WEIGHT_FILE_SUFFIXES = (".ckpt", ".pt", ".pt2", ".pth", ".safetensors", ".bin", ".h5", ".hdf5")
+_NON_WEIGHT_FILENAME = re.compile(
+    r"\b(?:dataset|example|vocabulary|vocab|tokenizer|readme|metadata|prediction|generated|docking)\b",
+    re.I,
+)
 _ASSET_CLAUSE = re.compile(
     r"(?:\bFiles?:\s*)?\d+[.,)]\s*([a-z0-9][a-z0-9_.-]*)\s*:\s*(.*?)(?="
     r"\s+\d+[.,)]\s*[a-z0-9][a-z0-9_.-]*\s*:|$)",
@@ -61,10 +74,11 @@ class FigshareModelCandidatesSourceAdapter:
     Figshare has no Model article type. Current OAI candidate signals trigger full
     bounded version expansion. An OAI current-version number above one also triggers
     prior-version checks, covering candidate cues removed from the latest article.
-    Each candidate still needs neural/deep-learning wording and a named weight or
-    checkpoint file clause in its own version metadata. For the current version, OAI
-    and REST URLs must match; historical version detail establishes its own exact
-    article/version/file relation. Candidate status preserves uncertainty.
+    Each candidate still needs neural/deep-learning wording and either a named
+    weight/checkpoint clause or explicit pretrained-weight context paired with a
+    serialization filename in its own version metadata. For the current version,
+    OAI and REST URLs must match; historical version detail establishes its own
+    exact article/version/file relation. Candidate status preserves uncertainty.
     """
 
     coverage_limitation = (
@@ -77,7 +91,9 @@ class FigshareModelCandidatesSourceAdapter:
         "bounded to 50 versions per article. Articles whose version number is absent "
         "or malformed cannot be expanded through the historical-only path. Candidate "
         "files must be named as model weights or checkpoints in that version's "
-        "description and match its exact public file list. Files are never downloaded."
+        "description and match its exact public file list. A generic pretrained-weight "
+        "statement can pair only with checkpoint-like serialization file suffixes. "
+        "Files are never downloaded."
     )
 
     def __init__(
@@ -118,7 +134,7 @@ class FigshareModelCandidatesSourceAdapter:
         self.clock = clock
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "figshare-model-candidates-oai-mets-v1",
+                "adapter": "figshare-model-candidates-oai-mets-v2",
                 "oai_url": self.oai_url,
                 "api_url": self.api_url,
                 "metadata_prefix": "mets",
@@ -126,7 +142,9 @@ class FigshareModelCandidatesSourceAdapter:
                 "until": self.until_date,
                 "max_response_bytes": max_response_bytes,
                 "max_versions_per_article": max_versions_per_article,
-                "admission": "neural metadata plus explicitly named weight/checkpoint file",
+                "admission": (
+                    "neural metadata plus named or generic pretrained-weight file evidence"
+                ),
             }
         )
 
@@ -201,7 +219,7 @@ class FigshareModelCandidatesSourceAdapter:
                 version_description = _plain_text(_text(article.get("description")) or description)
                 if not _has_candidate_signal(version_title, version_description):
                     continue
-                named_files = _named_weight_files(version_description)
+                named_files = _candidate_file_stems(version_description, article)
                 version_urls = (
                     file_urls if str(article_version) == version else _rest_file_urls(article)
                 )
@@ -358,6 +376,10 @@ def _candidate_record(
             matches.append((index, item, file_url))
     if not matches:
         return None
+    generic_weight_context = (
+        not _named_weight_files(description)
+        and _GENERIC_WEIGHT_CONTEXT.search(description) is not None
+    )
     version_page = _text(article.get("url_public_html")) or _text(article.get("figshare_url"))
     if not version_page:
         version_page = f"{page_url.rstrip('/')}/{version}"
@@ -369,7 +391,11 @@ def _candidate_record(
         identifiers=(Identifier("figshare:article", record_id),),
         status=ModelStatus.CANDIDATE,
         confidence=0.82,
-        locator="OAI METS title/description and REST file-name match",
+        locator=(
+            "version description weight context and REST serialization filename"
+            if generic_weight_context
+            else "version description named-file clause and REST file-name match"
+        ),
     )
     identifiers = [
         Identifier("figshare:article", record_id),
@@ -404,7 +430,12 @@ def _candidate_record(
             "article_version": version or oai_version,
             "version_detail_url": f"{api_url}/{record_id}/versions/{version}",
             "defined_type_name": _text(article.get("defined_type_name")),
-            "candidate_signal": "model/deep-learning metadata names a weight/checkpoint file",
+            "candidate_signal": (
+                "model metadata identifies pretrained weights and version lists "
+                "checkpoint-like files"
+                if generic_weight_context
+                else "model/deep-learning metadata names a weight/checkpoint file"
+            ),
             "matched_files": matched_files,
             "binary_reachability_checked": False,
         },
@@ -470,7 +501,33 @@ def _named_weight_files(description: str) -> set[str]:
 
 
 def _has_candidate_signal(title: str, description: str) -> bool:
-    return bool(_MODEL_SCOPE.search(f"{title}\n{description}") and _named_weight_files(description))
+    return bool(
+        _MODEL_SCOPE.search(f"{title}\n{description}")
+        and (_named_weight_files(description) or _GENERIC_WEIGHT_CONTEXT.search(description))
+    )
+
+
+def _candidate_file_stems(description: str, article: Mapping[str, Any]) -> set[str]:
+    named = _named_weight_files(description)
+    if named or _GENERIC_WEIGHT_CONTEXT.search(description) is None:
+        return named
+    files = article.get("files")
+    if not isinstance(files, list):
+        return set()
+    candidates: set[str] = set()
+    for item in files:
+        if not isinstance(item, Mapping):
+            continue
+        filename = _text(item.get("name"))
+        lowered = filename.casefold()
+        tokens = re.sub(r"[-_.]+", " ", filename)
+        if (
+            filename
+            and lowered.endswith(_WEIGHT_FILE_SUFFIXES)
+            and _NON_WEIGHT_FILENAME.search(tokens) is None
+        ):
+            candidates.add(_filename_stem(filename))
+    return candidates
 
 
 def _has_prior_versions(version: str | None) -> bool:

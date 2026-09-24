@@ -1,0 +1,17 @@
+# PHYRE's first-party downloader declares 40 final-split DQN checkpoints across
+# four evaluation setups and ten seeds. The adapter reads only that small script
+# and emits exact checkpoint URLs; it does not request weight bytes.
+[[source]]
+name = "phyre-dqn-checkpoints"
+adapter = "phyre_dqn_checkpoints"
+enabled = false
+entry_tags = ["field:reinforcement-learning", "ecosystem:phyre", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 65536
+
+[evidence]
+official_repository = "https://github.com/facebookresearch/phyre"
+official_checkpoint_index = "https://github.com/facebookresearch/phyre/blob/main/agents/README.md"
+official_download_script = "https://raw.githubusercontent.com/facebookresearch/phyre/main/agents/download_dqn_ckps.sh"
+artifact_root = "https://dl.fbaipublicfiles.com/phyre/results/finals/dqn_10k/"
+inventory = "4 evaluation setups x seeds 0..9; each checkpoint is ckpt.00100000"

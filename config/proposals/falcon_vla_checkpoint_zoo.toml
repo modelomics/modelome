@@ -1,0 +1,16 @@
+[[source]]
+name = "falcon-vla-checkpoint-zoo"
+adapter = "falcon_vla_checkpoint_zoo"
+enabled = false
+max_response_bytes = 4194304
+max_entries = 32
+
+[discovery]
+source = "https://github.com/FALCON-VLA/FALCON"
+document = "https://github.com/FALCON-VLA/FALCON/blob/main/README.md#model-zoo"
+hub_repository = "https://huggingface.co/FALCON-VLA/FALCON-series"
+hub_api = "https://huggingface.co/api/models/FALCON-VLA/FALCON-series"
+
+[coverage]
+kind = "robotics-policy-checkpoints"
+notes = "Indexes the exact policy weights named by FALCON's first-party Model Zoo and resolves one .pt object from each named checkpoint directory at a pinned Hub revision. Excludes separate ESM/VLM components and unlisted artifacts; does not download weights."

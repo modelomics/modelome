@@ -63,6 +63,7 @@ from modelome.sources.conceptnet_numberbatch import ConceptNetNumberbatchSourceA
 from modelome.sources.crossref import CrossrefSourceAdapter
 from modelome.sources.csv_source import CsvSourceAdapter
 from modelome.sources.datacite import DataCiteSourceAdapter
+from modelome.sources.ddlp_video_checkpoints import DDLPVideoCheckpointSourceAdapter
 from modelome.sources.deep_wetlands_checkpoint_registry import (
     DeepWetlandsCheckpointRegistrySourceAdapter,
 )
@@ -86,6 +87,7 @@ from modelome.sources.fairchem_omat24_checkpoints import FairChemOMat24Checkpoin
 from modelome.sources.fairchem_uma_checkpoints import FairChemUMACheckpointSourceAdapter
 from modelome.sources.fairseq_language_models import FairseqPretrainedLanguageModelSourceAdapter
 from modelome.sources.fal_model_gallery import FalModelGalleryAdapter
+from modelome.sources.falcon_vla_checkpoint_zoo import FalconVLACheckpointZooAdapter
 from modelome.sources.fengwu_checkpoint_registry import FengWuCheckpointRegistrySourceAdapter
 from modelome.sources.figshare_model_candidates import FigshareModelCandidatesSourceAdapter
 from modelome.sources.figshare_model_candidates_workflow import FigshareModelCandidatesWorkflow
@@ -106,6 +108,7 @@ from modelome.sources.geom2vec_checkpoint_files import Geom2VecCheckpointFilesSo
 from modelome.sources.geospatial_registry import GeospatialRegistrySourceAdapter
 from modelome.sources.gharchive import GhArchiveSourceAdapter
 from modelome.sources.github_historical_release_assets import (
+    GitHubCuratedReleaseAssetsSourceAdapter,
     GitHubHistoricalReleaseAssetsSourceAdapter,
 )
 from modelome.sources.github_repositories import GitHubPublicRepositoriesSourceAdapter
@@ -120,6 +123,7 @@ from modelome.sources.google_graphcast_checkpoint_inventory import (
 )
 from modelome.sources.google_vertex_open_model_lifecycle import GoogleVertexOpenModelLifecycle
 from modelome.sources.gpt4all_model_catalog import Gpt4AllModelCatalogSourceAdapter
+from modelome.sources.grand_challenge_algorithms import GrandChallengeAlgorithmsSourceAdapter
 from modelome.sources.graph_ml_registry import GraphMLRegistrySourceAdapter
 from modelome.sources.graphcore_gpspp_checkpoints import (
     GraphcoreGPSPlusPlusCheckpointSourceAdapter,
@@ -161,6 +165,7 @@ from modelome.sources.lerobot_vlajepa_checkpoints import (
 from modelome.sources.line_checkpoint_card_catalog import (
     LineCheckpointCardCatalogSourceAdapter,
 )
+from modelome.sources.m3gnet_legacy_checkpoint import M3GNetLegacyCheckpointSourceAdapter
 from modelome.sources.mace_foundation_registry import (
     MaceFoundationCheckpointRegistrySourceAdapter,
 )
@@ -177,6 +182,7 @@ from modelome.sources.microsoft_aurora_checkpoints import MicrosoftAuroraCheckpo
 from modelome.sources.mindspore_registry import MindSporeModelZooSourceAdapter
 from modelome.sources.mlx_registry import MlxRegistrySourceAdapter
 from modelome.sources.modelscope import ModelScopeModelsSourceAdapter
+from modelome.sources.moftransformer_figshare import MOFTransformerFigshareAdapter
 from modelome.sources.molecular_registry import OpenFoldCheckpointRegistrySourceAdapter
 from modelome.sources.moler_checkpoint import MoLeRCheckpointSourceAdapter
 from modelome.sources.molmoact2_checkpoints import MolmoAct2CheckpointSourceAdapter
@@ -250,6 +256,7 @@ from modelome.sources.paddlenlp_bert_registry import PaddleNlpBertRegistrySource
 from modelome.sources.paddlenlp_ernie_registry import PaddleNlpErnieRegistrySourceAdapter
 from modelome.sources.paddlenlp_funnel_registry import PaddleNlpFunnelRegistrySourceAdapter
 from modelome.sources.paddlenlp_roformer_registry import PaddleNlpRoformerRegistrySourceAdapter
+from modelome.sources.paddlenlp_t5_registry import PaddleNlpT5RegistrySourceAdapter
 from modelome.sources.paddlenlp_taskflow_knowledge_mining import (
     PaddleNlpTaskflowKnowledgeMiningSourceAdapter,
 )
@@ -284,6 +291,7 @@ from modelome.sources.pelican_vla_checkpoint_registry import (
     PelicanVLACheckpointRegistrySourceAdapter,
 )
 from modelome.sources.pfrl_pretrained_model_zoo import PfrlPretrainedModelZooAdapter
+from modelome.sources.phyre_dqn_checkpoints import PhyreDqnCheckpointAdapter
 from modelome.sources.piper_voice_catalog import PiperVoiceCatalogSourceAdapter
 from modelome.sources.plos import PlosSourceAdapter
 from modelome.sources.pmc import PmcSourceAdapter
@@ -309,6 +317,7 @@ from modelome.sources.rosettafold_checkpoints import RoseTTAFoldCheckpointAdapte
 from modelome.sources.rsna_atlas_registry import RsnaAtlasRegistrySourceAdapter
 from modelome.sources.satmae_checkpoint_registry import SatMAECheckpointRegistrySourceAdapter
 from modelome.sources.sdss_ssl_checkpoints import SdssSslCheckpointsSourceAdapter
+from modelome.sources.seco_checkpoint_registry import SeCoCheckpointRegistrySourceAdapter
 from modelome.sources.semantic_scholar import SemanticScholarDatasetSourceAdapter
 from modelome.sources.sevennet_pretrained_registry import SevenNetPretrainedRegistryAdapter
 from modelome.sources.sherpa_asr_model_release import SherpaAsrModelReleaseSourceAdapter
@@ -337,6 +346,7 @@ from modelome.sources.tensorflow_hub_archive import TensorFlowHubArchiveSourceAd
 from modelome.sources.tensorflow_tpu_efficientnet import TensorFlowTPUEfficientNetSourceAdapter
 from modelome.sources.timm_legacy_byobnet import TimmLegacyByobNetSourceAdapter
 from modelome.sources.timm_legacy_efficientnet import TimmLegacyEfficientNetSourceAdapter
+from modelome.sources.timm_legacy_mobilevit import TimmLegacyMobileViTSourceAdapter
 from modelome.sources.timm_legacy_poolformer import TimmLegacyPoolFormerSourceAdapter
 from modelome.sources.timm_legacy_regnet import TimmLegacyRegNetSourceAdapter
 from modelome.sources.timm_legacy_resnetv2 import TimmLegacyResNetV2SourceAdapter
@@ -361,6 +371,7 @@ from modelome.sources.ultralytics_release_checkpoints import (
 )
 from modelome.sources.unimol_checkpoint import UniMolCheckpointSourceAdapter
 from modelome.sources.utile_checkpoint_registry import UTilizeCheckpointRegistrySourceAdapter
+from modelome.sources.uvr_model_files import UvrModelFilesAdapter
 from modelome.sources.vision_registry_extra import OnnxModelZooHubSourceAdapter
 from modelome.sources.vitae_rsp_checkpoint_registry import VitaeRSPCheckpointRegistrySourceAdapter
 from modelome.sources.vosk_models import VoskModelsSourceAdapter
@@ -1475,6 +1486,30 @@ def create_source(
             client=injected["client"],
         )
 
+    if adapter == "github_curated_release_assets":
+        token = _credential(expanded, environment, defaults=("GITHUB_TOKEN",))
+        repository_names = expanded.get("repository_names")
+        if not isinstance(repository_names, list | tuple):
+            raise ValueError(f"{name}: repository_names must be an array")
+        return GitHubCuratedReleaseAssetsSourceAdapter(
+            name=name,
+            repository_names=tuple(str(value) for value in repository_names),
+            page_size=_integer(expanded.get("page_size"), 100),
+            max_releases_per_repository=_integer(
+                expanded.get("max_releases_per_repository"), 100
+            ),
+            max_assets_per_release=_integer(expanded.get("max_assets_per_release"), 1_000),
+            max_release_pages_per_repository=_integer(
+                expanded.get("max_release_pages_per_repository"), 10
+            ),
+            max_asset_pages_per_release=_integer(
+                expanded.get("max_asset_pages_per_release"), 10
+            ),
+            http_attempts=_integer(expanded.get("http_attempts"), 4),
+            token=token or None,
+            client=injected["client"],
+        )
+
     if adapter == "fs_mol_checkpoints":
         return FSMolCheckpointSourceAdapter(
             name=name,
@@ -1979,6 +2014,17 @@ def create_source(
             "paddlematerials_registry",
             "roboflow_universe_candidates",
             "nvlabs_edm2_checkpoints",
+            "grand_challenge_algorithms",
+            "moftransformer_figshare",
+            "seco_checkpoint_registry",
+            "ddlp_video_checkpoints",
+            "phyre_dqn_checkpoints",
+            "paddlenlp_t5_registry",
+            "timm_legacy_mobilevit",
+            "m3gnet_legacy_checkpoint",
+            "uvr_model_files",
+            "falcon_vla_checkpoint_zoo",
+            "github_curated_release_assets",
         }
         else _required_text(expanded, "url")
     )
@@ -3825,6 +3871,9 @@ def create_source(
             max_pages=_integer(expanded.get("max_pages"), 500),
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
             timeout=float(expanded.get("timeout", 30.0)),
+            max_hf_origin_details_per_page=_nonnegative_integer(
+                expanded.get("max_hf_origin_details_per_page"), 0
+            ),
             client=client if callable(getattr(client, "post", None)) else None,
         )
 
@@ -3848,6 +3897,92 @@ def create_source(
             client=injected["client"],
         )
 
+    if adapter == "grand_challenge_algorithms":
+        return GrandChallengeAlgorithmsSourceAdapter(
+            name=name,
+            page_size=_integer(expanded.get("page_size"), 100),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 5_000),
+            client=injected["client"],
+        )
+
+    if adapter == "moftransformer_figshare":
+        return MOFTransformerFigshareAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "seco_checkpoint_registry":
+        return SeCoCheckpointRegistrySourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "ddlp_video_checkpoints":
+        return DDLPVideoCheckpointSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "taldatech/ddlp",
+            branch=_text(expanded.get("branch")) or "main",
+            document_path=_text(expanded.get("document_path")) or "README.md",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_checkpoints=_integer(expanded.get("max_checkpoints"), 8),
+            client=injected["client"],
+        )
+
+    if adapter == "phyre_dqn_checkpoints":
+        return PhyreDqnCheckpointAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 64 * 1024),
+            **injected,
+        )
+
+    if adapter == "paddlenlp_t5_registry":
+        return PaddleNlpT5RegistrySourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "PaddlePaddle/PaddleNLP",
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_text(expanded.get("source_path"))
+            or "paddlenlp/transformers/t5/configuration.py",
+            provider_namespace=_text(expanded.get("provider_namespace"))
+            or "paddlenlp:transformer-model",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "timm_legacy_mobilevit":
+        return TimmLegacyMobileViTSourceAdapter(name=name, **injected)
+
+    if adapter == "m3gnet_legacy_checkpoint":
+        return M3GNetLegacyCheckpointSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "materialyzeai/m3gnet",
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_text(expanded.get("source_path")) or "m3gnet/models/_m3gnet.py",
+            provider_namespace=_text(expanded.get("provider_namespace")) or "m3gnet:checkpoint",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 1),
+            **injected,
+        )
+
+    if adapter == "uvr_model_files":
+        return UvrModelFilesAdapter(
+            name=name,
+            min_models=_integer(expanded.get("min_models"), 20),
+            max_models=_integer(expanded.get("max_models"), 200),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 512 * 1024),
+            **injected,
+        )
+
+    if adapter == "falcon_vla_checkpoint_zoo":
+        return FalconVLACheckpointZooAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 32),
+            **injected,
+        )
+
     raise ValueError(f"{name}: unknown source adapter {adapter!r}")
 
 
@@ -3861,7 +3996,11 @@ def load_sources(
     """Load enabled source adapters, keyed by their unique catalog name."""
 
     environment = os.environ if environ is None else environ
-    shared_client = client or HttpClient()
+    shared_client = (
+        client
+        if client is not None
+        else HttpClient(github_token=_text(environment.get("GITHUB_TOKEN")) or None)
+    )
     sources: dict[str, SourceAdapter] = {}
     for config in load_source_configs(path):
         if config.get("enabled", True) is False:

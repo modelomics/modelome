@@ -846,6 +846,168 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
         return SourcePage((), next_state, complete=True, upstream_count=repos_seen)
 
 
+class GitHubCuratedReleaseAssetsSourceAdapter(GitHubHistoricalReleaseAssetsSourceAdapter):
+    """Scan a small explicit repository set with the historical release path.
+
+    This mode avoids trying to infer organization or model relevance from
+    GitHub's global numeric repository-ID order. The repository list is part of
+    the checkpoint identity, and completion means that configured list was
+    examined, subject to the configured release/asset truncation caps.
+    """
+
+    coverage_limitation = (
+        "Scans only the explicitly configured public repository names and the "
+        "configured release/asset pages. Completion covers that list only; "
+        "truncation counters disclose any repository whose releases or assets "
+        "exceeded the configured caps. No release asset bytes are downloaded."
+    )
+
+    def __init__(
+        self,
+        *,
+        name: str,
+        repository_names: Sequence[str],
+        page_size: int = _PAGE_SIZE,
+        max_releases_per_repository: int = 100,
+        max_assets_per_release: int = 1_000,
+        max_release_pages_per_repository: int = 10,
+        max_asset_pages_per_release: int = 10,
+        http_attempts: int = 4,
+        token: str | None = None,
+        client: HttpClient | Any | None = None,
+    ) -> None:
+        if not _sequence(repository_names) or not repository_names:
+            raise ValueError("repository_names must be a nonempty sequence")
+        names = tuple(_repository_name(value) for value in repository_names)
+        if len(names) > 10_000 or len(set(names)) != len(names):
+            raise ValueError("repository_names must contain at most 10000 unique names")
+        super().__init__(
+            name=name,
+            initial_since=0,
+            max_repository_id=1,
+            max_repositories=len(names),
+            page_size=page_size,
+            max_releases_per_repository=max_releases_per_repository,
+            max_assets_per_release=max_assets_per_release,
+            max_release_pages_per_repository=max_release_pages_per_repository,
+            max_asset_pages_per_release=max_asset_pages_per_release,
+            http_attempts=http_attempts,
+            token=token,
+            client=client,
+        )
+        self.repository_names = names
+        self.max_page_requests += len(names)
+        self.max_api_requests = self.max_page_requests * self.max_http_attempts
+        self.checkpoint_signature = content_hash(
+            {
+                "adapter": "github-curated-release-assets-v1",
+                "base_checkpoint_signature": self.checkpoint_signature,
+                "repository_names": names,
+                "max_api_requests": self.max_api_requests,
+            }
+        )
+
+    def fetch_page(self, state: Mapping[str, Any]) -> SourcePage:
+        if not isinstance(state, Mapping):
+            raise TypeError("github-curated-release-assets: state must be a mapping")
+        seed_index = _integer(state.get("curated_seed_index", 0), "curated_seed_index", minimum=0)
+        if seed_index > len(self.repository_names):
+            raise ValueError("curated_seed_index is outside the configured repository list")
+        active = _boolean(
+            state.get("curated_active_repository", False),
+            "curated_active_repository",
+        )
+        idle = (
+            _repo_state(state.get("current_repo")) is None
+            and not _repo_queue(state.get("repo_queue", []))
+            and _release_state(state.get("current_release")) is None
+            and not _release_queue(state.get("release_queue", []))
+        )
+        if active and idle:
+            next_state = dict(state)
+            next_state.update(
+                {
+                    "curated_seed_index": seed_index + 1,
+                    "curated_active_repository": False,
+                    "repos_seen": seed_index + 1,
+                }
+            )
+            return self._state_page(next_state, curated_seed_index=seed_index + 1)
+        if seed_index < len(self.repository_names) and idle and not active:
+            name = self.repository_names[seed_index]
+            request_url = f"{_API}/repos/{quote(name, safe='/')}"
+            response = self._get(request_url)
+            if response.status == 404:
+                next_state = dict(state)
+                next_state.update(
+                    {
+                        "curated_seed_index": seed_index + 1,
+                        "curated_active_repository": False,
+                        "repos_seen": seed_index + 1,
+                        "missing_repository_count": _integer(
+                            state.get("missing_repository_count", 0),
+                            "missing_repository_count",
+                            minimum=0,
+                        )
+                        + 1,
+                    }
+                )
+                return self._state_page(next_state)
+            if response.status != 200:
+                raise ValueError(
+                    f"GitHub curated repository lookup returned HTTP {response.status}"
+                )
+            payload = response.json()
+            if not isinstance(payload, Mapping):
+                raise ValueError("GitHub curated repository response is not an object")
+            repo_id = _integer(payload.get("id"), "repository id", minimum=1)
+            full_name = _repository_name(payload.get("full_name"))
+            if full_name.casefold() != name.casefold():
+                raise ValueError(
+                    "GitHub curated repository name changed; update the configured list "
+                    "to preserve exact repository scope"
+                )
+            if payload.get("private") is True:
+                raise ValueError("GitHub curated repository lookup returned a private repository")
+            next_state = dict(state)
+            next_state.update(
+                {
+                    "curated_seed_index": seed_index,
+                    "curated_active_repository": True,
+                    "repo_started": True,
+                    "repo_queue": [{"id": repo_id, "full_name": full_name}],
+                    "repos_seen": seed_index + 1,
+                }
+            )
+            return self._state_page(next_state)
+        if seed_index >= len(self.repository_names) and idle and not active:
+            page = super().fetch_page(state)
+            if (
+                page.complete
+                and page.next_state.get("coverage_status") == "repository_limit_reached"
+            ):
+                next_state = dict(page.next_state)
+                next_state["coverage_status"] = (
+                    "bounded_scan_complete_with_truncation"
+                    if next_state.get("truncated_release_count")
+                    or next_state.get("truncated_asset_release_count")
+                    else "configured_repository_list_exhausted"
+                )
+                next_state["missing_repository_count"] = _integer(
+                    state.get("missing_repository_count", 0),
+                    "missing_repository_count",
+                    minimum=0,
+                )
+                return SourcePage(
+                    page.records,
+                    next_state,
+                    complete=True,
+                    upstream_count=page.upstream_count,
+                )
+        page = super().fetch_page(state)
+        return page
+
+
 def _release(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ValueError("GitHub release row is not an object")
@@ -1004,6 +1166,7 @@ def _query_positive_integer(value: Any, label: str) -> int:
 
 
 __all__ = [
+    "GitHubCuratedReleaseAssetsSourceAdapter",
     "GitHubHistoricalReleaseAssetsSourceAdapter",
     "GitHubRepositoryIdRangePlan",
     "plan_github_repository_id_ranges",
