@@ -35,6 +35,7 @@ _TOKEN = re.compile(r"[a-z][a-z0-9+-]*", re.IGNORECASE)
 _KAGGLE_VERSION = re.compile(r"^[1-9][0-9]*$")
 _ZENODO_DOI = re.compile(r"^10\.5281/zenodo\.([1-9][0-9]*)$", re.IGNORECASE)
 _CIVITAI_ID = re.compile(r"^[1-9][0-9]*$")
+_DEMUCS_CHECKPOINT = re.compile(r"^(?P<signature>[0-9a-f]{8})-[0-9a-f]{8}\.th$")
 _TITLE_STOPWORDS = frozenset(
     {
         "a",
@@ -1048,6 +1049,18 @@ def _evaluation_model_identifier_from_url(value: str) -> Identifier | None:
         doi_match = _ZENODO_DOI.fullmatch("/".join(path_segments))
         if doi_match:
             return Identifier("zenodo:record", doi_match.group(1))
+    if (
+        host == "dl.fbaipublicfiles.com"
+        and len(path_segments) == 3
+        and path_segments[0] == "demucs"
+        and re.fullmatch(r"[A-Za-z0-9_-]+", path_segments[1])
+        and _DEMUCS_CHECKPOINT.fullmatch(path_segments[2])
+        and not parts.query
+        and not parts.fragment
+    ):
+        checkpoint_match = _DEMUCS_CHECKPOINT.fullmatch(path_segments[2])
+        assert checkpoint_match is not None
+        return Identifier("demucs:pretrained-signature", checkpoint_match.group("signature"))
     if (
         host in {"zenodo.org", "www.zenodo.org"}
         and len(path_segments) >= 2

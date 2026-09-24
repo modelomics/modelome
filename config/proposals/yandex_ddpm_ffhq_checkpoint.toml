@@ -1,0 +1,11 @@
+# Yandex Research's separately trained FFHQ-256 DDPM weights, exact first-party URL.
+[[source]]
+name = "yandex-ddpm-ffhq-checkpoint"
+adapter = "yandex_ddpm_ffhq_checkpoint"
+enabled = false
+entry_tags = ["field:generative-image-modeling", "ecosystem:yandex-research", "model-family:ddpm", "dataset:ffhq-256", "kind:checkpoint", "evidence:first-party-download-link"]
+repository = "yandex-research/ddpm-segmentation"
+branch = "master"
+document_path = "README.md"
+max_response_bytes = 4194304
+max_checkpoints = 10

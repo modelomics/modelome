@@ -8467,3 +8467,175 @@ entry_tags = ["field:audio-machine-learning", "task:music-source-separation", "e
 schedule = "weekly"
 max_response_bytes = 1048576
 max_models = 100
+
+# Databricks' Foundation Model APIs retirement table names this exact model ID
+# and records its pay-per-token retirement date.
+[[source]]
+name = "databricks-meta-llama-3-70b-instruct-retired-2024-07-23"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:databricks-foundation-model-apis", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history", "lifecycle:retired", "retired-on:2024-07-23", "offering:pay-per-token"]
+url = "https://docs.databricks.com/aws/en/machine-learning/retired-models-policy"
+provider_namespace = "databricks:foundation-model-api-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 100
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '\b(?P<name>Meta-Llama-3-70B-Instruct)\b'
+identity_source = "name"
+require_url = false
+
+# The official Clay v0 documentation names this exact checkpoint S3 URI.
+# Clay v1.5 Hub weights are excluded because the generic Hugging Face source
+# already covers them; this bounded adapter preserves the legacy S3 release.
+[[source]]
+name = "clay-legacy-checkpoint"
+adapter = "clay_legacy_checkpoint"
+enabled = true
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:clay", "kind:pretrained-checkpoint"]
+url = "https://clay-foundation.github.io/model/clay-v0/model_embeddings.html"
+max_response_bytes = 2097152
+
+# PaddleNLP's RoFormer config pairs ten model IDs with direct model_state URLs.
+[[source]]
+name = "paddlenlp-roformer-pretrained-registry"
+adapter = "paddlenlp_roformer_registry"
+enabled = true
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/transformers/roformer/configuration.py"
+provider_namespace = "paddlenlp:transformer-model"
+max_response_bytes = 4194304
+
+# Yandex Research's separately trained FFHQ-256 DDPM weights, exact first-party URL.
+[[source]]
+name = "yandex-ddpm-ffhq-checkpoint"
+adapter = "yandex_ddpm_ffhq_checkpoint"
+enabled = true
+entry_tags = ["field:generative-image-modeling", "ecosystem:yandex-research", "model-family:ddpm", "dataset:ffhq-256", "kind:checkpoint", "evidence:first-party-download-link"]
+repository = "yandex-research/ddpm-segmentation"
+branch = "master"
+document_path = "README.md"
+max_response_bytes = 4194304
+max_checkpoints = 10
+
+# The first-party ViTAE RSP README publishes three direct Google Drive links
+# for MillionAID remote-sensing pretrained checkpoints.
+[[source]]
+name = "vitae-rsp-checkpoint-registry"
+adapter = "vitae_rsp_checkpoint_registry"
+enabled = true
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:vitae-rsp", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+max_response_bytes = 1048576
+
+# SevenNet's first-party CHECKPOINT_DOWNLOAD_LINKS map provides exact public
+# release URLs. The loader utility maps those checkpoint constants to the
+# canonical 7net-* model names. GitHub release metadata verifies each asset ID
+# and size without retrieving checkpoint bytes.
+[[source]]
+name = "sevennet-pretrained-registry"
+adapter = "sevennet_pretrained_registry"
+enabled = true
+repository = "MDIL-SNU/SevenNet"
+branch = "main"
+constant_source_path = "sevenn/_const.py"
+model_name_source_path = "sevenn/util.py"
+entry_tags = ["field:computational-materials-science", "ecosystem:sevennet", "model-family:sevennet", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 8388608
+
+# Coverage is limited to the nine current CHECKPOINT_DOWNLOAD_LINKS rows.
+# Older model constants without direct release mappings are omitted; URLs are
+# taken from source and checked against GitHub release metadata.
+
+[[source]]
+name = "cogact-checkpoint-registry"
+adapter = "cogact_checkpoint_registry"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:cogact", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 8
+
+# Three first-party size variants with exact SHA-pinned Hugging Face files.
+# Metadata only; checkpoint bytes are not downloaded.
+
+# FAIR's archived Bio-LM README lists nine models with official Transformers
+# and fairseq archives. The adapter records direct archives, not their members.
+[[source]]
+name = "facebook-bio-lm-first-party-archives"
+adapter = "biolm_registry"
+enabled = true
+entry_tags = ["field:biomedical-nlp", "ecosystem:facebook-bio-lm", "kind:pretrained-weights"]
+repository = "facebookresearch/bio-lm"
+branch = "main"
+source_path = "README.md"
+max_response_bytes = 2097152
+max_entries = 100
+
+# timm v0.6.13's RegNet module declares 28 direct checkpoint URLs, including
+# timm GitHub and Facebook AI Research releases. This proposal reads only that
+# immutable release and module.
+[[source]]
+name = "timm-legacy-regnet-v0613"
+adapter = "timm_legacy_regnet"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:timm", "kind:checkpoint"]
+schedule = "weekly"
+
+# Asteroid's Zenodo community holds checkpoint and other research records; the
+# adapter indexes only records with one .pth model checkpoint.
+[[source]]
+name = "asteroid-zenodo-models"
+adapter = "asteroid_zenodo_models"
+enabled = true
+community = "asteroid-models"
+api_url = "https://zenodo.org/api/records?communities=asteroid-models"
+community_url = "https://zenodo.org/communities/asteroid-models"
+repository_url = "https://github.com/asteroid-team/asteroid"
+entry_tags = ["ecosystem:asteroid", "modality:audio", "task:source-separation", "kind:checkpoint"]
+schedule = "weekly"
+page_size = 25
+max_records = 500
+max_response_bytes = 8388608
+
+# Zenodo record/file metadata provides each checkpoint's file name, content
+# endpoint, checksum, and byte size. Non-checkpoint community records are omitted.
+
+# DeepInfra's public /models page carries a complete first-party model list in
+# its server-rendered Next.js payload at props.pageProps.models. The public UI
+# paginates this catalog across /models/2, /models/3, etc.; the payload already
+# contains the entire catalog, so this adapter reads the root page once. It
+# records exact serving IDs as documented provider endpoints only, including
+# retired/deprecated catalog rows, and does not claim downloadable weights.
+[[source]]
+name = "deepinfra-model-catalog"
+adapter = "deepinfra_model_catalog"
+enabled = true
+entry_tags = ["ecosystem:deepinfra", "kind:hosted-model-endpoint"]
+url = "https://deepinfra.com/models"
+provider_namespace = "deepinfra:model"
+schedule = "daily"
+max_response_bytes = 8388608
+max_script_chars = 8388608
+max_entries = 10000
+
+# First-party Keras Applications ConvNeXt ImageNet checkpoints.
+# The adapter reads one pinned source file and emits the declared top/no-top
+# asset URLs and SHA-256 values. It never downloads the checkpoint files.
+[[source]]
+name = "keras-convnext-imagenet-weights"
+adapter = "keras_convnext_weights"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:keras-applications", "kind:pretrained-model"]
+repository = "keras-team/keras"
+branch = "master"
+source_path = "keras/src/applications/convnext.py"
+schedule = "weekly"
+max_source_bytes = 2097152
+max_records = 20

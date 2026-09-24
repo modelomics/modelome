@@ -1,0 +1,10 @@
+# PaddleNLP's RoFormer config pairs ten model IDs with direct model_state URLs.
+[[source]]
+name = "paddlenlp-roformer-pretrained-registry"
+adapter = "paddlenlp_roformer_registry"
+enabled = false
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/transformers/roformer/configuration.py"
+provider_namespace = "paddlenlp:transformer-model"
+max_response_bytes = 4194304

@@ -9,6 +9,7 @@ training-data link, and external base-model link without downloading model bytes
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote, urljoin, urlsplit
 
@@ -26,6 +27,12 @@ from modelome.models import (
     SourceRecord,
 )
 from modelome.normalize import canonicalize_url, content_hash, extract_urls, identifier_from_url
+
+
+@dataclass(frozen=True, slots=True)
+class _VersionFileManifest:
+    files: tuple[dict[str, Any], ...]
+    complete: bool
 
 
 class KaggleModelsSourceAdapter:
@@ -566,11 +573,9 @@ class KaggleModelsSourceAdapter:
                 locator="$.instances.externalBaseModelUrl",
             )
         if self.include_version_files and version != "unknown":
-            listed_files = self._version_files(model_ref, framework, slug, version)
-            version_files = listed_files or ()
-            file_manifest_status = (
-                "complete" if listed_files is not None else "unavailable_unauthorized"
-            )
+            manifest = self._version_files(model_ref, framework, slug, version)
+            version_files = manifest.files
+            file_manifest_status = "complete" if manifest.complete else "unavailable_unauthorized"
         else:
             version_files = ()
             file_manifest_status = (
@@ -751,7 +756,7 @@ class KaggleModelsSourceAdapter:
         framework: str,
         slug: str,
         version: str,
-    ) -> tuple[dict[str, Any], ...] | None:
+    ) -> _VersionFileManifest:
         """List files for one exact version when explicitly requested."""
         parts = urlsplit(self.url)
         path = "/".join(
@@ -772,7 +777,7 @@ class KaggleModelsSourceAdapter:
             )
             if response.status != 200:
                 if response.status in {401, 403}:
-                    return None
+                    return _VersionFileManifest(tuple(files), complete=False)
                 raise ValueError(
                     f"{self.name}: files for {model_ref}/{framework}/{slug}/{version} "
                     f"returned HTTP {response.status}"
@@ -814,7 +819,7 @@ class KaggleModelsSourceAdapter:
                 raise ValueError(f"{self.name}: model version file pagination did not advance")
             seen_tokens.add(next_token)
             token = next_token
-        return tuple(files)
+        return _VersionFileManifest(tuple(files), complete=True)
 
 
 def _versions_with_latest(

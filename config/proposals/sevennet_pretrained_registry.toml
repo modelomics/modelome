@@ -1,0 +1,19 @@
+# SevenNet's first-party CHECKPOINT_DOWNLOAD_LINKS map provides exact public
+# release URLs. The loader utility maps those checkpoint constants to the
+# canonical 7net-* model names. GitHub release metadata verifies each asset ID
+# and size without retrieving checkpoint bytes.
+[[source]]
+name = "sevennet-pretrained-registry"
+adapter = "sevennet_pretrained_registry"
+enabled = false
+repository = "MDIL-SNU/SevenNet"
+branch = "main"
+constant_source_path = "sevenn/_const.py"
+model_name_source_path = "sevenn/util.py"
+entry_tags = ["field:computational-materials-science", "ecosystem:sevennet", "model-family:sevennet", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 8388608
+
+# Coverage is limited to the nine current CHECKPOINT_DOWNLOAD_LINKS rows.
+# Older model constants without direct release mappings are omitted; URLs are
+# taken from source and checked against GitHub release metadata.

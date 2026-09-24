@@ -1,0 +1,23 @@
+# Boardwalk documents a no-key public `/v1/models` catalog. Its public model
+# IDs are the exact slugs accepted by its inference API. The endpoint can also
+# include private organization models when authenticated, so this source makes
+# an anonymous request and never supplies an API key.
+# Primary sources:
+# https://www.boardwalk.cloud/docs/models
+# https://www.boardwalk.cloud/docs/api
+[[source]]
+name = "boardwalk-public-models"
+adapter = "json_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:boardwalk", "kind:hosted-model", "evidence:public-api-catalog"]
+url = "https://api.boardwalk.cloud/v1/models"
+provider_namespace = "boardwalk:model"
+model_card_url_template = "https://www.boardwalk.cloud/docs/models"
+model_page_crawl = false
+schedule = "daily"
+max_response_bytes = 4194304
+
+[source.mapping]
+items_path = "data"
+id_path = "id"
+name_path = "display_name"

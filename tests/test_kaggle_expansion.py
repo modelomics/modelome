@@ -291,6 +291,41 @@ def test_unauthorized_detail_and_file_manifests_preserve_public_listing_identity
     assert len(client.calls) == 4
 
 
+def test_unauthorized_later_file_page_preserves_known_rows_as_incomplete() -> None:
+    client = _Client(
+        {
+            "models": [
+                {
+                    "ref": "google/gemma",
+                    "instances": [{"id": 12, "slug": "2b", "framework": "PyTorch"}],
+                }
+            ],
+            "totalResults": 1,
+        },
+        {"instances": [{"id": 12, "slug": "2b", "framework": "PyTorch"}]},
+        {"versionList": {"versions": [{"id": 101, "versionNumber": 1}]}},
+        {
+            "files": [{"name": "weights.safetensors", "size": 10}],
+            "nextPageToken": "more-files",
+        },
+        {},
+        statuses=(200, 200, 200, 200, 403),
+    )
+
+    page = KaggleModelsSourceAdapter(
+        client=client,
+        include_all_versions=True,
+        include_version_files=True,
+    ).fetch_page({})
+
+    release = page.records[0].releases[0]
+    assert release.metadata["files"] == (
+        {"name": "weights.safetensors", "size": 10, "creation_date": None},
+    )
+    assert release.metadata["file_manifest_status"] == "unavailable_unauthorized"
+    assert client.calls[-1][1] == {"pageSize": 100, "pageToken": "more-files"}
+
+
 def test_version_file_metadata_requires_all_version_expansion() -> None:
     with pytest.raises(ValueError, match="requires include_all_versions"):
         KaggleModelsSourceAdapter(client=_Client(), include_version_files=True)

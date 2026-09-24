@@ -2,8 +2,9 @@
 # directs users to the Hugging Face `onnxmodelzoo` organization for continued
 # access. The public organization gallery currently reports 2,326 models.
 # The dedicated adapter follows the owner-scoped Hub cursor and links declared
-# ONNX files without transferring their bytes. This proposal is inactive until
-# the source factory registers `onnx_model_zoo_hub`.
+# ONNX files without transferring their bytes. The factory route is available;
+# this owner-scoped duplicate of the global Hugging Face source is not in the
+# default catalog.
 [[source]]
 name = "onnx-model-zoo-hub"
 adapter = "onnx_model_zoo_hub"

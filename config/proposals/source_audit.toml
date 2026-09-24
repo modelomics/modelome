@@ -48,11 +48,6 @@ max_entries = 10000
 #   OpenMMLab, Paddle, Keras, audio, and NLP), and research-index feeds.
 # - TensorFlow Model Garden vision is a substantial first-party checkpoint
 #   catalog gap. Existing TensorFlow detection/DeepLab/Slim pages are narrower.
-# - T5X is a substantial JAX-family checkpoint gap. Its adapter is present but
-#   dormant because src/modelome/sources/catalog.py has no jax_registry branch.
-# - src/modelome/sources/mlx_registry.py is also dormant and has no catalog
-#   loader branch, but it enumerates architecture type aliases rather than
-#   model releases or checkpoints; it is not proposed as a model catalog.
-# - No mass enumeration or ingestion was performed. Integration for T5X is to
-#   import/register JaxRegistrySourceAdapter and pass repository, branch,
-#   source_path, and limits through create_source before enabling the entry.
+# - T5X and MLX have factory routes. The MLX proposal remains disabled because
+#   it enumerates architecture compatibility aliases rather than checkpoints.
+# - No mass enumeration or ingestion was performed for this historical audit.

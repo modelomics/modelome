@@ -77,6 +77,9 @@ _NON_FETCHABLE_RELATIONS = frozenset(
 # Generic weights/model_weights links are collected so provenance can identify
 # shared URLs, but only URLs that every owner calls a checkpoint may merge.
 _CHECKPOINT_IDENTITY_RELATIONS = frozenset({"checkpoint", "model_weights", "weights"})
+_DEMUCS_CHECKPOINT_PATH = re.compile(
+    r"^/demucs/hybrid_transformer/[0-9a-f]{8}-[0-9a-f]{8}\.th$"
+)
 _CITATION_RELATIONS = frozenset({"cites", "cited_by", "is-cited-by"})
 
 
@@ -566,7 +569,9 @@ def build_entries(seeds: Iterable[Mapping[str, Any]]) -> EntryBuildResult:
             relation = resource.relation.casefold()
             if relation in _CHECKPOINT_IDENTITY_RELATIONS:
                 urls.add(resource.url)
-            if relation == "checkpoint":
+            if relation == "checkpoint" or (
+                relation == "weights" and _is_demucs_checkpoint_url(resource.url)
+            ):
                 explicit_checkpoint_owners[resource.url].add(index)
         for url in urls:
             checkpoint_owners[url].append(index)
@@ -1408,6 +1413,26 @@ def _direct_huggingface_model_card_identifier(url: str) -> EntryIdentifier | Non
     if identifier is None or identifier.namespace != "huggingface:model":
         return None
     return _identifiers([asdict(identifier)], "Hugging Face model card identifier")[0]
+
+
+def _is_demucs_checkpoint_url(url: str) -> bool:
+    """Recognize Demucs manifest-shaped checkpoint URLs declared as weights.
+
+    Demucs and MSST independently publish direct links to the same files from
+    the official Demucs checkpoint manifest. Their adapters correctly label
+    these links ``weights``; the exact host and manifest path identify these
+    files more narrowly than a generic weights relation.
+    """
+    parts = urlsplit(canonicalize_url(url))
+    return (
+        parts.scheme == "https"
+        and parts.hostname == "dl.fbaipublicfiles.com"
+        and parts.username is None
+        and parts.password is None
+        and not parts.query
+        and not parts.fragment
+        and _DEMUCS_CHECKPOINT_PATH.fullmatch(parts.path) is not None
+    )
 
 
 def _required_text(value: Any, field: str) -> str:

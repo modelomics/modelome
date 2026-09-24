@@ -108,3 +108,45 @@ def test_window_workflow_is_bounded_and_checkpoint_bound_to_range() -> None:
                 "window_state": {},
             }
         )
+
+
+def test_near_expiry_token_restarts_same_date_window_without_skipping() -> None:
+    client = Client(
+        response(
+            '<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">'
+            '<ListRecords><resumptionToken expirationDate="2026-09-25T10:04:00Z">'
+            "expiring-token</resumptionToken></ListRecords></OAI-PMH>"
+        ),
+        response(
+            '<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">'
+            '<error code="noRecordsMatch">empty after restart</error></OAI-PMH>'
+        ),
+    )
+    workflow = FigshareModelCandidatesWorkflow(
+        from_date="2022-02-07",
+        until_date="2022-02-08",
+        client=client,
+        clock=lambda: datetime(2026, 9, 25, 10, 0, tzinfo=UTC),
+    )
+
+    first = workflow.fetch_page({})
+    restarted = workflow.fetch_page(first.next_state)
+
+    assert [call[1] for call in client.calls] == [
+        {
+            "verb": "ListRecords",
+            "metadataPrefix": "mets",
+            "from": "2022-02-07",
+            "until": "2022-02-08",
+        },
+        {
+            "verb": "ListRecords",
+            "metadataPrefix": "mets",
+            "from": "2022-02-07",
+            "until": "2022-02-08",
+        },
+    ]
+    assert first.next_state["cursor"] == "2022-02-07"
+    assert restarted.complete is True
+    assert restarted.next_state["cursor"] == "2022-02-08"
+    assert restarted.next_state["token_window_restarts"] == 1

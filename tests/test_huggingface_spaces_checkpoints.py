@@ -233,6 +233,37 @@ def test_unsafe_checkpoint_filename_marks_inventory_incomplete() -> None:
     assert page.issues[0].summary["file_inventory_status"] == "incomplete"
 
 
+def test_sadtalker_pth_tar_checkpoint_files_are_recognized() -> None:
+    # Hugging Face's public Space trees list `facevid2vid_00189-model.pth.tar`
+    # and `mapping_00229-model.pth.tar` under KkLabs/SadTalker/checkpoints.
+    repo, sha = "KkLabs/SadTalker", "3" * 40
+    listing = "https://huggingface.co/api/spaces?listing=1"
+    detail = f"https://huggingface.co/api/spaces/{repo}?expand=siblings&expand=sha"
+    client = _Client(
+        {
+            listing: (200, [_space(repo, sha)], {}),
+            detail: (
+                200,
+                {
+                    **_space(repo, sha),
+                    "siblings": [
+                        {"rfilename": "checkpoints/facevid2vid_00189-model.pth.tar"},
+                        {"rfilename": "checkpoints/mapping_00229-model.pth.tar"},
+                        {"rfilename": "README.md"},
+                    ],
+                },
+                {},
+            ),
+        }
+    )
+    adapter = HuggingFaceSpacesCheckpointSourceAdapter(client=client)
+    page = adapter.fetch_page(adapter.fetch_page({}).next_state)
+    assert page.records[0].raw["weight_files"] == [
+        "checkpoints/facevid2vid_00189-model.pth.tar",
+        "checkpoints/mapping_00229-model.pth.tar",
+    ]
+
+
 def test_disabled_proposal_has_constructor_fields() -> None:
     proposal = tomllib.loads(
         Path("config/proposals/huggingface_spaces_checkpoints.toml").read_text()

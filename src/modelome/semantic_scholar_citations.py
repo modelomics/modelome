@@ -67,6 +67,8 @@ class SemanticScholarCitationGraphAdapter:
         signature = state.get("signature")
         if signature is not None and signature != self.checkpoint_signature:
             raise ValueError(f"{self.name}: checkpoint belongs to another query")
+        if state.get("done") is True and signature != self.checkpoint_signature:
+            raise ValueError(f"{self.name}: completed checkpoint is missing its query signature")
         offset = _nonnegative_int(state.get("offset", 0), "checkpoint offset")
         if offset > self.max_records:
             raise ValueError(f"{self.name}: checkpoint exceeds maximum record limit")

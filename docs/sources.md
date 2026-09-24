@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **475 enabled
-source entries** (450 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **487 enabled
+source entries** (462 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -52,6 +52,16 @@ RadiologyNET, Tencent MedicalNet, PaddleNLP ALBERT and XLM, MSST,
 Deep Wetlands, timm BYOBNet v0.6.13, MSST MelRoformer experiments,
 and Demucs remote files. AI21 Jamba and Alibaba Model Studio
 retirement pages retain exact historical serving IDs and lifecycle evidence.
+
+Further enabled first-party sources add SevenNet, Bio-LM, CogACT, ViTAE RSP,
+PaddleNLP RoFormer, timm RegNet v0.6.13, Keras ConvNeXt ImageNet weights,
+Yandex's FFHQ DDPM checkpoint, Clay v0's documented S3 checkpoint handle,
+and Asteroid's Zenodo model community. DeepInfra's public gallery contributes
+hosted model IDs and documented lifecycle state without claiming downloadable
+weights; its adapter depends on the site's server-rendered payload and fails
+closed if that format changes. Databricks' lifecycle table retains an exact
+retired pay-per-token model ID.
+
 The configured sources also cover ADMET-AI Chemprop ensembles, DIPY neuroimaging weights, PaddleNLP
 knowledge-mining checkpoints, Octo policies, and sherpa audio tagging.
 The historical checkpoint catalogs also include the original OpenAI GPT-2 weight

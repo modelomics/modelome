@@ -360,6 +360,8 @@ def test_evaluation_model_links_do_not_treat_github_or_dataset_urls_as_model_ids
         "https://huggingface.co/spaces/example/model-demo",
         "https://github.com/example/model/releases/download/v1/model.safetensors",
         "https://figshare.com/ndownloader/files/123456",
+        "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/abc123.th",
+        "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/download/v1/model.ckpt",
     ):
         assert _evaluation_model_identifier_from_url(unrelated_url) is None
     assert _evaluation_model_identifier_from_url(
@@ -443,6 +445,44 @@ def test_evaluation_modelscope_model_page_url_projects_same_exact_identity() -> 
     assert _evaluation_model_identifier_from_url(
         "https://modelscope.cn/models/example/published-model/resolve/master/model.safetensors"
     ) == Identifier("modelscope:model", "example/published-model")
+
+
+def test_evaluation_demucs_official_checkpoint_url_projects_exact_model_signature() -> None:
+    from modelome.sources.paperswithcode import _evaluation_records
+
+    # This exact filename/path form is listed by Demucs' first-party remote loader.
+    row = {
+        "model_name": "Demucs MDX checkpoint",
+        "paper_url": "https://arxiv.org/abs/2401.12345",
+        "paper_title": "Demucs MDX checkpoint paper",
+        "model_links": [
+            {
+                "url": "https://dl.fbaipublicfiles.com/demucs/mdx_final/0d19c1c6-0f06f20e.th",
+                "title": "Demucs checkpoint",
+            }
+        ],
+    }
+    records, rejected, _ = _evaluation_records(
+        [
+            {
+                "task": "Source separation",
+                "datasets": [{"dataset": "Example", "sota": {"rows": [row]}}],
+            }
+        ],
+        revision="c" * 40,
+        data_path="data/train.parquet",
+        dataset_id="pwc-archive/evaluation-tables",
+        license="CC-BY-SA-4.0",
+        max_model_rows=10,
+    )
+
+    assert rejected == {}
+    linked_model = next(model for model in records[0].models if model.name == "Demucs checkpoint")
+    assert linked_model.identifiers == (Identifier("demucs:pretrained-signature", "0d19c1c6"),)
+    assert linked_model.status is ModelStatus.CANDIDATE
+    assert linked_model.confidence == 0.65
+    model_link = next(link for link in records[0].links if link.relation == "model_artifact")
+    assert model_link.model_local_ids == (linked_model.local_id,)
 
 
 def test_evaluation_model_links_project_exact_civitai_model_version() -> None:

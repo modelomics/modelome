@@ -1,0 +1,13 @@
+# The first-party ViTAE RSP README publishes three direct Google Drive links
+# for MillionAID remote-sensing pretrained checkpoints.
+[[source]]
+name = "vitae-rsp-checkpoint-registry"
+adapter = "vitae_rsp_checkpoint_registry"
+enabled = false
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:vitae-rsp", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+max_response_bytes = 1048576
+
+[evidence]
+model_inventory = "https://github.com/ViTAE-Transformer/RSP"
+checkpoint_scope = "Three README-declared MillionAID Google Drive checkpoint links; no file bytes fetched"

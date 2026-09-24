@@ -1,0 +1,20 @@
+# First-party Keras Applications ConvNeXt ImageNet checkpoints.
+# The adapter reads one pinned source file and emits the declared top/no-top
+# asset URLs and SHA-256 values. It never downloads the checkpoint files.
+[[source]]
+name = "keras-convnext-imagenet-weights"
+adapter = "keras_convnext_weights"
+enabled = false
+entry_tags = ["field:computer-vision", "ecosystem:keras-applications", "kind:pretrained-model"]
+repository = "keras-team/keras"
+branch = "master"
+source_path = "keras/src/applications/convnext.py"
+schedule = "weekly"
+max_source_bytes = 2097152
+max_records = 20
+
+[evidence]
+official_repository = "https://github.com/keras-team/keras"
+official_source = "https://github.com/keras-team/keras/blob/master/keras/src/applications/convnext.py"
+official_api = "https://keras.io/api/applications/convnext/"
+scope = "Five ConvNeXt ImageNet variants with top and no-top checkpoint links; 10 exact assets declared by the current Keras source manifest."

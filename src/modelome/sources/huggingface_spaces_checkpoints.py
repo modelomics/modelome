@@ -234,7 +234,7 @@ class HuggingFaceSpacesCheckpointSourceAdapter(HuggingFaceSourceAdapter):
         checkpoint_names = {
             filename
             for filename in filenames
-            if _is_weight_file(filename, tuple(filenames))
+            if _space_checkpoint_file(filename, tuple(filenames))
         }
         unsafe_names = any(not _safe_repo_filename(filename) for filename in checkpoint_names)
         files = sorted(
@@ -308,3 +308,9 @@ def _space_id(value: Any) -> str:
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", text):
         return ""
     return text
+
+
+def _space_checkpoint_file(filename: str, siblings: Sequence[str]) -> bool:
+    """Include documented PyTorch tar-wrapped checkpoints in Space trees."""
+
+    return filename.casefold().endswith(".pth.tar") or _is_weight_file(filename, siblings)

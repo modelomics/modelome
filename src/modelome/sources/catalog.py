@@ -21,6 +21,7 @@ from modelome.sources.alphafold_registry import AlphaFoldParameterArchiveSourceA
 from modelome.sources.apt_vla_checkpoint_registry import APTVLACheckpointRegistryAdapter
 from modelome.sources.arxiv import ArxivSourceAdapter
 from modelome.sources.arxiv_snapshot import ArxivCompleteSnapshotSourceAdapter
+from modelome.sources.asteroid_zenodo_models import AsteroidZenodoModelsAdapter
 from modelome.sources.astronn_gaia_release import AstroNNGaiaReleaseSourceAdapter
 from modelome.sources.atari_pb_checkpoints import AtariPbCheckpointAdapter
 from modelome.sources.audio_extra import CoquiTtsRegistrySourceAdapter
@@ -32,6 +33,7 @@ from modelome.sources.aws_sagemaker_jumpstart_versions import (
 from modelome.sources.base import SourceAdapter
 from modelome.sources.bfl_api_models import BFLAPIModelsSourceAdapter
 from modelome.sources.bioimageio import BioImageIoSourceAdapter
+from modelome.sources.biolm_registry import BioLMRegistrySourceAdapter
 from modelome.sources.biomedical_registry import StarDistPretrainedRegistrySourceAdapter
 from modelome.sources.biorxiv import BioRxivPublicationSourceAdapter, BioRxivSourceAdapter
 from modelome.sources.biorxiv_jats_supplementary import (
@@ -48,11 +50,13 @@ from modelome.sources.chem_ml_extra import (
 )
 from modelome.sources.chgnet_pretrained_weights import CHGNetPretrainedWeightsSourceAdapter
 from modelome.sources.civitai import CivitaiModelsSourceAdapter
+from modelome.sources.clay_legacy_checkpoint import ClayLegacyCheckpointSourceAdapter
 from modelome.sources.cloud_extra import OciGenerativeAIModelCatalog
 from modelome.sources.cloudflare_workers_ai_deprecations import CloudflareWorkersAIDeprecations
 from modelome.sources.cloudflare_workers_ai_legacy_deprecations import (
     CloudflareWorkersAILegacyDeprecations,
 )
+from modelome.sources.cogact_checkpoint_registry import CogACTCheckpointRegistryAdapter
 from modelome.sources.commoncrawl import CommonCrawlWetSourceAdapter
 from modelome.sources.conceptnet_numberbatch import ConceptNetNumberbatchSourceAdapter
 from modelome.sources.crossref import CrossrefSourceAdapter
@@ -62,12 +66,14 @@ from modelome.sources.deep_wetlands_checkpoint_registry import (
     DeepWetlandsCheckpointRegistrySourceAdapter,
 )
 from modelome.sources.deepchem_checkpoint import DeepChemMol2VecCheckpointSourceAdapter
+from modelome.sources.deepinfra_model_catalog import DeepInfraModelCatalogAdapter
 from modelome.sources.demucs_pretrained_registry import DemucsPretrainedRegistrySourceAdapter
 from modelome.sources.detectron2_model_zoo import Detectron2ModelZooSourceAdapter
 from modelome.sources.dgl_core_tutorial_checkpoint import DGLCoreTutorialCheckpointSourceAdapter
 from modelome.sources.dgl_lifesci_registry import DglLifeSciCheckpointRegistrySourceAdapter
 from modelome.sources.dipy_registry import DipyPretrainedRegistrySourceAdapter
 from modelome.sources.dopamine_checkpoint_bundles import DopamineCheckpointBundleAdapter
+from modelome.sources.dryad_model_candidates import DryadModelCandidatesSourceAdapter
 from modelome.sources.eartharxiv import EarthArxivSourceAdapter
 from modelome.sources.esa_fm4cs import EsaFm4csSourceAdapter
 from modelome.sources.esm1v_variants import ESM1vVariantRegistryAdapter
@@ -136,6 +142,7 @@ from modelome.sources.jax_registry import JaxRegistrySourceAdapter
 from modelome.sources.json_catalog import JsonCatalogSourceAdapter
 from modelome.sources.kaggle import KaggleModelsSourceAdapter
 from modelome.sources.kaldi_model_index import KaldiModelIndexSourceAdapter
+from modelome.sources.keras_convnext_weights import KerasConvNeXtWeightsSourceAdapter
 from modelome.sources.keras_hub_preset_registry import KerasHubPresetRegistrySourceAdapter
 from modelome.sources.lerobot_molmoact2_relation import (
     LeRobotMolmoAct2RelationSourceAdapter,
@@ -164,6 +171,7 @@ from modelome.sources.medigan_registry import MediganRegistrySourceAdapter
 from modelome.sources.meta_sam3_checkpoints import MetaSAM3CheckpointSourceAdapter
 from modelome.sources.microsoft_aurora_checkpoints import MicrosoftAuroraCheckpointSourceAdapter
 from modelome.sources.mindspore_registry import MindSporeModelZooSourceAdapter
+from modelome.sources.mlx_registry import MlxRegistrySourceAdapter
 from modelome.sources.modelscope import ModelScopeModelsSourceAdapter
 from modelome.sources.molecular_registry import OpenFoldCheckpointRegistrySourceAdapter
 from modelome.sources.moler_checkpoint import MoLeRCheckpointSourceAdapter
@@ -232,6 +240,7 @@ from modelome.sources.paddlegan_tutorial_model_zoo import (
 from modelome.sources.paddlehelix_gem_checkpoint import PaddleHelixGemCheckpointSourceAdapter
 from modelome.sources.paddlenlp_albert_registry import PaddleNlpAlbertRegistrySourceAdapter
 from modelome.sources.paddlenlp_ernie_registry import PaddleNlpErnieRegistrySourceAdapter
+from modelome.sources.paddlenlp_roformer_registry import PaddleNlpRoformerRegistrySourceAdapter
 from modelome.sources.paddlenlp_taskflow_knowledge_mining import (
     PaddleNlpTaskflowKnowledgeMiningSourceAdapter,
 )
@@ -288,6 +297,7 @@ from modelome.sources.rosettafold_checkpoints import RoseTTAFoldCheckpointAdapte
 from modelome.sources.satmae_checkpoint_registry import SatMAECheckpointRegistrySourceAdapter
 from modelome.sources.sdss_ssl_checkpoints import SdssSslCheckpointsSourceAdapter
 from modelome.sources.semantic_scholar import SemanticScholarDatasetSourceAdapter
+from modelome.sources.sevennet_pretrained_registry import SevenNetPretrainedRegistryAdapter
 from modelome.sources.sherpa_asr_model_release import SherpaAsrModelReleaseSourceAdapter
 from modelome.sources.sherpa_audio_tagging import SherpaAudioTaggingSourceAdapter
 from modelome.sources.sherpa_source_separation import SherpaSourceSeparationSourceAdapter
@@ -314,6 +324,7 @@ from modelome.sources.tensorflow_tpu_efficientnet import TensorFlowTPUEfficientN
 from modelome.sources.timm_legacy_byobnet import TimmLegacyByobNetSourceAdapter
 from modelome.sources.timm_legacy_efficientnet import TimmLegacyEfficientNetSourceAdapter
 from modelome.sources.timm_legacy_poolformer import TimmLegacyPoolFormerSourceAdapter
+from modelome.sources.timm_legacy_regnet import TimmLegacyRegNetSourceAdapter
 from modelome.sources.timm_legacy_resnetv2 import TimmLegacyResNetV2SourceAdapter
 from modelome.sources.timm_model_registry import TimmModelRegistrySourceAdapter
 from modelome.sources.torch_hub_extra import TorchHubListingSourceAdapter
@@ -335,12 +346,15 @@ from modelome.sources.ultralytics_release_checkpoints import (
 )
 from modelome.sources.unimol_checkpoint import UniMolCheckpointSourceAdapter
 from modelome.sources.utile_checkpoint_registry import UTilizeCheckpointRegistrySourceAdapter
+from modelome.sources.vision_registry_extra import OnnxModelZooHubSourceAdapter
+from modelome.sources.vitae_rsp_checkpoint_registry import VitaeRSPCheckpointRegistrySourceAdapter
 from modelome.sources.vq_diffusion import MicrosoftVqDiffusionCheckpointManifestSourceAdapter
 from modelome.sources.weathernext2_checkpoint_registry import (
     WeatherNext2CheckpointRegistrySourceAdapter,
 )
 from modelome.sources.wenet_model_zoo import WenetPretrainedModelSourceAdapter
 from modelome.sources.wsa_model_zoo import WSAModelZooSourceAdapter
+from modelome.sources.yandex_ddpm_ffhq_checkpoint import YandexDDPMFFHQCheckpointSourceAdapter
 from modelome.sources.yolox_model_zoo import YOLOXModelZooSourceAdapter
 from modelome.sources.zatom_checkpoint_registry import ZatomCheckpointRegistrySourceAdapter
 from modelome.sources.zatom_zenodo_checkpoint_record import (
@@ -1920,6 +1934,20 @@ def create_source(
             "msst_mel_roformer_experiments",
             "figshare_model_candidates_workflow",
             "demucs_pretrained_registry",
+            "mlx_registry",
+            "clay_legacy_checkpoint",
+            "onnx_model_zoo_hub",
+            "paddlenlp_roformer_registry",
+            "yandex_ddpm_ffhq_checkpoint",
+            "vitae_rsp_checkpoint_registry",
+            "sevennet_pretrained_registry",
+            "cogact_checkpoint_registry",
+            "biolm_registry",
+            "timm_legacy_regnet",
+            "asteroid_zenodo_models",
+            "deepinfra_model_catalog",
+            "dryad_model_candidates",
+            "keras_convnext_weights",
         }
         else _required_text(expanded, "url")
     )
@@ -3509,6 +3537,126 @@ def create_source(
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
             max_models=_integer(expanded.get("max_models"), 50),
             **injected,
+        )
+
+    if adapter == "mlx_registry":
+        return MlxRegistrySourceAdapter(**injected)
+
+    if adapter == "clay_legacy_checkpoint":
+        return ClayLegacyCheckpointSourceAdapter(
+            name=name,
+            url=_text(expanded.get("url"))
+            or "https://clay-foundation.github.io/model/clay-v0/model_embeddings.html",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "onnx_model_zoo_hub":
+        return OnnxModelZooHubSourceAdapter(
+            name=name,
+            url=_text(expanded.get("url"))
+            or "https://huggingface.co/api/models?author=onnxmodelzoo",
+            page_size=_integer(expanded.get("page_size"), 100),
+            max_entries=_integer(expanded.get("max_entries"), 5_000),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 16 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "paddlenlp_roformer_registry":
+        return PaddleNlpRoformerRegistrySourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "PaddlePaddle/PaddleNLP",
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_text(expanded.get("source_path"))
+            or "paddlenlp/transformers/roformer/configuration.py",
+            provider_namespace=_text(expanded.get("provider_namespace"))
+            or "paddlenlp:transformer-model",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "yandex_ddpm_ffhq_checkpoint":
+        return YandexDDPMFFHQCheckpointSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "yandex-research/ddpm-segmentation",
+            branch=_text(expanded.get("branch")) or "master",
+            document_path=_text(expanded.get("document_path")) or "README.md",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_checkpoints=_integer(expanded.get("max_checkpoints"), 10),
+            client=injected["client"],
+        )
+
+    if adapter == "vitae_rsp_checkpoint_registry":
+        return VitaeRSPCheckpointRegistrySourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "sevennet_pretrained_registry":
+        return SevenNetPretrainedRegistryAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "cogact_checkpoint_registry":
+        return CogACTCheckpointRegistryAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 8),
+            **injected,
+        )
+
+    if adapter == "biolm_registry":
+        return BioLMRegistrySourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "facebookresearch/bio-lm",
+            branch=_text(expanded.get("branch")) or "main",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "timm_legacy_regnet":
+        return TimmLegacyRegNetSourceAdapter(name=name, **injected)
+
+    if adapter == "asteroid_zenodo_models":
+        return AsteroidZenodoModelsAdapter(
+            name=name,
+            page_size=_integer(expanded.get("page_size"), 25),
+            max_records=_integer(expanded.get("max_records"), 500),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "deepinfra_model_catalog":
+        return DeepInfraModelCatalogAdapter(
+            name=name,
+            url=_text(expanded.get("url")) or "https://deepinfra.com/models",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            max_script_chars=_integer(expanded.get("max_script_chars"), 8 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 10_000),
+            client=injected["client"],
+        )
+
+    if adapter == "dryad_model_candidates":
+        return DryadModelCandidatesSourceAdapter(
+            name=name,
+            base_url=_text(expanded.get("base_url")) or "https://datadryad.org/api/v2",
+            page_size=_integer(expanded.get("page_size"), 10),
+            client=injected["client"],
+        )
+
+    if adapter == "keras_convnext_weights":
+        return KerasConvNeXtWeightsSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "keras-team/keras",
+            branch=_text(expanded.get("branch")) or "master",
+            source_path=_text(expanded.get("source_path")) or "keras/src/applications/convnext.py",
+            max_source_bytes=_integer(expanded.get("max_source_bytes"), 2 * 1024 * 1024),
+            max_records=_integer(expanded.get("max_records"), 20),
+            client=injected["client"],
         )
 
     raise ValueError(f"{name}: unknown source adapter {adapter!r}")

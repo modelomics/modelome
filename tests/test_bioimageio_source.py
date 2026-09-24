@@ -198,7 +198,8 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
                 },
                 "attachments": {
                     "files": [
-                        {"source": "onnx-metadata.bin", "sha256": "e" * 64}
+                        {"source": "onnx-metadata.bin", "sha256": "e" * 64},
+                        "quantization.json",
                     ]
                 },
             },
@@ -305,7 +306,8 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
             "external_data_source": "weights.onnx.data",
             "external_data_sha256": "d" * 64,
             "attachment_files": [
-                {"source": "onnx-metadata.bin", "sha256": "e" * 64}
+                {"source": "onnx-metadata.bin", "sha256": "e" * 64},
+                {"source": "quantization.json", "sha256": None},
             ],
         },
         {
@@ -337,6 +339,11 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
     assert (
         "weights",
         f"{ARTIFACT_BASE}/first-model/files/onnx-metadata.bin?version=v0",
+        False,
+    ) in relation_urls
+    assert (
+        "weights",
+        f"{ARTIFACT_BASE}/first-model/files/quantization.json?version=v0",
         False,
     ) in relation_urls
     assert (

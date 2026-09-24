@@ -1,0 +1,20 @@
+# Disabled proposal: Dryad provides a public phrase search and paginated file
+# metadata. This candidate source only returns explicit model-weight evidence.
+[[source]]
+name = "dryad-model-weight-candidates"
+adapter = "dryad_model_candidates"
+enabled = false
+base_url = "https://datadryad.org/api/v2"
+page_size = 1
+entry_tags = ["provider:dryad", "kind:model-artifact-candidate"]
+schedule = "manual"
+max_response_bytes = 8388608
+
+# Search is restricted to fixed model-weight and deep-learning phrases. A dataset
+# is emitted only when its metadata describes a learned model and its paginated file metadata
+# explicitly describes a checkpoint or model weights. This misses records that
+# uses different searchable wording. The API returns file metadata only; no files are fetched.
+# Dryad documents API accounts as receiving eight times the anonymous request rate,
+# but does not publish the anonymous numeric quota in its API guide. Keep this manual
+# and serial: each search page contains one dataset result, followed by sequential
+# metadata-only calls. On HTTP 429, retain the checkpoint and resume later.

@@ -98,6 +98,13 @@ class FigshareModelCandidatesWorkflow:
         window_state = state.get("window_state", {}) if state else {}
         if not isinstance(window_state, Mapping):
             raise ValueError(f"{self.name}: invalid current-window checkpoint")
+        restarts = _safe_count(state.get("token_window_restarts", 0)) if state else 0
+        restarting = _token_near_expiry(window_state, (self.clock or _utcnow)())
+        if restarting:
+            # Restart the exact same window from its first page. This can replay
+            # records, but never moves the date cursor past an uncompleted window.
+            window_state = {}
+            restarts += 1
         adapter = FigshareModelCandidatesSourceAdapter(
             name=self.name,
             oai_url=self.oai_url,
@@ -132,6 +139,7 @@ class FigshareModelCandidatesWorkflow:
             "workflow_signature": self.checkpoint_signature,
             "cursor": next_cursor.isoformat(),
             "window_state": dict(next_window_state),
+            "token_window_restarts": restarts,
             **totals,
         }
         return SourcePage(
@@ -156,6 +164,21 @@ def _safe_count(value: Any) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError("invalid inner window counters")
     return value
+
+
+def _token_near_expiry(state: Mapping[str, Any], now: datetime) -> bool:
+    """Restart the same window before its upstream token safety margin ends."""
+    expiration = state.get("token_expires_at")
+    if not state.get("resumption_token") or not isinstance(expiration, str):
+        return False
+    try:
+        expires_at = datetime.fromisoformat(expiration.replace("Z", "+00:00"))
+    except ValueError:
+        return False  # Let the page adapter report the malformed checkpoint.
+    if expires_at.tzinfo is None:
+        return False
+    now_utc = now.astimezone(UTC)
+    return expires_at.astimezone(UTC) - now_utc <= timedelta(minutes=5)
 
 
 def _counters(state: Mapping[str, Any]) -> dict[str, int]:

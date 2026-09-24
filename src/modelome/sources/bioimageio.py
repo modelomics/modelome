@@ -764,8 +764,6 @@ class BioImageIoSourceAdapter:
                 )
                 if _is_sequence(attachment_files):
                     for file_index, file_value in enumerate(attachment_files):
-                        if not isinstance(file_value, Mapping):
-                            continue
                         attachment_locator = (
                             "$.artifact.manifest.weights."
                             f"{weight_format}.attachments.files[{file_index}].source"
@@ -1103,11 +1101,20 @@ def _weight_metadata(value: Any) -> tuple[list[str], list[dict[str, Any]]]:
         if _is_sequence(attachment_files):
             source_entry["attachment_files"] = [
                 {
-                    "source": _text(file_value.get("source")) or None,
-                    "sha256": _optional_text(file_value.get("sha256"), 64),
+                    "source": (
+                        _text(file_value.get("source"))
+                        if isinstance(file_value, Mapping)
+                        else _text(file_value)
+                    )
+                    or None,
+                    "sha256": (
+                        _optional_text(file_value.get("sha256"), 64)
+                        if isinstance(file_value, Mapping)
+                        else None
+                    ),
                 }
                 for file_value in attachment_files
-                if isinstance(file_value, Mapping)
+                if isinstance(file_value, (Mapping, str))
             ]
         sources.append(source_entry)
     return formats, sources

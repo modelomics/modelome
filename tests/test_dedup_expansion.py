@@ -197,6 +197,37 @@ def test_generic_weights_link_does_not_join_checkpoint_identity() -> None:
     assert len(result.entries) == 2
 
 
+def test_official_demucs_checkpoint_url_joins_demucs_and_msst_weight_records() -> None:
+    url = "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th"
+    demucs = _seed(
+        "demucs-file",
+        [{"namespace": "demucs:pretrained-signature", "value": "955717e8"}],
+    )
+    demucs["source"] = "demucs-pretrained-checkpoints"
+    demucs["links"] = [{"url": url, "relation": "weights"}]
+    msst = _seed("msst-file", [{"namespace": "msst:checkpoint", "value": "htdemucs"}])
+    msst["source"] = "msst-pretrained-checkpoints"
+    msst["links"] = [{"url": url, "relation": "weights"}]
+
+    result = build_entries([demucs, msst])
+
+    assert len(result.entries) == 1
+    assert {member.source for member in result.entries[0].members} == {
+        "demucs-pretrained-checkpoints",
+        "msst-pretrained-checkpoints",
+    }
+
+
+def test_demucs_checkpoint_identity_url_requires_manifest_shaped_path() -> None:
+    url = "https://dl.fbaipublicfiles.com/demucs/shared/tokenizer.th"
+    first = _seed("demucs-file", [])
+    first["links"] = [{"url": url, "relation": "weights"}]
+    second = _seed("msst-file", [])
+    second["links"] = [{"url": url, "relation": "weights"}]
+
+    assert len(build_entries([first, second]).entries) == 2
+
+
 def test_checkpoint_url_does_not_join_ambiguous_multi_model_catalog_link() -> None:
     first = _seed("source-a", [])
     first["source"] = "catalog-a"

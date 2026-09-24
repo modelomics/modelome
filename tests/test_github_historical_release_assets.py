@@ -311,22 +311,22 @@ def test_range_planner_supports_documented_page_and_item_caps() -> None:
     assert adapter.max_api_requests == plan.max_api_requests
 
 
-def test_planner_bounds_wider_release_scan_by_retry_inclusive_request_budget() -> None:
+def test_planner_bounds_thousand_release_scan_by_retry_inclusive_budget() -> None:
     plan = plan_github_repository_id_ranges(
         initial_since=10,
         max_repository_id=12,
         shard_count=1,
-        max_releases_per_repository=200,
-        max_release_pages_per_repository=2,
-        max_asset_pages_per_release=10,
+        max_releases_per_repository=1_000,
+        max_release_pages_per_repository=10,
+        max_asset_pages_per_release=1,
         max_http_attempts=4,
-        max_api_requests_per_range=16_020,
+        max_api_requests_per_range=8_084,
     )[0]
     adapter = GitHubHistoricalReleaseAssetsSourceAdapter(**plan.adapter_kwargs())
 
-    assert plan.max_releases_per_repository == 200
-    assert plan.max_page_requests == 4_005
-    assert plan.max_api_requests == adapter.max_api_requests == 16_020
+    assert plan.max_releases_per_repository == 1_000
+    assert plan.max_page_requests == 2_021
+    assert plan.max_api_requests == adapter.max_api_requests == 8_084
 
     repo_url = "https://api.github.com/repositories?per_page=100&since=10"
     releases_url = "https://api.github.com/repos/lab/model/releases?per_page=100&page=1"
@@ -346,8 +346,9 @@ def test_planner_bounds_wider_release_scan_by_retry_inclusive_request_budget() -
         initial_since=10,
         max_repository_id=12,
         max_repositories=1,
-        max_releases_per_repository=200,
-        max_release_pages_per_repository=2,
+        max_releases_per_repository=1_000,
+        max_release_pages_per_repository=10,
+        max_asset_pages_per_release=1,
         client=RouteClient(
             {
                 repo_url: ([{"id": 11, "full_name": "lab/model", "private": False}], {}),
@@ -370,7 +371,7 @@ def test_planner_bounds_wider_release_scan_by_retry_inclusive_request_budget() -
             max_release_pages_per_repository=2,
             max_asset_pages_per_release=10,
             max_http_attempts=4,
-            max_api_requests_per_range=16_019,
+            max_api_requests_per_range=8_083,
         )
 
 

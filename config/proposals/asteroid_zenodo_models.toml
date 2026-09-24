@@ -1,0 +1,18 @@
+# Asteroid's Zenodo community holds checkpoint and other research records; the
+# adapter indexes only records with one .pth model checkpoint.
+[[source]]
+name = "asteroid-zenodo-models"
+adapter = "asteroid_zenodo_models"
+enabled = false
+community = "asteroid-models"
+api_url = "https://zenodo.org/api/records?communities=asteroid-models"
+community_url = "https://zenodo.org/communities/asteroid-models"
+repository_url = "https://github.com/asteroid-team/asteroid"
+entry_tags = ["ecosystem:asteroid", "modality:audio", "task:source-separation", "kind:checkpoint"]
+schedule = "weekly"
+page_size = 25
+max_records = 500
+max_response_bytes = 8388608
+
+# Zenodo record/file metadata provides each checkpoint's file name, content
+# endpoint, checksum, and byte size. Non-checkpoint community records are omitted.

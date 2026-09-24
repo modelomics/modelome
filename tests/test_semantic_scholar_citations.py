@@ -150,6 +150,12 @@ def test_checkpoint_cannot_be_reused_for_another_paper_or_direction():
         _adapter(_Client([])).fetch_page(state)
 
 
+def test_unsigned_completed_checkpoint_cannot_skip_the_citation_bootstrap():
+    adapter = _adapter(_Client([]))
+    with pytest.raises(ValueError, match="missing its query signature"):
+        adapter.fetch_page({"done": True})
+
+
 def test_invalid_urls_and_page_size_are_rejected():
     with pytest.raises(ValueError, match="HTTPS"):
         SemanticScholarCitationGraphAdapter(
