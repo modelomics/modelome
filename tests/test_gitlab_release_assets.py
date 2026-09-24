@@ -149,6 +149,59 @@ def test_discovers_pytorch_mobile_ptl_release_asset() -> None:
     assert release_page.records[0].canonical_url.endswith("qwen2.5-7b-mobile.ptl")
 
 
+@pytest.mark.parametrize("suffix", [".engine", ".plan", ".rtxplan"])
+def test_discovers_tensorrt_serialized_engine_release_assets(suffix: str) -> None:
+    filename = f"qwen2.5-7b{suffix}"
+    client = QueuedClient(
+        response([project()]),
+        response(
+            [
+                release(
+                    {
+                        "id": 12,
+                        "name": filename,
+                        "url": f"https://gitlab.com/lab/qwen-model/-/releases/v1.0/downloads/{filename}",
+                        "link_type": "package",
+                    }
+                )
+            ],
+            url="https://gitlab.com/api/v4/projects/42/releases?per_page=100",
+        ),
+    )
+    adapter = GitLabPublicReleaseAssetsSourceAdapter(client=client)
+
+    projects_page = adapter.fetch_page({})
+    release_page = adapter.fetch_page(projects_page.next_state)
+
+    assert len(release_page.records) == 1
+    assert release_page.records[0].canonical_url.endswith(filename)
+
+
+def test_does_not_discover_safetensors_split_index_as_weight_file() -> None:
+    client = QueuedClient(
+        response([project()]),
+        response(
+            [
+                release(
+                    {
+                        "id": 13,
+                        "name": "model.safetensors.index.json",
+                        "url": "https://gitlab.com/lab/qwen-model/-/releases/v1.0/downloads/model.safetensors.index.json",
+                        "link_type": "package",
+                    }
+                )
+            ],
+            url="https://gitlab.com/api/v4/projects/42/releases?per_page=100",
+        ),
+    )
+    adapter = GitLabPublicReleaseAssetsSourceAdapter(client=client)
+
+    projects_page = adapter.fetch_page({})
+    release_page = adapter.fetch_page(projects_page.next_state)
+
+    assert release_page.records == ()
+
+
 def test_release_pagination_is_checkpointed_one_request_at_a_time() -> None:
     next_url = "https://gitlab.com/api/v4/projects/42/releases?pagination=keyset&id_after=1"
     client = QueuedClient(

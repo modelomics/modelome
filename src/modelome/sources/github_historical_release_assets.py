@@ -3,7 +3,8 @@
 This adapter supplements GH Archive: it can discover assets on old releases and
 assets added after the original ReleaseEvent. It calls only GitHub's public REST
 API and never fetches release bytes. The scan is deliberately finite: callers
-choose a closed numeric repository-ID range and a maximum repository count.
+choose an exclusive lower repository-ID cursor, an inclusive upper ID, and a
+maximum repository count.
 """
 
 from __future__ import annotations
@@ -33,14 +34,18 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
     the repository, release, and asset cursors plus bounded queues (at most one
     GitHub API page each). The finite API-call ceiling is
     ``ceil(max_repositories / page_size) + max_repositories *
-    (ceil(max_releases_per_repository / page_size) +
-    max_releases_per_repository * ceil(max_assets_per_release / page_size))``.
+    (max_release_pages_per_repository + max_releases_per_repository *
+    max_asset_pages_per_release)`` endpoint requests. ``max_api_requests`` also
+    includes the retry-attempt ceiling of the default HTTP client. Page caps are
+    separate from item caps because an API page can contain fewer rows than
+    requested.
     """
 
     name = "github-historical-release-assets"
     disable_derived_extraction = True
     coverage_limitation = (
-        "Scans only public repositories in the configured closed numeric-ID range, "
+        "Scans only public repositories with IDs greater than initial_since and "
+        "at most max_repository_id, "
         "up to max_repositories in GitHub's public-repository order. It inspects "
         "release pages and their explicit asset metadata only; it does not scan "
         "repository files, download assets, or prove that a release remains public. "
@@ -58,6 +63,8 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
         page_size: int = _PAGE_SIZE,
         max_releases_per_repository: int = 10,
         max_assets_per_release: int = 100,
+        max_release_pages_per_repository: int = 10,
+        max_asset_pages_per_release: int = 10,
         token: str | None = None,
         client: HttpClient | Any | None = None,
     ) -> None:
@@ -84,16 +91,39 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
             minimum=1,
             maximum=1_000,
         )
+        self.max_release_pages_per_repository = _integer(
+            max_release_pages_per_repository,
+            "max_release_pages_per_repository",
+            minimum=1,
+            maximum=100,
+        )
+        self.max_asset_pages_per_release = _integer(
+            max_asset_pages_per_release,
+            "max_asset_pages_per_release",
+            minimum=1,
+            maximum=100,
+        )
         if token is not None and (not isinstance(token, str) or not token.strip()):
             raise ValueError("token must be nonempty text when provided")
         self.token = token.strip() if token is not None else None
         self.client = client or HttpClient()
-        self.max_api_requests = math.ceil(
-            self.max_repositories / self.page_size
-        ) + self.max_repositories * (
-            math.ceil(self.max_releases_per_repository / self.page_size)
-            + self.max_releases_per_repository * math.ceil(self.max_assets_per_release / _PAGE_SIZE)
+        self.max_page_requests = math.ceil(self.max_repositories / self.page_size) + (
+            self.max_repositories
+            * (
+                self.max_release_pages_per_repository
+                + self.max_releases_per_repository * self.max_asset_pages_per_release
+            )
         )
+        # HttpClient retries transient/rate-limit responses without committing
+        # adapter state. Custom clients are assumed single-attempt unless they
+        # expose their retry-attempt count.
+        self.max_http_attempts = _integer(
+            getattr(self.client, "attempts", 1),
+            "HTTP client attempts",
+            minimum=1,
+            maximum=10,
+        )
+        self.max_api_requests = self.max_page_requests * self.max_http_attempts
         self.checkpoint_signature = content_hash(
             {
                 "adapter": "github-historical-release-assets-v1",
@@ -104,6 +134,9 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
                 "page_size": self.page_size,
                 "max_releases_per_repository": self.max_releases_per_repository,
                 "max_assets_per_release": self.max_assets_per_release,
+                "max_release_pages_per_repository": self.max_release_pages_per_repository,
+                "max_asset_pages_per_release": self.max_asset_pages_per_release,
+                "max_api_requests": self.max_api_requests,
                 "authenticated": bool(self.token),
             }
         )
@@ -264,7 +297,11 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
         if not _sequence(payload) or len(payload) > self.page_size:
             raise ValueError("GitHub public repository response is not a bounded JSON array")
         queue: list[dict[str, Any]] = []
-        last_id = _integer(state.get("last_repository_id", 0), "last_repository_id", minimum=0)
+        last_id = _integer(
+            state.get("last_repository_id", self.initial_since),
+            "last_repository_id",
+            minimum=0,
+        )
         range_done = False
         for row in payload:
             if not isinstance(row, Mapping):
@@ -283,18 +320,21 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
             queue.append({"id": repo_id, "full_name": full_name})
             last_id = repo_id
         next_link = _link_next(_header(response.headers, "link"))
-        if queue and not range_done and repos_seen + len(queue) < self.max_repositories:
-            if next_link:
-                next_link = self._safe_url(next_link, f"{_API}/repositories")
-                cursor = _integer(
-                    dict(parse_qsl(urlsplit(next_link).query)).get("since"),
-                    "repository next cursor",
-                    minimum=1,
-                )
-                if cursor != last_id:
-                    raise ValueError("GitHub repository cursor does not match last observed ID")
-        else:
+        if not queue:
+            if next_link and not range_done:
+                raise ValueError("GitHub repository page supplied a next cursor without a row")
             next_link = None
+        elif range_done or repos_seen + len(queue) >= self.max_repositories:
+            next_link = None
+        elif next_link:
+            next_link = self._safe_url(next_link, f"{_API}/repositories")
+            cursor = _integer(
+                dict(parse_qsl(urlsplit(next_link).query)).get("since"),
+                "repository next cursor",
+                minimum=1,
+            )
+            if cursor != last_id:
+                raise ValueError("GitHub repository cursor does not match last observed ID")
         next_state = dict(state)
         next_state.update(
             {
@@ -363,7 +403,10 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
         release_truncated = bool(
             len(payload) > remaining_releases
             or next_link
-            and releases_seen + len(releases) >= self.max_releases_per_repository
+            and (
+                releases_seen + len(releases) >= self.max_releases_per_repository
+                or release_page >= self.max_release_pages_per_repository
+            )
         )
         if release_truncated:
             next_link = None
@@ -456,7 +499,10 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
         assets_truncated = bool(
             len(payload) > remaining_assets
             or next_link
-            and assets_seen + len(page_assets) >= self.max_assets_per_release
+            and (
+                assets_seen + len(page_assets) >= self.max_assets_per_release
+                or asset_page >= self.max_asset_pages_per_release
+            )
         )
         if assets_truncated:
             next_link = None

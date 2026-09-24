@@ -118,6 +118,19 @@ def test_bounded_historical_scan_pages_repository_release_and_assets() -> None:
         pytest.fail("bounded scan did not complete")
 
     candidates = [record for page in pages for record in page.records]
+    print(
+        "scan debug",
+        client.calls,
+        [
+            (
+                p.complete,
+                p.next_state.get("current_release"),
+                p.next_state.get("asset_next_url"),
+                p.next_state.get("release_queue"),
+            )
+            for p in pages
+        ],
+    )
     assert [record.source_record_id for record in candidates] == [
         "github-release-asset:101:501:602"
     ]
@@ -142,8 +155,10 @@ def test_historical_scan_caps_are_explicit_and_bounded() -> None:
         page_size=2,
         max_releases_per_repository=20,
         max_assets_per_release=100,
+        max_asset_pages_per_release=1,
     )
-    assert adapter.max_api_requests == 3 + 5 * (10 + 20)
+    assert adapter.max_page_requests == 3 + 5 * (10 + 20)
+    assert adapter.max_api_requests == adapter.max_page_requests * 4
 
 
 def test_named_id_ranges_have_distinct_checkpoints() -> None:
@@ -162,6 +177,50 @@ def test_named_id_ranges_have_distinct_checkpoints() -> None:
 
     assert lower.name != upper.name
     assert lower.checkpoint_signature != upper.checkpoint_signature
+
+
+def test_numeric_cursor_allows_id_gaps_but_rejects_rows_below_lower_cursor() -> None:
+    url = "https://api.github.com/repositories?per_page=2&since=100"
+    adapter = GitHubHistoricalReleaseAssetsSourceAdapter(
+        initial_since=100,
+        max_repository_id=200,
+        max_repositories=2,
+        page_size=2,
+        client=RouteClient(
+            {url: ([{"id": 107, "full_name": "lab/after-gap", "private": False}], {})}
+        ),
+    )
+
+    page = adapter.fetch_page({})
+
+    assert page.next_state["last_repository_id"] == 107
+    assert page.next_state["repo_queue"] == [{"id": 107, "full_name": "lab/after-gap"}]
+
+    invalid = GitHubHistoricalReleaseAssetsSourceAdapter(
+        initial_since=100,
+        max_repository_id=200,
+        max_repositories=2,
+        page_size=2,
+        client=RouteClient(
+            {url: ([{"id": 99, "full_name": "lab/before-cursor", "private": False}], {})}
+        ),
+    )
+    with pytest.raises(ValueError, match="IDs did not advance"):
+        invalid.fetch_page({})
+
+
+def test_empty_repository_page_cannot_claim_completion_with_next_cursor() -> None:
+    url = "https://api.github.com/repositories?per_page=2&since=100"
+    next_url = "https://api.github.com/repositories?per_page=2&since=100"
+    adapter = GitHubHistoricalReleaseAssetsSourceAdapter(
+        initial_since=100,
+        max_repository_id=200,
+        page_size=2,
+        client=RouteClient({url: ([], {"Link": f'<{next_url}>; rel="next"'})}),
+    )
+
+    with pytest.raises(ValueError, match="next cursor without a row"):
+        adapter.fetch_page({})
 
 
 def test_exact_full_terminal_pages_without_link_are_accepted() -> None:

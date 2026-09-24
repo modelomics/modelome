@@ -1,0 +1,15 @@
+# Microsoft's first-party Graphormer pretrain module maps four exact names to
+# direct .pt artifact URLs. The source marks the OC20 artifact temporarily unavailable.
+[[source]]
+name = "microsoft-graphormer-pretrained-checkpoints"
+adapter = "graphormer_checkpoint_registry"
+enabled = false
+entry_tags = ["field:graph-machine-learning", "ecosystem:microsoft-graphormer", "kind:checkpoint"]
+repository = "microsoft/Graphormer"
+branch = "main"
+source_path = "graphormer/pretrain/__init__.py"
+mapping_variable = "PRETRAINED_MODEL_URLS"
+provider_namespace = "microsoft-graphormer:checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100

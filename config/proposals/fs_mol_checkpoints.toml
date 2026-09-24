@@ -1,0 +1,14 @@
+# Microsoft's first-party FS-Mol README lists three released checkpoint files.
+[[source]]
+name = "fs-mol-checkpoints"
+adapter = "fs_mol_checkpoints"
+enabled = false
+repository = "microsoft/FS-Mol"
+branch = "main"
+source_path = "README.md"
+entry_tags = ["field:computational-chemistry", "ecosystem:fs-mol", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# The README links GNN-MAML, GNN-MT, and PN to exact public Figshare file IDs.
+# The adapter records file URLs without downloading checkpoint bytes.

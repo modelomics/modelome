@@ -457,6 +457,35 @@ def test_deleted_notes_become_tombstones_and_withdrawals_remain_evidence() -> No
     }
 
 
+@pytest.mark.parametrize("stage", ["v1", "v2"])
+def test_venueid_is_preserved_as_identity_and_withdrawal_evidence(stage: str) -> None:
+    content = {
+        "title": "A withdrawn paper with a checkpoint",
+        "abstract": "The checkpoint link remains source evidence.",
+        "authors": ["Model Author"],
+        "venueid": "Example.org/2026/Withdrawn",
+        "model_checkpoint": "/attachment?id=status-paper&name=checkpoint",
+    }
+    note_factory = v1_note if stage == "v1" else v2_note
+    note = note_factory("status-paper", content=content)
+    state = {} if stage == "v1" else v2_state()
+    page = adapter(QueueClient(response([note], count=1))).fetch_page(state)
+
+    record = page.records[0]
+    assert {
+        "field": "venueid",
+        "value": "Example.org/2026/Withdrawn",
+    } in record.raw["identity_evidence"]["content_ids"]
+    assert any(
+        evidence["locator"] == "$.content.venueid"
+        for evidence in record.raw["lifecycle"]["withdrawal_evidence"]
+    )
+    assert any(
+        link.relation == "weights" and not link.crawl
+        for link in record.links
+    )
+
+
 def test_malformed_note_is_quarantined_at_the_same_page_boundary() -> None:
     malformed = v1_note()
     malformed.pop("id")
@@ -714,5 +743,38 @@ def test_historical_edit_attachment_url_uses_name_for_checkpoint_relation() -> N
         == "https://openreview.net/notes/edits/attachment?id=historical-edit&name=model_weights"
         and link.relation == "weights"
         and not link.crawl
+        for link in page.records[0].links
+    )
+
+
+@pytest.mark.parametrize(
+    ("attachment_url", "expected_url"),
+    [
+        (
+            "https://api2.openreview.net/groups/attachment?id=Venue/2026&name=model_weights",
+            "https://api2.openreview.net/groups/attachment?id=Venue%2F2026&name=model_weights",
+        ),
+        (
+            "/invitations/attachment?id=Venue/2026/-/Submission&name=checkpoint",
+            "https://openreview.net/invitations/attachment"
+            "?id=Venue%2F2026%2F-%2FSubmission&name=checkpoint",
+        ),
+    ],
+)
+def test_group_and_invitation_attachment_routes_use_named_model_field(
+    attachment_url: str, expected_url: str
+) -> None:
+    note = v2_note(
+        content={
+            "title": "A paper with a venue model artifact",
+            "abstract": "The artifact is attached to OpenReview metadata.",
+            "authors": ["Model Author"],
+            "artifact": attachment_url,
+        }
+    )
+    page = adapter(QueueClient(response([note], count=1))).fetch_page(v2_state())
+
+    assert any(
+        link.url == expected_url and link.relation == "weights" and not link.crawl
         for link in page.records[0].links
     )

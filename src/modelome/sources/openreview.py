@@ -860,7 +860,7 @@ class OpenReviewSourceAdapter:
         content_ids: list[dict[str, str]] = []
         for raw_key, value in content.items():
             key = _field_key(raw_key)
-            if key == "id" or key.endswith("_id") or key.endswith("_ids"):
+            if key in {"id", "venueid"} or key.endswith("_id") or key.endswith("_ids"):
                 for item in _text_scalars(value):
                     if len(item) <= _MAX_CURSOR_LENGTH:
                         content_ids.append({"field": raw_key, "value": item})
@@ -1161,11 +1161,19 @@ def _attachment_field(key: str) -> bool:
 def _openreview_attachment_name(value: str, *, web_base_url: str) -> str | None:
     """Return the field name from an OpenReview attachment route."""
     parts = urlsplit(value)
-    if parts.path.rstrip("/") not in {"/attachment", "/notes/edits/attachment"}:
+    if parts.path.rstrip("/") not in {
+        "/attachment",
+        "/notes/edits/attachment",
+        "/groups/attachment",
+        "/invitations/attachment",
+    }:
         return None
     if parts.scheme or parts.netloc:
         base = urlsplit(web_base_url)
-        if parts.scheme not in {"http", "https"} or parts.hostname != base.hostname:
+        known_hosts = {base.hostname}
+        if base.hostname == "openreview.net":
+            known_hosts.update({"api.openreview.net", "api2.openreview.net"})
+        if parts.scheme not in {"http", "https"} or parts.hostname not in known_hosts:
             return None
     elif not value.startswith("/"):
         return None

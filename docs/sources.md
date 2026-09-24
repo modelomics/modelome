@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **336 enabled
-source entries** (321 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **356 enabled
+source entries** (341 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's

@@ -710,7 +710,10 @@ class HuggingFaceSourceAdapter:
 
         if isinstance(card_data, Mapping):
             card_data_locator = "$.cardData" if "cardData" in item else "$.card_data"
-            for index, value in enumerate(_sequence(card_data.get("datasets"))):
+            dataset_values = card_data.get("datasets")
+            is_single_dataset = isinstance(dataset_values, str)
+            dataset_values = (dataset_values,) if is_single_dataset else _sequence(dataset_values)
+            for index, value in enumerate(dataset_values):
                 dataset_id = _hub_repo_id(value)
                 if not dataset_id:
                     continue
@@ -721,7 +724,11 @@ class HuggingFaceSourceAdapter:
                     Link(
                         dataset_url,
                         relation="dataset",
-                        locator=f"{card_data_locator}.datasets[{index}]",
+                        locator=(
+                            f"{card_data_locator}.datasets"
+                            if is_single_dataset
+                            else f"{card_data_locator}.datasets[{index}]"
+                        ),
                     )
                 )
                 identifiers.append(Identifier("huggingface:dataset", dataset_id))
@@ -909,8 +916,13 @@ def _model_identity(value: str) -> tuple[str, tuple[Identifier, ...]]:
         and identifier.namespace == "huggingface:model"
     ):
         return identifier.value, (identifier,)
-    if "/" in value and not any(character.isspace() for character in value):
+    # Relation metadata can contain arbitrary URLs as well as repo IDs. Only
+    # treat a literal owner/repo pair as a Hub model identity; otherwise an
+    # external URL (or a dataset/Space URL) would be promoted to a fake model.
+    if _hub_repo_id(value):
         return value, (Identifier("huggingface:model", value),)
+    if "://" in value or value.startswith("/"):
+        return "", ()
     return value, ()
 
 

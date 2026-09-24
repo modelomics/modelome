@@ -370,7 +370,11 @@ class DataCiteSourceAdapter:
             text="\n\n".join(text_parts),
             published_at=_published_date(attributes),
             modified_at=_scalar_text(attributes.get("updated")) or None,
-            identifiers=(Identifier("doi", doi),),
+            identifiers=tuple(
+                dict.fromkeys(
+                    (Identifier("doi", doi), *_identical_related_dois(attributes))
+                )
+            ),
             links=_unique_links(_links(attributes, doi_url, primary_url)),
         )
 
@@ -438,6 +442,22 @@ def _links(
             relation=_relation_name(raw.get("relationType")),
             locator=f"$.attributes.relatedIdentifiers[{index}].relatedIdentifier",
         )
+
+
+def _identical_related_dois(attributes: Mapping[str, Any]) -> tuple[Identifier, ...]:
+    """Expose only DataCite DOIs that the depositor marks as identical."""
+
+    identifiers: list[Identifier] = []
+    for related in _sequence(attributes.get("relatedIdentifiers")):
+        if not isinstance(related, Mapping):
+            continue
+        if _relation_name(related.get("relationType")) != "is_identical_to":
+            continue
+        if _text(related.get("relatedIdentifierType")).casefold() != "doi":
+            continue
+        if doi := _optional_doi(related.get("relatedIdentifier")):
+            identifiers.append(Identifier("doi", doi))
+    return tuple(dict.fromkeys(identifiers))
 
 
 def _next_cursor(

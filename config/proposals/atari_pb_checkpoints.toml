@@ -1,0 +1,17 @@
+# Official Atari-PB repository points to a fixed Zenodo record containing exact
+# algorithm checkpoint files and a separate Far-OOD dataset archive. The adapter
+# reads the Zenodo record metadata and indexes the 12 named .pth model files only.
+[[source]]
+name = "atari-pb-checkpoints"
+adapter = "atari_pb_checkpoints"
+enabled = false
+entry_tags = ["field:reinforcement-learning", "ecosystem:atari-pb", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_files = 100
+
+[evidence]
+official_repository = "https://github.com/dojeon-ai/Atari-PB"
+record = "https://zenodo.org/records/16981616"
+record_api = "https://zenodo.org/api/records/16981616"
+record_doi = "10.5281/zenodo.16981616"

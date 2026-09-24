@@ -1,0 +1,44 @@
+# Voyage's first-party API docs enumerate exact public model IDs in dedicated
+# model-choice tables, including models the provider labels as older but still
+# accessible. These docs are public and do not expose account-specific models.
+[[source]]
+name = "voyage-embedding-model-documentation"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:voyage-ai", "kind:hosted-model", "modality:embedding"]
+url = "https://docs.voyageai.com/docs/embeddings"
+provider_namespace = "voyage:model"
+artifact_kind = "model_card"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model \| Context Length \(tokens\) \| Embedding Dimension \| Description$'
+name_column = 0
+name_pattern = '^(?P<name>voyage-[a-z0-9.-]+)$'
+identity_source = "name"
+require_url = false
+
+[[source]]
+name = "voyage-reranker-model-documentation"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:voyage-ai", "kind:hosted-model", "modality:reranking"]
+url = "https://docs.voyageai.com/docs/reranker"
+provider_namespace = "voyage:model"
+artifact_kind = "model_card"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model \| Context Length \(tokens\) \| Description$'
+name_column = 0
+name_pattern = '^(?:\(In Preview\) )?(?P<name>rerank-[a-z0-9.-]+)$'
+identity_source = "name"
+require_url = false

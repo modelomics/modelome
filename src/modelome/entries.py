@@ -25,6 +25,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from modelome.models import SourceRecord
 from modelome.normalize import canonicalize_url, content_hash, identifier_from_url, normalize_name
@@ -510,6 +511,38 @@ def build_entries(seeds: Iterable[Mapping[str, Any]]) -> EntryBuildResult:
                 owner = identifier_owner.get(identifier.key)
                 if owner is not None:
                     union.union(index, owner)
+
+    # Some provider documentation pages explicitly link their corresponding
+    # Hugging Face model card. Treat that direct, exact model-card URL as an
+    # identity bridge, but ignore collection/subpath URLs and links shared by
+    # multiple model candidates in one source record.
+    hf_card_owners: dict[str, list[int]] = defaultdict(list)
+    for index, candidate in enumerate(candidates):
+        urls = {
+            resource.url
+            for resource in candidate.resources
+            if resource.relation.casefold() == "model_card"
+            and (resource.source, resource.source_record_id)
+            == (candidate.source, candidate.source_record_id)
+            and _direct_huggingface_model_card_identifier(resource.url) is not None
+        }
+        for url in urls:
+            hf_card_owners[url].append(index)
+    for url, owners in hf_card_owners.items():
+        records_by_url: dict[tuple[str, str], int] = {}
+        for index in owners:
+            candidate = candidates[index]
+            record_key = (candidate.source, candidate.source_record_id)
+            records_by_url[record_key] = records_by_url.get(record_key, 0) + 1
+        for index in owners:
+            candidate = candidates[index]
+            if records_by_url[(candidate.source, candidate.source_record_id)] > 1:
+                continue
+            identifier = _direct_huggingface_model_card_identifier(url)
+            assert identifier is not None
+            target = identifier_owner.get(identifier.key)
+            if target is not None:
+                union.union(index, target)
 
     # A source-declared direct checkpoint URL can bridge otherwise unrelated
     # catalog identities when independent sources point to the same artifact.
@@ -1351,6 +1384,23 @@ def _canonical_url(value: Any, field: str) -> str:
     if not canonical.startswith(("http://", "https://")):
         raise ValueError(f"{field} must be an absolute HTTP(S) URL")
     return canonical
+
+
+def _direct_huggingface_model_card_identifier(url: str) -> EntryIdentifier | None:
+    canonical = canonicalize_url(url)
+    parts = urlsplit(canonical)
+    if (
+        parts.scheme not in {"http", "https"}
+        or (parts.hostname or "").casefold() not in {"huggingface.co", "www.huggingface.co"}
+    ):
+        return None
+    segments = [segment for segment in parts.path.split("/") if segment]
+    if len(segments) != 2:
+        return None
+    identifier = identifier_from_url(canonical)
+    if identifier is None or identifier.namespace != "huggingface:model":
+        return None
+    return _identifiers([asdict(identifier)], "Hugging Face model card identifier")[0]
 
 
 def _required_text(value: Any, field: str) -> str:

@@ -1,0 +1,41 @@
+# TensorFlow Models publishes direct AudioSet assets in the YAMNet and VGGish
+# first-party READMEs. The reader preserves the explicit checkpoint map and
+# VGGish's required PCA asset without fetching weight bytes.
+[[source]]
+name = "tensorflow-audioset-yamnet-checkpoint"
+adapter = "tensorflow_audioset_checkpoints"
+enabled = false
+entry_tags = [
+  "field:audio-machine-learning",
+  "task:audio-event-classification",
+  "ecosystem:tensorflow",
+  "kind:checkpoint",
+]
+repository = "tensorflow/models"
+branch = "master"
+document_path = "research/audioset/yamnet/README.md"
+schedule = "weekly"
+max_bytes = 2097152
+
+[[source]]
+name = "tensorflow-audioset-vggish-checkpoint"
+adapter = "tensorflow_audioset_checkpoints"
+enabled = false
+entry_tags = [
+  "field:audio-machine-learning",
+  "task:audio-embedding",
+  "ecosystem:tensorflow",
+  "kind:checkpoint",
+]
+repository = "tensorflow/models"
+branch = "master"
+document_path = "research/audioset/vggish/README.md"
+schedule = "weekly"
+max_bytes = 2097152
+
+[evidence]
+yamnet_model_index = "https://github.com/tensorflow/models/blob/master/research/audioset/yamnet/README.md"
+yamnet_weights = "https://storage.googleapis.com/audioset/yamnet.h5"
+vggish_model_index = "https://github.com/tensorflow/models/blob/master/research/audioset/vggish/README.md"
+vggish_checkpoint = "https://storage.googleapis.com/audioset/vggish_model.ckpt"
+vggish_pca_parameters = "https://storage.googleapis.com/audioset/vggish_pca_params.npz"

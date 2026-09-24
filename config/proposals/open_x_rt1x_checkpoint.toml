@@ -1,0 +1,18 @@
+# Open X-Embodiment documents one RT-1-X JAX checkpoint in a public GCS prefix.
+# This adapter lists and records exact object names under that prefix only.
+[[source]]
+name = "open-x-rt1x-checkpoint"
+adapter = "open_x_rt1x_checkpoint"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:open-x-embodiment", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 8388608
+max_files = 5000
+max_pages = 50
+
+# First-party download instructions:
+# https://github.com/google-deepmind/open_x_embodiment/blob/main/README.md
+# gs://gdm-robotics-open-x-embodiment/open_x_embodiment_and_rt_x_oss/rt_1_x_jax/
+# The adapter enumerates only that fixed model prefix via the public GCS JSON API.
+# It does not fetch checkpoint bytes, index datasets, or include RT-2 (no weights
+# were found in the official release materials).

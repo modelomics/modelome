@@ -19,9 +19,12 @@ from modelome.sources.alphachip_rl_checkpoint import AlphaChipRlCheckpointAdapte
 from modelome.sources.alphafold_registry import AlphaFoldParameterArchiveSourceAdapter
 from modelome.sources.arxiv import ArxivSourceAdapter
 from modelome.sources.arxiv_snapshot import ArxivCompleteSnapshotSourceAdapter
+from modelome.sources.astronn_gaia_release import AstroNNGaiaReleaseSourceAdapter
+from modelome.sources.atari_pb_checkpoints import AtariPbCheckpointAdapter
 from modelome.sources.audio_extra import CoquiTtsRegistrySourceAdapter
 from modelome.sources.aws_bedrock_region_matrix import AwsBedrockRegionMatrixAdapter
 from modelome.sources.base import SourceAdapter
+from modelome.sources.bfl_api_models import BFLAPIModelsSourceAdapter
 from modelome.sources.bioimageio import BioImageIoSourceAdapter
 from modelome.sources.biomedical_registry import StarDistPretrainedRegistrySourceAdapter
 from modelome.sources.biorxiv import BioRxivPublicationSourceAdapter, BioRxivSourceAdapter
@@ -43,14 +46,17 @@ from modelome.sources.csv_source import CsvSourceAdapter
 from modelome.sources.datacite import DataCiteSourceAdapter
 from modelome.sources.deepchem_checkpoint import DeepChemMol2VecCheckpointSourceAdapter
 from modelome.sources.detectron2_model_zoo import Detectron2ModelZooSourceAdapter
+from modelome.sources.dgl_core_tutorial_checkpoint import DGLCoreTutorialCheckpointSourceAdapter
 from modelome.sources.dgl_lifesci_registry import DglLifeSciCheckpointRegistrySourceAdapter
 from modelome.sources.dipy_registry import DipyPretrainedRegistrySourceAdapter
 from modelome.sources.dopamine_checkpoint_bundles import DopamineCheckpointBundleAdapter
 from modelome.sources.eartharxiv import EarthArxivSourceAdapter
+from modelome.sources.esa_fm4cs import EsaFm4csSourceAdapter
 from modelome.sources.espnet_model_zoo import EspnetModelZooSourceAdapter
 from modelome.sources.europe_pmc import EuropePmcSourceAdapter
 from modelome.sources.fairseq_language_models import FairseqPretrainedLanguageModelSourceAdapter
 from modelome.sources.fengwu_checkpoint_registry import FengWuCheckpointRegistrySourceAdapter
+from modelome.sources.fs_mol_checkpoints import FSMolCheckpointSourceAdapter
 from modelome.sources.galaxea_vla_checkpoints import GalaxeaVLACheckpointSourceAdapter
 from modelome.sources.generative_extra import (
     CompVisLatentDiffusionDownloadsSourceAdapter,
@@ -68,6 +74,9 @@ from modelome.sources.gitlab_release_assets import GitLabPublicReleaseAssetsSour
 from modelome.sources.gpt4all_model_catalog import Gpt4AllModelCatalogSourceAdapter
 from modelome.sources.graph_ml_registry import GraphMLRegistrySourceAdapter
 from modelome.sources.graphgps_release_asset import GraphGPSReleaseAssetSourceAdapter
+from modelome.sources.graphormer_checkpoint_registry import (
+    GraphormerCheckpointRegistrySourceAdapter,
+)
 from modelome.sources.grover_registry import GroverCheckpointRegistrySourceAdapter
 from modelome.sources.hal import HalSourceAdapter
 from modelome.sources.html_catalog import HtmlCatalogSourceAdapter
@@ -94,6 +103,7 @@ from modelome.sources.mindspore_registry import MindSporeModelZooSourceAdapter
 from modelome.sources.modelscope import ModelScopeModelsSourceAdapter
 from modelome.sources.molecular_registry import OpenFoldCheckpointRegistrySourceAdapter
 from modelome.sources.moler_checkpoint import MoLeRCheckpointSourceAdapter
+from modelome.sources.molmoact2_checkpoints import MolmoAct2CheckpointSourceAdapter
 from modelome.sources.monai_model_zoo import MonaiModelZooSourceAdapter
 from modelome.sources.nemo_checkpoints import NemoCheckpointCatalogSourceAdapter
 from modelome.sources.neuralgcm_checkpoint_registry import (
@@ -108,6 +118,7 @@ from modelome.sources.ocp_model_registry import OCPModelRegistrySourceAdapter
 from modelome.sources.octo_checkpoints import OctoCheckpointSourceAdapter
 from modelome.sources.ollama_library_tags import OllamaLibraryTagCatalogAdapter
 from modelome.sources.onnx_model_zoo import OnnxModelZooSourceAdapter
+from modelome.sources.open_x_rt1x_checkpoint import OpenXRT1XCheckpointSourceAdapter
 from modelome.sources.openai_models import OpenAIModelsSourceAdapter
 from modelome.sources.openaire import OpenAireGraphSourceAdapter
 from modelome.sources.openalex import OpenAlexSourceAdapter
@@ -130,6 +141,9 @@ from modelome.sources.paddlenlp_taskflow_knowledge_mining import (
     PaddleNlpTaskflowKnowledgeMiningSourceAdapter,
 )
 from modelome.sources.paddlenlp_taskflow_sentiment import PaddleNlpTaskflowSentimentSourceAdapter
+from modelome.sources.paddlenlp_taskflow_text_correction import (
+    PaddleNlpTaskflowTextCorrectionSourceAdapter,
+)
 from modelome.sources.paddlenlp_taskflow_text_similarity import (
     PaddleNlpTaskflowTextSimilaritySourceAdapter,
 )
@@ -138,6 +152,7 @@ from modelome.sources.paddleocr_current_model_list import (
     PaddleOcrCurrentModelListSourceAdapter,
 )
 from modelome.sources.paddlerec_catalog import PaddleRecCatalogSourceAdapter
+from modelome.sources.paddlespeech_ssl_manifest import PaddleSpeechSslManifestSourceAdapter
 from modelome.sources.paddlex_model_list import PaddleXModelListSourceAdapter
 from modelome.sources.pangu_weather_checkpoint_registry import (
     PanguWeatherCheckpointRegistrySourceAdapter,
@@ -156,6 +171,7 @@ from modelome.sources.proteinmpnn import ProteinMpnSourceAdapter
 from modelome.sources.pubmed import PubMedBulkSourceAdapter
 from modelome.sources.pyg_gpse_registry import PyGGPSECheckpointRegistrySourceAdapter
 from modelome.sources.pytorch_hub_load_calls import PyTorchHubLoadCallSourceAdapter
+from modelome.sources.qualcomm_ai_hub_models import QualcommAIHubModelsSourceAdapter
 from modelome.sources.replicate import ReplicateModelsSourceAdapter
 from modelome.sources.rfdiffusion_registry import RFDiffusionCheckpointSourceAdapter
 from modelome.sources.rl_checkpoint_indexes import RlClarityCheckpointIndexAdapter
@@ -174,7 +190,11 @@ from modelome.sources.static_json_checkpoint_registry import (
 from modelome.sources.static_python_checkpoint_registry import (
     StaticPythonCheckpointRegistrySourceAdapter,
 )
+from modelome.sources.tensorflow_audioset_checkpoints import (
+    TensorFlowAudioSetCheckpointSourceAdapter,
+)
 from modelome.sources.tensorflow_garden import TensorFlowGardenSourceAdapter
+from modelome.sources.tensorflow_tpu_efficientnet import TensorFlowTPUEfficientNetSourceAdapter
 from modelome.sources.timm_model_registry import TimmModelRegistrySourceAdapter
 from modelome.sources.torch_hub_extra import TorchHubListingSourceAdapter
 from modelome.sources.torchaudio_pipeline_registry import (
@@ -184,6 +204,7 @@ from modelome.sources.torchgeo_weight_registry import TorchGeoWeightRegistrySour
 from modelome.sources.torchvision_weight_registry import (
     TorchvisionWeightRegistrySourceAdapter,
 )
+from modelome.sources.unimol_checkpoint import UniMolCheckpointSourceAdapter
 from modelome.sources.vq_diffusion import MicrosoftVqDiffusionCheckpointManifestSourceAdapter
 from modelome.sources.wenet_model_zoo import WenetPretrainedModelSourceAdapter
 from modelome.sources.zenodo import ZenodoModelRecordsSourceAdapter
@@ -894,6 +915,156 @@ def create_source(
             max_assets_per_release=_integer(expanded.get("max_assets_per_release"), 100),
             token=token or None,
             client=injected["client"],
+        )
+
+    if adapter == "fs_mol_checkpoints":
+        return FSMolCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "graphormer_checkpoint_registry":
+        return GraphormerCheckpointRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            mapping_variable=_required_text(expanded, "mapping_variable"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "molmoact2_checkpoints":
+        return MolmoAct2CheckpointSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 12),
+            **injected,
+        )
+
+    if adapter == "paddlenlp_taskflow_text_correction":
+        return PaddleNlpTaskflowTextCorrectionSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "paddlespeech_ssl_manifest":
+        return PaddleSpeechSslManifestSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "atari_pb_checkpoints":
+        return AtariPbCheckpointAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_files=_integer(expanded.get("max_files"), 100),
+            **injected,
+        )
+
+    if adapter == "qualcomm_ai_hub_models":
+        return QualcommAIHubModelsSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            max_readme_bytes=_integer(expanded.get("max_readme_bytes"), 512 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 1_000),
+            client=injected["client"],
+        )
+
+    if adapter == "bfl_api_models":
+        return BFLAPIModelsSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 512 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            client=injected["client"],
+        )
+
+    if adapter == "tensorflow_audioset_checkpoints":
+        return TensorFlowAudioSetCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            document_path=_required_text(expanded, "document_path"),
+            max_bytes=_integer(expanded.get("max_bytes"), 2 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "dgl_core_tutorial_checkpoint":
+        return DGLCoreTutorialCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 10),
+            **injected,
+        )
+
+    if adapter == "unimol_release_checkpoints":
+        return UniMolCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "tensorflow_tpu_efficientnet":
+        return TensorFlowTPUEfficientNetSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 500),
+            client=injected["client"],
+        )
+
+    if adapter == "astronn_gaia_release":
+        return AstroNNGaiaReleaseSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "esa_fm4cs":
+        return EsaFm4csSourceAdapter(
+            page_size=_integer(expanded.get("page_size"), 100),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 16 * 1024 * 1024),
+            token=_credential(expanded, environment, defaults=("HF_TOKEN",)) or None,
+            max_revision_tree_pages=_integer(expanded.get("max_revision_tree_pages"), 20),
+            max_revision_weight_file_state_bytes=_integer(
+                expanded.get("max_revision_weight_file_state_bytes"), 262_144
+            ),
+            **injected,
+        )
+
+    if adapter == "open_x_rt1x_checkpoint":
+        return OpenXRT1XCheckpointSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            max_files=_integer(expanded.get("max_files"), 5_000),
+            max_pages=_integer(expanded.get("max_pages"), 50),
+            **injected,
         )
 
     if adapter in {"software_heritage_origins", "software-heritage-origins"}:

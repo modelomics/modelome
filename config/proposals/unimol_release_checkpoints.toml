@@ -1,0 +1,15 @@
+# DeepModeling's first-party Uni-Mol README lists six v0.1 checkpoint assets.
+[[source]]
+name = "unimol-release-checkpoints"
+adapter = "unimol_release_checkpoints"
+enabled = false
+repository = "deepmodeling/Uni-Mol"
+branch = "main"
+source_path = "unimol/README.md"
+entry_tags = ["field:computational-chemistry", "ecosystem:unimol", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# Includes molecular and pocket pretraining checkpoints, the all-hydrogen
+# molecular checkpoint, two conformation-generation fine-tunes, and binding-pose.
+# The adapter accepts only their exact upstream GitHub release URLs.

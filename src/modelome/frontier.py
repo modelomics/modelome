@@ -118,14 +118,23 @@ class FrontierCrawler:
                 lease_seconds=self.claim_lease_seconds,
             )
             declared_weight_urls = _declared_weight_urls(self.database, items)
+            declared_document_urls = _declared_document_urls(self.database, items)
             reference_fetcher = _DeclaredWeightReferenceFetcher(declared_weight_urls)
+            document_reference_fetcher = _DeclaredDocumentReferenceFetcher(
+                declared_document_urls
+            )
 
             for item in items:
                 url = str(item["url"])
                 depth = int(item.get("depth") or 0)
                 declared_weight_url = url in declared_weight_urls
+                declared_pdf_document = url in declared_document_urls
                 if depth > max_depth or not (
                     _worth_fetching(url, declared_weight=declared_weight_url)
+                    or (
+                        declared_pdf_document
+                        and _is_declared_pdf_document_url(url)
+                    )
                     or (
                         declared_weight_url
                         and _is_reference_only_checkpoint_url(url)
@@ -136,7 +145,9 @@ class FrontierCrawler:
                     )
                     continue
 
-                if declared_weight_url:
+                if declared_pdf_document and _is_declared_pdf_document_url(url):
+                    fetcher = document_reference_fetcher
+                elif declared_weight_url:
                     # Keep the existing suffix-aware reference fetcher when it
                     # recognizes the URL. For all other explicitly declared
                     # weights/checkpoints, prefer metadata over a generic web
@@ -268,6 +279,33 @@ class _DeclaredWeightReferenceFetcher:
         )
 
 
+class _DeclaredDocumentReferenceFetcher:
+    """Record source-declared PDF documentation without fetching its bytes."""
+
+    def __init__(self, declared_urls: set[str]) -> None:
+        self.declared_urls = declared_urls
+        self.url_policy = PublicUrlPolicy()
+
+    def accepts(self, url: str) -> bool:
+        return (
+            url in self.declared_urls
+            and _is_declared_pdf_document_url(url)
+            and self.url_policy.allows(url, resolve=False)
+        )
+
+    def fetch(self, url: str) -> SourceRecord:
+        canonical_url = self.url_policy.validate(url, resolve=False)
+        filename = PurePosixPath(urlsplit(canonical_url).path).name
+        return SourceRecord(
+            source_record_id=canonical_url,
+            kind=ArtifactKind.WEB_PAGE,
+            canonical_url=canonical_url,
+            title=filename or canonical_url,
+            raw={"reference_only": True, "media_type": "application/pdf"},
+            identifiers=(Identifier("url", canonical_url),),
+        )
+
+
 def _declared_weight_urls(database: Database, items: list[dict[str, Any]]) -> set[str]:
     url_by_id = {
         str(item["id"]): canonicalize_url(str(item["url"]))
@@ -283,6 +321,33 @@ def _declared_weight_urls(database: Database, items: list[dict[str, Any]]) -> se
         and str(row.get("relation", "")).casefold() in {"weights", "checkpoint"}
         and not _TEXT_MENTION_LOCATOR.fullmatch(str(row.get("locator") or ""))
     }
+
+
+def _declared_document_urls(database: Database, items: list[dict[str, Any]]) -> set[str]:
+    url_by_id = {
+        str(item["id"]): canonicalize_url(str(item["url"]))
+        for item in items
+        if item.get("id") and item.get("url")
+    }
+    if not url_by_id:
+        return set()
+    document_relations = {
+        "documentation",
+        "documentation_reference",
+        "model_card",
+        "model_card_source",
+    }
+    return {
+        url_by_id[str(row["url_id"])]
+        for row in database.table_rows("url_discoveries")
+        if str(row.get("url_id")) in url_by_id
+        and str(row.get("relation", "")).casefold() in document_relations
+        and not _TEXT_MENTION_LOCATOR.fullmatch(str(row.get("locator") or ""))
+    }
+
+
+def _is_declared_pdf_document_url(url: str) -> bool:
+    return PurePosixPath(urlsplit(url).path).suffix.casefold() == ".pdf"
 
 
 def _is_extensionless_github_release_asset(url: str) -> bool:

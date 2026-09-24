@@ -6248,3 +6248,321 @@ provider_namespace = "conceptnet-numberbatch:embedding"
 schedule = "monthly"
 max_response_bytes = 2097152
 max_entries = 100
+
+# Microsoft's FS-Mol README lists three exact released checkpoint files.
+[[source]]
+name = "fs-mol-checkpoints"
+adapter = "fs_mol_checkpoints"
+enabled = true
+entry_tags = ["field:computational-chemistry", "ecosystem:fs-mol", "kind:checkpoint"]
+repository = "microsoft/FS-Mol"
+branch = "main"
+source_path = "README.md"
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# Graphormer's literal source map identifies four direct pretrained artifacts.
+[[source]]
+name = "microsoft-graphormer-pretrained-checkpoints"
+adapter = "graphormer_checkpoint_registry"
+enabled = true
+entry_tags = ["field:graph-machine-learning", "ecosystem:microsoft-graphormer", "kind:checkpoint"]
+repository = "microsoft/Graphormer"
+branch = "main"
+source_path = "graphormer/pretrain/__init__.py"
+mapping_variable = "PRETRAINED_MODEL_URLS"
+provider_namespace = "microsoft-graphormer:checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100
+
+# Ai2's MolmoAct2 README identifies eight policy checkpoint repositories.
+[[source]]
+name = "molmoact2-checkpoints"
+adapter = "molmoact2_checkpoints"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:ai2-molmoact2", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 12
+
+# PaddleNLP's CSCTask map declares the ernie-csc checkpoint and checksum.
+[[source]]
+name = "paddlenlp-taskflow-text-correction-checkpoints"
+adapter = "paddlenlp_taskflow_text_correction"
+enabled = true
+entry_tags = ["field:natural-language-processing", "task:text-correction", "ecosystem:paddlenlp", "kind:checkpoint"]
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/taskflow/text_correction.py"
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# Atari-PB's Zenodo record contains twelve named pretrained policy files.
+[[source]]
+name = "atari-pb-checkpoints"
+adapter = "atari_pb_checkpoints"
+enabled = true
+entry_tags = ["field:reinforcement-learning", "ecosystem:atari-pb", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_files = 100
+
+# Qualcomm's official repository README enumerates its public model directory.
+[[source]]
+name = "qualcomm-ai-hub-models"
+adapter = "qualcomm_ai_hub_models"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:qualcomm-ai-hub", "kind:model-card"]
+repository = "qualcomm/ai-hub-models"
+branch = "main"
+schedule = "weekly"
+max_readme_bytes = 524288
+max_entries = 1000
+
+# TensorFlow AudioSet READMEs publish exact YAMNet and VGGish artifacts.
+[[source]]
+name = "tensorflow-audioset-yamnet-checkpoint"
+adapter = "tensorflow_audioset_checkpoints"
+enabled = true
+entry_tags = ["field:audio-machine-learning", "task:audio-event-classification", "ecosystem:tensorflow", "kind:checkpoint"]
+repository = "tensorflow/models"
+branch = "master"
+document_path = "research/audioset/yamnet/README.md"
+schedule = "weekly"
+max_bytes = 2097152
+
+[[source]]
+name = "tensorflow-audioset-vggish-checkpoint"
+adapter = "tensorflow_audioset_checkpoints"
+enabled = true
+entry_tags = ["field:audio-machine-learning", "task:audio-embedding", "ecosystem:tensorflow", "kind:checkpoint"]
+repository = "tensorflow/models"
+branch = "master"
+document_path = "research/audioset/vggish/README.md"
+schedule = "weekly"
+max_bytes = 2097152
+
+# DGL's official generative-model tutorial loads a direct DGMG checkpoint.
+[[source]]
+name = "dgl-core-dgmg-cycle-checkpoint"
+adapter = "dgl_core_tutorial_checkpoint"
+enabled = true
+entry_tags = ["field:graph-machine-learning", "ecosystem:dgl", "task:graph-generation", "kind:checkpoint"]
+repository = "dmlc/dgl"
+branch = "master"
+source_path = "tutorials/models/3_generative_model/5_dgmg.py"
+provider_namespace = "dgl:core-checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 10
+
+# Uni-Mol's first-party README links six exact v0.1 checkpoint artifacts.
+[[source]]
+name = "unimol-release-checkpoints"
+adapter = "unimol_release_checkpoints"
+enabled = true
+entry_tags = ["field:computational-chemistry", "ecosystem:unimol", "kind:checkpoint"]
+repository = "deepmodeling/Uni-Mol"
+branch = "main"
+source_path = "unimol/README.md"
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# TensorFlow TPU's EfficientNet README enumerates its training-method matrix.
+[[source]]
+name = "tensorflow-tpu-efficientnet-checkpoints"
+adapter = "tensorflow_tpu_efficientnet"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:tensorflow-tpu", "kind:pretrained-checkpoint"]
+repository = "tensorflow/tpu"
+branch = "master"
+document_path = "models/official/efficientnet/README.md"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 500
+
+# The astroNN Gaia paper repository names five model-release directories.
+[[source]]
+name = "astronn-gaia-dr2-model-releases"
+adapter = "astronn_gaia_release"
+enabled = true
+entry_tags = ["field:astronomy", "ecosystem:astronn", "kind:model-release-directory"]
+repository = "henrysky/astroNN_gaia_dr2_paper"
+branch = "master"
+schedule = "monthly"
+max_response_bytes = 8388608
+
+# ESA FM4CS publishes THOR model repositories and exact revision file paths.
+[[source]]
+name = "esa-fm4cs"
+adapter = "esa_fm4cs"
+enabled = true
+entry_tags = ["field:earth-observation", "ecosystem:esa-fm4cs", "kind:model-repository"]
+schedule = "weekly"
+page_size = 100
+max_response_bytes = 16777216
+max_revision_tree_pages = 20
+max_revision_weight_file_state_bytes = 262144
+
+# PaddleSpeech's source map includes one WavLM package absent from its model table.
+[[source]]
+name = "paddlespeech-wavlm-ssl-manifest"
+adapter = "paddlespeech_ssl_manifest"
+enabled = true
+entry_tags = ["field:audio-machine-learning", "task:automatic-speech-recognition", "ecosystem:paddlespeech", "kind:checkpoint"]
+repository = "PaddlePaddle/PaddleSpeech"
+branch = "develop"
+source_path = "paddlespeech/resource/pretrained_models.py"
+schedule = "weekly"
+max_response_bytes = 8388608
+
+# Black Forest Labs' API guide declares exact hosted FLUX endpoint IDs.
+[[source]]
+name = "bfl-api-models"
+adapter = "bfl_api_models"
+enabled = true
+entry_tags = ["field:generative-image-modeling", "ecosystem:black-forest-labs", "kind:hosted-model", "modality:image-generation"]
+repository = "black-forest-labs/skills"
+branch = "master"
+source_path = "skills/bfl-api/references/endpoints.md"
+schedule = "weekly"
+max_response_bytes = 524288
+max_entries = 100
+
+# Voyage's public documentation names current and older embedding model IDs.
+[[source]]
+name = "voyage-embedding-model-documentation"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:voyage-ai", "kind:hosted-model", "modality:embedding"]
+url = "https://docs.voyageai.com/docs/embeddings"
+provider_namespace = "voyage:model"
+artifact_kind = "model_card"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model \| Context Length \(tokens\) \| Embedding Dimension \| Description$'
+name_column = 0
+name_pattern = '^(?P<name>voyage-[a-z0-9.-]+)$'
+identity_source = "name"
+require_url = false
+
+[[source]]
+name = "voyage-reranker-model-documentation"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:voyage-ai", "kind:hosted-model", "modality:reranking"]
+url = "https://docs.voyageai.com/docs/reranker"
+provider_namespace = "voyage:model"
+artifact_kind = "model_card"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model \| Context Length \(tokens\) \| Description$'
+name_column = 0
+name_pattern = '^(?:\(In Preview\) )?(?P<name>rerank-[a-z0-9.-]+)$'
+identity_source = "name"
+require_url = false
+
+# Jina's public model page lists exact embedding-family model card URLs.
+[[source]]
+name = "jina-embedding-model-documentation"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:jina", "kind:model-documentation", "modality:embedding"]
+url = "https://jina.ai/models/"
+provider_namespace = "jina:model"
+artifact_kind = "model_card"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100
+
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://jina\.ai/models/jina-(?:embedding-b-en-v1|embeddings-v[0-9][a-z0-9.-]*|clip-v[0-9]+|colbert-v[0-9]+[a-z0-9.-]*|code-embeddings-[0-9][a-z0-9.-]*)/?$'
+identity_source = "url"
+identity_pattern = '^https://jina\.ai/models/(?P<id>jina-(?:embedding-b-en-v1|embeddings-v[0-9][a-z0-9.-]*|clip-v[0-9]+|colbert-v[0-9]+[a-z0-9.-]*|code-embeddings-[0-9][a-z0-9.-]*))/?$'
+name_source = "identity"
+relation = "model_documentation"
+crawl = false
+require_url = true
+
+# IBM's public supported-encoder table declares exact watsonx model IDs.
+[[source]]
+name = "ibm-watsonx-embedding-model-documentation"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:ibm-watsonx", "kind:hosted-model", "modality:embedding"]
+url = "https://www.ibm.com/docs/en/watsonx/saas?topic=models-supported-encoder"
+provider_namespace = "ibm:watsonx-embedding-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model name \| API model ID \| Price \(USD/1,000 tokens\) \| Maximum input tokens \| Number of dimensions \| More information$'
+name_column = 0
+identity_column = 1
+identity_source = "id"
+name_pattern = '^(?P<name>(?:granite-embedding-278m-multilingual|slate-125m-english-rtrvr-v2|slate-30m-english-rtrvr-v2))(?: Deprecated)?$'
+skip_nonmatching_names = true
+require_url = false
+
+# fastText publishes a separate 294-language Wikipedia vector inventory.
+[[source]]
+name = "fasttext-wiki-vectors"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:natural-language-processing", "ecosystem:fasttext", "kind:pretrained-vectors"]
+url = "https://fasttext.cc/docs/en/pretrained-vectors.html"
+provider_namespace = "fasttext:wiki-vector"
+artifact_kind = "catalog_record"
+model_status = "released"
+allowed_origins = ["https://fasttext.cc", "https://dl.fbaipublicfiles.com", "https://arxiv.org", "https://github.com", "https://creativecommons.org"]
+schedule = "monthly"
+max_response_bytes = 2097152
+max_entries = 600
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '(?s)<td>(?P<name>[^:<]+):\s*<a(?=[^>]*href="(?P<url>https://dl\.fbaipublicfiles\.com/fasttext/vectors-wiki/wiki\.(?P<id>[a-z0-9_]+)\.zip)")[^>]*>bin\+text</a>'
+name_template = "fastText Wiki 300 {name}"
+identity_source = "id"
+relation = "weights"
+crawl = false
+require_url = true
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '(?s)<td>(?P<name>[^:<]+):\s*<a(?=[^>]*href="https://dl\.fbaipublicfiles\.com/fasttext/vectors-wiki/wiki\.(?P<id>[a-z0-9_]+)\.zip")[^>]*>bin\+text</a>,\s*<a(?=[^>]*href="(?P<url>https://dl\.fbaipublicfiles\.com/fasttext/vectors-wiki/wiki\.(?P=id)\.vec)")[^>]*>text</a>'
+name_template = "fastText Wiki 300 {name}"
+identity_source = "id"
+relation = "weights"
+crawl = false
+require_url = true
+
+[[source.shared_links]]
+href_pattern = '^https://arxiv\.org/abs/1607\.04606$'
+relation = "paper_reference"
+
+[[source.shared_links]]
+href_pattern = '^https://github\.com/facebookresearch/fastText/?$'
+relation = "source_implementation"
+
+[[source.shared_links]]
+href_pattern = '^https://creativecommons\.org/licenses/by-sa/3\.0/?$'
+relation = "license"
+crawl = false

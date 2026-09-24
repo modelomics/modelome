@@ -163,6 +163,8 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
         "inputs": [
             {"id": "normalized", "output_of": "bioimage-io/preprocessing-model"}
         ],
+        "new_version": "bioimage-io/replacement-model",
+        "evaluations": [{"model_id": "bioimage-io/evaluated-model"}],
         "documentation": {"source": "README.md", "sha256": "a" * 64},
         "git_repo": "https://github.com/example-lab/neural-image-model",
         "links": [
@@ -249,8 +251,10 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
         "first-model",
         "10.5281/zenodo.1234567",
     )
-    assert len(first.model_relations) == 2
-    parent_relation, pipeline_relation = first.model_relations
+    assert len(first.model_relations) == 4
+    parent_relation, pipeline_relation, successor_relation, evaluation_relation = (
+        first.model_relations
+    )
     assert parent_relation.subject_local_id == "bioimage-io/first-model@v0#model"
     assert parent_relation.predicate == "derived_from"
     assert parent_relation.target.identifiers == (
@@ -263,6 +267,16 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
         Identifier("bioimageio:model", "bioimage-io/preprocessing-model"),
     )
     assert pipeline_relation.locator == "$.artifact.manifest.inputs[0].output_of"
+    assert successor_relation.predicate == "superseded_by"
+    assert successor_relation.target.identifiers == (
+        Identifier("bioimageio:model", "bioimage-io/replacement-model"),
+    )
+    assert successor_relation.locator == "$.artifact.manifest.new_version"
+    assert evaluation_relation.predicate == "evaluates"
+    assert evaluation_relation.target.identifiers == (
+        Identifier("bioimageio:model", "bioimage-io/evaluated-model"),
+    )
+    assert evaluation_relation.locator == "$.artifact.manifest.evaluations[0].model_id"
     assert first.releases[0].identifiers == (
         Identifier(
             "bioimageio:version",

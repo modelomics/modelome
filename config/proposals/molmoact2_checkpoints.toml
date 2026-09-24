@@ -1,0 +1,23 @@
+# Ai2's first-party MolmoAct2 README explicitly lists three base-stage VLA
+# checkpoints and five fine-tuned policy repositories. Keep disabled until the
+# dedicated adapter is registered and reviewed.
+[[source]]
+name = "molmoact2-checkpoints"
+adapter = "molmoact2_checkpoints"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:ai2-molmoact2", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 12
+
+# Primary inventory: https://github.com/allenai/molmoact2/blob/main/README.md
+# Base stage: https://huggingface.co/allenai/MolmoAct2
+# https://huggingface.co/allenai/MolmoAct2-Think
+# https://huggingface.co/allenai/MolmoAct2-Pretrain
+# Fine-tuned: https://huggingface.co/allenai/MolmoAct2-DROID
+# https://huggingface.co/allenai/MolmoAct2-BimanualYAM
+# https://huggingface.co/allenai/MolmoAct2-SO100_101
+# https://huggingface.co/allenai/MolmoAct2-LIBERO
+# https://huggingface.co/allenai/MolmoAct2-Think-LIBERO
+# Molmo2-ER and MolmoAct2-FAST-Tokenizer are excluded as backbone/tokenizer
+# dependencies rather than action policy checkpoint identities.

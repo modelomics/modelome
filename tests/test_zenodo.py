@@ -107,7 +107,7 @@ def item(
 
 def test_zenodo_model_catalog_preserves_cross_domain_evidence_without_model_claims() -> None:
     next_url = (
-        f"{URL}?page=2&q={QUERY}&size=2&sort=oldest"
+        f"{URL}?all_versions=true&page=2&q={QUERY}&size=2&sort=oldest"
     )
     client = QueuedClient(
         response(
@@ -130,7 +130,9 @@ def test_zenodo_model_catalog_preserves_cross_domain_evidence_without_model_clai
     assert first.complete is False
     assert first.upstream_count is None
     assert first.next_state == {
-        "next_url": f"{URL}?page=2&q=resource_type.type%3Amodel&size=2&sort=oldest",
+        "next_url": (
+            f"{URL}?all_versions=true&page=2&q=resource_type.type%3Amodel&size=2&sort=oldest"
+        ),
         "page_number": 2,
         "raw_items_seen": 2,
         "scan_total": 3,
@@ -147,7 +149,7 @@ def test_zenodo_model_catalog_preserves_cross_domain_evidence_without_model_clai
         "sort": "oldest",
     }
     assert [call[1] for call in client.calls] == [
-        {"q": QUERY, "sort": "oldest", "page": 1, "size": 2},
+        {"q": QUERY, "sort": "oldest", "page": 1, "size": 2, "all_versions": "true"},
         {},
     ]
 
@@ -199,7 +201,7 @@ def test_zenodo_model_catalog_rejects_cross_scope_next_urls() -> None:
 
 
 def test_zenodo_anonymous_search_clamps_configured_page_size_and_paginates() -> None:
-    next_url = f"{URL}?page=2&q=resource_type.type%3Amodel&size=25&sort=oldest"
+    next_url = f"{URL}?all_versions=true&page=2&q=resource_type.type%3Amodel&size=25&sort=oldest"
     client = QueuedClient(
         response([item(101, title="OceanNet")], total=2, next_url=next_url),
         response([item(102, title="RiverNet")], total=2),
@@ -214,6 +216,7 @@ def test_zenodo_anonymous_search_clamps_configured_page_size_and_paginates() -> 
         "sort": "oldest",
         "page": 1,
         "size": 25,
+        "all_versions": "true",
     }
     assert first.next_state["next_url"] == next_url
     assert client.calls[1][0] == next_url
@@ -221,7 +224,7 @@ def test_zenodo_anonymous_search_clamps_configured_page_size_and_paginates() -> 
 
 
 def test_zenodo_model_catalog_rejects_provider_total_drift_mid_scan() -> None:
-    next_url = f"{URL}?page=2&q={QUERY}&size=1&sort=oldest"
+    next_url = f"{URL}?all_versions=true&page=2&q={QUERY}&size=1&sort=oldest"
     drifted_next_url = next_url.replace("page=2", "page=3")
     client = QueuedClient(
         response([item(101, title="OceanNet")], total=2, next_url=next_url),

@@ -188,6 +188,168 @@ def test_version_file_metadata_requires_all_version_expansion() -> None:
         KaggleModelsSourceAdapter(client=_Client(), include_version_files=True)
 
 
+def test_empty_public_version_listing_does_not_invent_latest_release_or_files() -> None:
+    client = _Client(
+        {
+            "models": [
+                {
+                    "ref": "google/gemma",
+                    "instances": [
+                        {
+                            "id": 12,
+                            "slug": "2b",
+                            "framework": "PyTorch",
+                            "versionNumber": 3,
+                        }
+                    ],
+                }
+            ],
+            "totalResults": 1,
+        },
+        {
+            "instances": [
+                {
+                    "id": 12,
+                    "slug": "2b",
+                    "framework": "PyTorch",
+                    "versionNumber": 3,
+                }
+            ]
+        },
+        {"versionList": {"versions": []}},
+    )
+    page = KaggleModelsSourceAdapter(
+        client=client,
+        include_all_versions=True,
+        include_version_files=True,
+    ).fetch_page({})
+
+    assert page.records[0].releases == ()
+    assert len(client.calls) == 3
+
+
+def test_private_or_disappeared_latest_version_is_not_resurrected_from_summary() -> None:
+    client = _Client(
+        {
+            "models": [
+                {
+                    "ref": "google/gemma",
+                    "instances": [
+                        {
+                            "id": 12,
+                            "slug": "2b",
+                            "framework": "PyTorch",
+                            "versionNumber": 2,
+                        }
+                    ],
+                }
+            ],
+            "totalResults": 1,
+        },
+        {
+            "instances": [
+                {
+                    "id": 12,
+                    "slug": "2b",
+                    "framework": "PyTorch",
+                    "versionNumber": 2,
+                }
+            ]
+        },
+        {
+            "versionList": {
+                "versions": [
+                    {"id": 101, "versionNumber": 1},
+                    {"id": 102, "versionNumber": 2, "isPrivate": True},
+                ]
+            }
+        },
+    )
+
+    page = KaggleModelsSourceAdapter(
+        client=client,
+        include_all_versions=True,
+    ).fetch_page({})
+
+    assert [(release.version, release.revision) for release in page.records[0].releases] == [
+        ("1", "101")
+    ]
+
+
+def test_historical_version_does_not_inherit_latest_version_id() -> None:
+    client = _Client(
+        {
+            "models": [
+                {
+                    "ref": "google/gemma",
+                    "instances": [
+                        {
+                            "id": 12,
+                            "slug": "2b",
+                            "framework": "PyTorch",
+                            "versionNumber": 2,
+                            "versionId": 202,
+                        }
+                    ],
+                }
+            ],
+            "totalResults": 1,
+        },
+        {
+            "instances": [
+                {
+                    "id": 12,
+                    "slug": "2b",
+                    "framework": "PyTorch",
+                    "versionNumber": 2,
+                    "versionId": 202,
+                }
+            ]
+        },
+        {"versionList": {"versions": [{"versionNumber": 1}]}},
+    )
+
+    page = KaggleModelsSourceAdapter(
+        client=client,
+        include_all_versions=True,
+    ).fetch_page({})
+
+    historical = page.records[0].releases[0]
+    assert historical.version == "1"
+    assert historical.revision is None
+    assert not any(
+        identifier.namespace == "kaggle:model-version"
+        and identifier.value == "202"
+        for identifier in historical.identifiers
+    )
+
+
+def test_conflicting_variation_ids_are_not_silently_merged() -> None:
+    client = _Client(
+        {
+            "models": [
+                {
+                    "ref": "google/gemma",
+                    "instances": [
+                        {"id": 12, "slug": "2b", "framework": "PyTorch"},
+                        {"id": 13, "slug": "2b", "framework": "PyTorch"},
+                    ],
+                }
+            ],
+            "totalResults": 1,
+        },
+        {"instances": []},
+    )
+    page = KaggleModelsSourceAdapter(
+        client=client,
+        include_all_versions=True,
+    ).fetch_page({})
+
+    assert not page.records
+    assert len(page.issues) == 1
+    assert "variation PyTorch/2b has conflicting IDs 12 and 13" in page.issues[0].error
+
+
 def test_malformed_model_is_reported_without_dropping_valid_models() -> None:
     client = _Client(
         {
@@ -245,7 +407,7 @@ def test_optional_version_expansion_paginates_all_releases_and_builds_version_li
                         "id": 101,
                         "url": "/models/google/gemma/PyTorch/2b/1",
                         "totalUncompressedBytes": 10,
-                        "isTfhubModel": True,
+                        "isTfHubModel": True,
                     },
                     {"versionNumber": 2, "id": 102, "totalUncompressedBytes": 20},
                     {"versionNumber": 4, "id": 104, "isPrivate": True},

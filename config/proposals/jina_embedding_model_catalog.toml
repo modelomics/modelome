@@ -1,0 +1,25 @@
+# Jina's first-party Search Foundation Models catalog enumerates exact model
+# cards. Select embedding, code-embedding, CLIP, and ColBERT model pages by URL
+# slug so display text or nearby navigation labels cannot become model IDs.
+[[source]]
+name = "jina-embedding-model-documentation"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:jina", "kind:model-documentation", "modality:embedding"]
+url = "https://jina.ai/models/"
+provider_namespace = "jina:model"
+artifact_kind = "model_card"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100
+
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://jina\.ai/models/jina-(?:embedding-b-en-v1|embeddings-v[0-9][a-z0-9.-]*|clip-v[0-9]+|colbert-v[0-9]+[a-z0-9.-]*|code-embeddings-[0-9][a-z0-9.-]*)/?$'
+identity_source = "url"
+identity_pattern = '^https://jina\.ai/models/(?P<id>jina-(?:embedding-b-en-v1|embeddings-v[0-9][a-z0-9.-]*|clip-v[0-9]+|colbert-v[0-9]+[a-z0-9.-]*|code-embeddings-[0-9][a-z0-9.-]*))/?$'
+name_source = "identity"
+relation = "model_documentation"
+crawl = false
+require_url = true

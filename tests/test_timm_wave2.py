@@ -23,14 +23,14 @@ class _Client:
         return self.responses.pop(0)
 
 
-def _archive() -> bytes:
+def _archive(hub_id: str = "timm/vision_base.v1") -> bytes:
     files = {
         "timm/models/__init__.py": "from .vision import *\n",
         "timm/models/vision.py": """\
 from ._registry import generate_default_cfgs, register_model
 
 WEIGHTS_URL = 'https://weights.example.test/vision.pth'
-MODEL_HUB_ID = 'timm/vision_base.v1'
+MODEL_HUB_ID = '__HUB_ID__'
 def _gcfg(**kwargs):
     return {'origin_url': 'https://github.com/example/original-model', **kwargs}
 
@@ -46,6 +46,9 @@ def vision_base(pretrained=False):
     return None
 """,
     }
+    files["timm/models/vision.py"] = files["timm/models/vision.py"].replace(
+        "__HUB_ID__", hub_id
+    )
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w") as package:
         for path, source in files.items():
@@ -80,5 +83,29 @@ def test_timm_registry_resolves_module_literal_checkpoint_references() -> None:
     assert any(
         link.url == "https://github.com/example/original-model"
         and link.relation == "official_implementation"
+        for link in record.links
+    )
+
+
+def test_timm_hub_links_preserve_declared_hugging_face_revision() -> None:
+    adapter = TimmModelRegistrySourceAdapter(
+        client=_Client(_archive("org/model@refs/pr/7")),
+        clock=lambda: datetime(2026, 9, 23, tzinfo=UTC),
+    )
+
+    record = adapter.fetch_page({}).records[0]
+
+    assert record.releases[0].metadata["config"]["hf_hub_id"] == "org/model@refs/pr/7"
+    assert any(
+        link.url == "https://huggingface.co/org/model"
+        and link.relation == "linked_model_artifact"
+        for link in record.links
+    )
+    assert any(
+        link.url == (
+            "https://huggingface.co/org/model/resolve/refs/pr/7/"
+            "checkpoints/model.safetensors"
+        )
+        and link.relation == "weights"
         for link in record.links
     )

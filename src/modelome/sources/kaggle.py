@@ -276,12 +276,12 @@ class KaggleModelsSourceAdapter:
         for instance_index, instance in enumerate(instances):
             if not isinstance(instance, Mapping):
                 continue
-            version_items = (
-                self._instance_versions(model_ref, instance)
-                if self.include_all_versions
-                else ()
-            )
-            for version_item in _versions_with_latest(instance, version_items):
+            if self.include_all_versions:
+                version_items = self._instance_versions(model_ref, instance)
+                versions_to_emit = _versions_with_latest(version_items)
+            else:
+                versions_to_emit = (None,)
+            for version_item in versions_to_emit:
                 release, instance_links, relation = self._instance(
                     model_ref,
                     local_id,
@@ -386,7 +386,15 @@ class KaggleModelsSourceAdapter:
                 key = ("id", _optional_text(instance.get("id")) or content_hash(dict(instance)))
             else:
                 key = (framework, slug)
-            merged[key] = {**merged.get(key, {}), **instance}
+            previous = merged.get(key, {})
+            previous_id = _optional_text(previous.get("id"))
+            current_id = _optional_text(instance.get("id"))
+            if previous_id is not None and current_id is not None and previous_id != current_id:
+                raise ValueError(
+                    f"{self.name}: variation {framework}/{slug} has conflicting IDs "
+                    f"{previous_id} and {current_id}"
+                )
+            merged[key] = {**previous, **instance}
         return tuple(merged.values())
 
     def _instance(
@@ -421,7 +429,8 @@ class KaggleModelsSourceAdapter:
                 or _optional_text(version_item.get("version_id"))
                 or _optional_text(version_item.get("id"))
             )
-        version_id = version_id or _optional_text(parent_instance.get("versionId"))
+        if version_item is None:
+            version_id = version_id or _optional_text(parent_instance.get("versionId"))
         instance_id = _optional_text(parent_instance.get("id"))
         identifiers = [
             Identifier("kaggle:model-instance", instance_ref),
@@ -534,7 +543,7 @@ class KaggleModelsSourceAdapter:
             )
         version_files = (
             self._version_files(model_ref, framework, slug, version)
-            if self.include_version_files
+            if self.include_version_files and version != "unknown"
             else ()
         )
         release = ReleaseHint(
@@ -569,7 +578,10 @@ class KaggleModelsSourceAdapter:
                 "is_tfhub_model": _optional_bool(
                     (version_item or {}).get(
                         "isTfhubModel",
-                        (version_item or {}).get("is_tfhub_model"),
+                        (version_item or {}).get(
+                            "isTfHubModel",
+                            (version_item or {}).get("is_tfhub_model"),
+                        ),
                     )
                 ),
                 "files": version_files,
@@ -742,20 +754,16 @@ class KaggleModelsSourceAdapter:
 
 
 def _versions_with_latest(
-    instance: Mapping[str, Any],
     listed: Sequence[Mapping[str, Any]],
-) -> tuple[Mapping[str, Any] | None, ...]:
-    """Use every listed version and retain the embedded latest if absent."""
+) -> tuple[Mapping[str, Any], ...]:
+    """Use only currently public rows from the authoritative version listing."""
     if not listed:
-        return (None,)
+        return ()
     versions: list[Mapping[str, Any]] = []
     seen: dict[str, str | None] = {}
-    private_numbers: set[str] = set()
     for version in listed:
         number = _optional_text(version.get("versionNumber", version.get("version_number")))
         if version.get("isPrivate") is True or version.get("is_private") is True:
-            if number:
-                private_numbers.add(number)
             continue
         version_id = _optional_text(
             version.get("versionId")
@@ -767,9 +775,6 @@ def _versions_with_latest(
         if number not in seen:
             versions.append(version)
             seen[number] = version_id
-    latest_number = _optional_text(instance.get("versionNumber"))
-    if latest_number and latest_number not in seen and latest_number not in private_numbers:
-        versions.append(instance)
     return tuple(versions)
 
 

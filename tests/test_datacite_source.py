@@ -387,6 +387,29 @@ def test_protocol_related_identifier_categories_become_relation_links_only() -> 
     assert ("has_metadata", "https://n2t.net/urn:nbn:de:example") in relations
 
 
+def test_datacite_bridges_only_related_dois_marked_identical() -> None:
+    item = resource()
+    item["attributes"]["relatedIdentifiers"] = [
+        {
+            "relatedIdentifier": "https://doi.org/10.5555/IDENTICAL",
+            "relatedIdentifierType": "DOI",
+            "relationType": "IsIdenticalTo",
+        },
+        {
+            "relatedIdentifier": "10.5555/supplement",
+            "relatedIdentifierType": "DOI",
+            "relationType": "IsSupplementTo",
+        },
+    ]
+
+    page = adapter(QueuedClient(response([item], total=1))).fetch_page({})
+
+    assert page.records[0].identifiers == (
+        Identifier("doi", "10.5438/example"),
+        Identifier("doi", "10.5555/identical"),
+    )
+
+
 def test_short_or_missing_continuation_restarts_the_frozen_window() -> None:
     client = QueuedClient(response([resource()], total=2, next_link=None))
 

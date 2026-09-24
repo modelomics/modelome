@@ -132,6 +132,45 @@ def test_huggingface_links_exact_dataset_identifiers_from_model_card_metadata() 
     assert Identifier("huggingface:dataset", "stanfordnlp/imdb") in record.identifiers
 
 
+def test_huggingface_links_single_string_dataset_metadata() -> None:
+    client = _Client(
+        [
+            {
+                "id": "lab/model-trained-on-one-dataset",
+                "cardData": {"datasets": "stanfordnlp/imdb"},
+            }
+        ]
+    )
+
+    record = HuggingFaceSourceAdapter(client=client).fetch_page({}).records[0]
+
+    dataset_links = [link for link in record.links if link.relation == "dataset"]
+    assert [(link.url, link.locator) for link in dataset_links] == [
+        (
+            "https://huggingface.co/datasets/stanfordnlp/imdb",
+            "$.cardData.datasets",
+        )
+    ]
+    assert Identifier("huggingface:dataset", "stanfordnlp/imdb") in record.identifiers
+
+
+def test_huggingface_base_model_relation_ignores_non_model_hub_urls() -> None:
+    client = _Client(
+        [
+            {
+                "id": "lab/derived-model",
+                "cardData": {
+                    "base_model": "https://huggingface.co/datasets/lab/training-data"
+                },
+            }
+        ]
+    )
+
+    record = HuggingFaceSourceAdapter(client=client).fetch_page({}).records[0]
+
+    assert record.model_relations == ()
+
+
 def test_huggingface_revision_enrichment_is_checkpointed_and_does_not_fetch_blobs() -> None:
     catalog_url = "https://huggingface.co/api/models?catalog=1"
     repo = "lab/historical-model"

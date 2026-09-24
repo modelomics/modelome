@@ -1,0 +1,27 @@
+# IBM's public supported-encoder page enumerates the IBM-hosted embedding
+# models by exact watsonx API ID, including two models explicitly marked
+# Deprecated. The source selects IBM Slate/Granite rows only and does not call
+# the token-authenticated, region-specific foundation-model-specs API.
+# Primary source: https://www.ibm.com/docs/en/watsonx/saas?topic=models-supported-encoder
+[[source]]
+name = "ibm-watsonx-embedding-model-documentation"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:ibm-watsonx", "kind:hosted-model", "modality:embedding", "evidence:provider-model-documentation"]
+url = "https://www.ibm.com/docs/en/watsonx/saas?topic=models-supported-encoder"
+provider_namespace = "ibm:watsonx-embedding-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model name \\| API model ID \\| Price \\(USD/1,000 tokens\\) \\| Maximum input tokens \\| Number of dimensions \\| More information$'
+name_column = 0
+identity_column = 1
+identity_source = "id"
+name_pattern = '^(?P<name>(?:granite-embedding-278m-multilingual|slate-125m-english-rtrvr-v2|slate-30m-english-rtrvr-v2))(?: Deprecated)?$'
+skip_nonmatching_names = true
+require_url = false

@@ -1,0 +1,17 @@
+# The astroNN Gaia DR2 paper repository names these five trained models and
+# documents loading each by its directory with astroNN.models.load_folder.
+# This source records pinned repository-directory release locations only; it
+# does not enumerate files or claim a direct checkpoint download URL.
+[[source]]
+name = "astronn-gaia-dr2-model-releases"
+adapter = "astronn_gaia_release"
+enabled = false
+entry_tags = ["field:astronomy", "ecosystem:astronn", "kind:model-release-directory"]
+repository = "henrysky/astroNN_gaia_dr2_paper"
+branch = "master"
+max_response_bytes = 8388608
+
+[evidence]
+model_repository = "https://github.com/henrysky/astroNN_gaia_dr2_paper"
+paper_release_claim = "https://academic.oup.com/mnras/article/489/2/2079/5549526"
+load_contract = "astroNN.models.load_folder(directory_name)"

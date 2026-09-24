@@ -608,6 +608,37 @@ class BioImageIoSourceAdapter:
                             locator=locator,
                         )
                     )
+        successor_id = _optional_text(manifest.get("new_version"), _MAX_ID_CHARS)
+        if successor_id:
+            locator = "$.artifact.manifest.new_version"
+            model_relations.append(
+                _model_relation(
+                    subject_local_id=local_model_id,
+                    source_record_id=control.source_record_id,
+                    target_id=successor_id,
+                    predicate="superseded_by",
+                    locator=locator,
+                )
+            )
+        evaluations = manifest.get("evaluations")
+        if _is_sequence(evaluations):
+            for evaluation_index, evaluation in enumerate(evaluations):
+                if not isinstance(evaluation, Mapping):
+                    continue
+                evaluated_id = _optional_text(evaluation.get("model_id"), _MAX_ID_CHARS)
+                if evaluated_id:
+                    locator = (
+                        f"$.artifact.manifest.evaluations[{evaluation_index}].model_id"
+                    )
+                    model_relations.append(
+                        _model_relation(
+                            subject_local_id=local_model_id,
+                            source_record_id=control.source_record_id,
+                            target_id=evaluated_id,
+                            predicate="evaluates",
+                            locator=locator,
+                        )
+                    )
         release_identifiers = (
             (
                 Identifier(

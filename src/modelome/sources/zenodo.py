@@ -53,7 +53,8 @@ class ZenodoModelRecordsSourceAdapter:
 
     coverage_limitation = (
         "Covers public Zenodo records returned by the exact "
-        "resource_type.type:model query. Zenodo's cross-domain Model type is not "
+        "resource_type.type:model query, including all published versions. "
+        "Zenodo's cross-domain Model type is not "
         "itself a neural-model assertion, so the adapter preserves catalog and "
         "artifact evidence without source-declaring a model. Files are referenced "
         "but never downloaded; the public list does not supply deletion semantics "
@@ -93,6 +94,7 @@ class ZenodoModelRecordsSourceAdapter:
                 "url": self.url,
                 "query": self.query,
                 "sort": self.sort,
+                "all_versions": True,
                 "page_size": self.page_size,
                 "max_response_bytes": self.max_response_bytes,
             }
@@ -123,6 +125,7 @@ class ZenodoModelRecordsSourceAdapter:
                     "sort": self.sort,
                     "page": page_number,
                     "size": self.request_page_size,
+                    "all_versions": "true",
                 },
                 headers={"Accept": "application/json"},
             )
@@ -255,6 +258,7 @@ class ZenodoModelRecordsSourceAdapter:
             "sort": self.sort,
             "size": str(self.request_page_size),
             "page": str(expected_page),
+            "all_versions": "true",
         }
         if len(actual_pairs) != len(expected_pairs) or dict(actual_pairs) != expected_pairs:
             raise ValueError(

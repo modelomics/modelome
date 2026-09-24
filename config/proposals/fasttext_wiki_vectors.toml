@@ -1,0 +1,47 @@
+# Official fastText index lists 294 language-specific Wikipedia vector models
+# with direct binary+text ZIP and text-only artifact links. Disabled pending
+# catalog-scale source review; vector archives are reference-only.
+[[source]]
+name = "fasttext-wiki-vectors"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:natural-language-processing", "ecosystem:fasttext", "kind:pretrained-vectors"]
+url = "https://fasttext.cc/docs/en/pretrained-vectors.html"
+provider_namespace = "fasttext:wiki-vector"
+artifact_kind = "catalog_record"
+model_status = "released"
+allowed_origins = ["https://fasttext.cc", "https://dl.fbaipublicfiles.com", "https://arxiv.org", "https://github.com", "https://creativecommons.org"]
+schedule = "monthly"
+max_response_bytes = 2097152
+max_entries = 600
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '(?s)<td>(?P<name>[^:<]+):\s*<a(?=[^>]*href="(?P<url>https://dl\.fbaipublicfiles\.com/fasttext/vectors-wiki/wiki\.(?P<id>[a-z0-9_]+)\.zip)")[^>]*>bin\+text</a>'
+name_template = "fastText Wiki 300 {name}"
+identity_source = "id"
+relation = "weights"
+crawl = false
+require_url = true
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '(?s)<td>(?P<name>[^:<]+):\s*<a(?=[^>]*href="https://dl\.fbaipublicfiles\.com/fasttext/vectors-wiki/wiki\.(?P<id>[a-z0-9_]+)\.zip")[^>]*>bin\+text</a>,\s*<a(?=[^>]*href="(?P<url>https://dl\.fbaipublicfiles\.com/fasttext/vectors-wiki/wiki\.(?P=id)\.vec)")[^>]*>text</a>'
+name_template = "fastText Wiki 300 {name}"
+identity_source = "id"
+relation = "weights"
+crawl = false
+require_url = true
+
+[[source.shared_links]]
+href_pattern = '^https://arxiv\.org/abs/1607\.04606$'
+relation = "paper_reference"
+
+[[source.shared_links]]
+href_pattern = '^https://github\.com/facebookresearch/fastText/?$'
+relation = "source_implementation"
+
+[[source.shared_links]]
+href_pattern = '^https://creativecommons\.org/licenses/by-sa/3\.0/?$'
+relation = "license"
+crawl = false

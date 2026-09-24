@@ -88,6 +88,29 @@ def test_projects_descriptive_executorch_pte_release_asset() -> None:
     assert candidate.models[0].name == "mobilenet small xnnpack"
 
 
+def test_projects_tensorrt_serialized_engine_with_matching_release_context() -> None:
+    event = release_event_record(
+        [asset(1, "resnet50.plan")],
+        release_name="TensorRT ResNet50 model engine",
+        release_body="Pretrained ResNet50 model weights serialized for TensorRT.",
+    )
+
+    [candidate] = project_github_release_assets(event)
+
+    assert candidate.canonical_url.endswith("/resnet50.plan")
+    assert candidate.models[0].name == "resnet50"
+
+
+def test_does_not_project_safetensors_split_index_as_weight_file() -> None:
+    event = release_event_record(
+        [asset(1, "model.safetensors.index.json")],
+        release_name="Qwen 2.5 model release",
+        release_body="Pretrained model weights for Qwen2.5.",
+    )
+
+    assert project_github_release_assets(event) == ()
+
+
 def test_rejects_release_asset_lists_above_the_limit_instead_of_silently_truncating() -> None:
     event = release_event_record([asset(i, f"{i}.pt") for i in range(1, 5)])
 

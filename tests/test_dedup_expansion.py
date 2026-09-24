@@ -105,6 +105,59 @@ def test_explicit_exact_mirror_identifier_joins_within_one_source() -> None:
     }
 
 
+def test_exact_huggingface_model_card_link_joins_provider_documentation_entry() -> None:
+    provider = _seed(
+        "mistral-docs",
+        [{"namespace": "mistral:model-documentation", "value": "mistral-large"}],
+    )
+    provider["source"] = "mistral-model-documentation"
+    provider["links"] = [
+        {
+            "url": "https://huggingface.co/mistralai/Mistral-Large-2407",
+            "relation": "model_card",
+        }
+    ]
+    hub = _seed(
+        "mistralai/Mistral-Large-2407",
+        [{"namespace": "huggingface:model", "value": "mistralai/Mistral-Large-2407"}],
+    )
+    hub["source"] = "huggingface"
+
+    result = build_entries([provider, hub])
+
+    assert len(result.entries) == 1
+    assert {member.source for member in result.entries[0].members} == {
+        "mistral-model-documentation",
+        "huggingface",
+    }
+
+
+def test_shared_huggingface_model_card_link_does_not_merge_multiple_provider_models() -> None:
+    provider = _seed(
+        "provider-catalog",
+        [{"namespace": "provider:model", "value": "model-a"}],
+    )
+    provider["source"] = "provider-catalog"
+    provider["models"].append(
+        {"local_id": "model-b", "name": "Model B", "identifiers": []}
+    )
+    provider["links"] = [
+        {
+            "url": "https://huggingface.co/org/shared-card",
+            "relation": "model_card",
+        }
+    ]
+    hub = _seed(
+        "org/shared-card",
+        [{"namespace": "huggingface:model", "value": "org/shared-card"}],
+    )
+    hub["source"] = "huggingface"
+
+    result = build_entries([provider, hub])
+
+    assert len(result.entries) == 3
+
+
 def test_same_direct_checkpoint_url_joins_cross_source_records_and_keeps_provenance() -> None:
     first = _seed("source-a", [])
     first["source"] = "catalog-a"

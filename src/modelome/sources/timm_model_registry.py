@@ -37,7 +37,11 @@ Clock = Callable[[], datetime]
 _COMMIT = re.compile(r"^[0-9a-f]{40}$")
 _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _MODULE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*$")
-_HUB_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$")
+_HUB_ID = re.compile(
+    r"^(?P<repo>[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*)"
+    r"(?:@(?P<revision>[A-Za-z0-9][A-Za-z0-9_.-]*"
+    r"(?:/[A-Za-z0-9][A-Za-z0-9_.-]*)*))?$"
+)
 _MAX_MODULES = 1_000
 
 
@@ -292,9 +296,16 @@ class TimmModelRegistrySourceAdapter:
                         )
                 hub_id = _text(rendered.get("hf_hub_id"))
                 if hub_id:
+                    hub_match = _HUB_ID.fullmatch(hub_id)
+                    if hub_match is None:
+                        raise ValueError(
+                            f"{self.name}: invalid Hugging Face ID {hub_id!r}"
+                        )
+                    hub_repo = hub_match.group("repo")
+                    hub_revision = hub_match.group("revision") or "main"
                     links.append(
                         Link(
-                            f"https://huggingface.co/{hub_id}",
+                            f"https://huggingface.co/{hub_repo}",
                             relation="linked_model_artifact",
                             locator=config.locator,
                             crawl=False,
@@ -304,7 +315,8 @@ class TimmModelRegistrySourceAdapter:
                     if _safe_hub_filename(hub_filename):
                         links.append(
                             Link(
-                                f"https://huggingface.co/{hub_id}/resolve/main/"
+                                f"https://huggingface.co/{hub_repo}/resolve/"
+                                f"{quote(hub_revision, safe='/')}/"
                                 f"{quote(hub_filename, safe='/')}",
                                 relation="weights",
                                 locator=config.locator,

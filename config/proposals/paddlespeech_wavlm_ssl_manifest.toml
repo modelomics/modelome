@@ -1,0 +1,11 @@
+# PaddleSpeech's first-party Python download map declares the WavLM package URL and MD5.
+[[source]]
+name = "paddlespeech-wavlm-ssl-manifest"
+adapter = "paddlespeech_ssl_manifest"
+enabled = false
+repository = "PaddlePaddle/PaddleSpeech"
+branch = "develop"
+source_path = "paddlespeech/resource/pretrained_models.py"
+max_response_bytes = 8388608
+
+# Covers the WavLM Librispeech v1.0 checkpoint package, absent from released_model.md.

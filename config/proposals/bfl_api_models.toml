@@ -1,0 +1,15 @@
+# Black Forest Labs' first-party FLUX API guide declares exact hosted model
+# endpoint IDs. The adapter omits FLUX.2 Klein IDs because those model weights
+# are already enumerated in the official FLUX.2 repository/Hugging Face.
+# It indexes API model identities and routes only; it does not assert weights.
+[[source]]
+name = "bfl-api-models"
+adapter = "bfl_api_models"
+enabled = false
+entry_tags = ["field:generative-image-modeling", "ecosystem:black-forest-labs", "kind:hosted-model", "modality:image-generation", "evidence:provider-model-documentation"]
+repository = "black-forest-labs/skills"
+branch = "master"
+source_path = "skills/bfl-api/references/endpoints.md"
+schedule = "weekly"
+max_response_bytes = 524288
+max_entries = 100
