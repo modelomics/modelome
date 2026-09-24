@@ -506,11 +506,16 @@ def test_civitai_models_pages_versions_files_and_declared_base_lineage() -> None
     assert first.complete is False
     assert first.next_state == {
         "next_url": (
-            "https://civitai.com/api/v1/models?cursor=opaque-next&limit=1&nsfw=true&sort=Newest"
+            "https://civitai.com/api/v1/models?cursor=opaque-next&earlyAccess=true&limit=1&nsfw=true&sort=Newest"
         ),
         "raw_items_seen": 1,
     }
-    assert client.calls[0][1] == {"limit": 1, "sort": "Newest", "nsfw": "true"}
+    assert client.calls[0][1] == {
+        "limit": 1,
+        "sort": "Newest",
+        "nsfw": "true",
+        "earlyAccess": "true",
+    }
     assert client.calls[1][0] == first.next_state["next_url"]
     assert client.calls[1][1] == {}
     assert second.complete is True

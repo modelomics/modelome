@@ -123,6 +123,32 @@ def test_discovers_execu_torch_pte_release_asset() -> None:
     assert release_page.records[0].models[0].name == "qwen2.5 7b executorch"
 
 
+def test_discovers_pytorch_mobile_ptl_release_asset() -> None:
+    client = QueuedClient(
+        response([project()]),
+        response(
+            [
+                release(
+                    {
+                        "id": 11,
+                        "name": "qwen2.5-7b-mobile.ptl",
+                        "url": "https://gitlab.com/lab/qwen-model/-/releases/v1.0/downloads/qwen2.5-7b-mobile.ptl",
+                        "link_type": "package",
+                    }
+                )
+            ],
+            url="https://gitlab.com/api/v4/projects/42/releases?per_page=100",
+        ),
+    )
+    adapter = GitLabPublicReleaseAssetsSourceAdapter(client=client)
+
+    projects_page = adapter.fetch_page({})
+    release_page = adapter.fetch_page(projects_page.next_state)
+
+    assert len(release_page.records) == 1
+    assert release_page.records[0].canonical_url.endswith("qwen2.5-7b-mobile.ptl")
+
+
 def test_release_pagination_is_checkpointed_one_request_at_a_time() -> None:
     next_url = "https://gitlab.com/api/v4/projects/42/releases?pagination=keyset&id_after=1"
     client = QueuedClient(

@@ -160,6 +160,9 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
     rich_manifest = {
         "id": "10.5281/zenodo.1234567",
         "parent": {"id": "bioimage-io/parent-model", "version": "v2"},
+        "inputs": [
+            {"id": "normalized", "output_of": "bioimage-io/preprocessing-model"}
+        ],
         "documentation": {"source": "README.md", "sha256": "a" * 64},
         "git_repo": "https://github.com/example-lab/neural-image-model",
         "links": [
@@ -246,15 +249,20 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
         "first-model",
         "10.5281/zenodo.1234567",
     )
-    assert len(first.model_relations) == 1
-    relation = first.model_relations[0]
-    assert relation.subject_local_id == "bioimage-io/first-model@v0#model"
-    assert relation.predicate == "derived_from"
-    assert relation.target.identifiers == (
+    assert len(first.model_relations) == 2
+    parent_relation, pipeline_relation = first.model_relations
+    assert parent_relation.subject_local_id == "bioimage-io/first-model@v0#model"
+    assert parent_relation.predicate == "derived_from"
+    assert parent_relation.target.identifiers == (
         Identifier("bioimageio:model", "bioimage-io/parent-model"),
     )
-    assert relation.target.locator == "$.artifact.manifest.parent.id"
-    assert relation.locator == "$.artifact.manifest.parent.id"
+    assert parent_relation.target.locator == "$.artifact.manifest.parent.id"
+    assert parent_relation.locator == "$.artifact.manifest.parent.id"
+    assert pipeline_relation.predicate == "pipeline_input_from"
+    assert pipeline_relation.target.identifiers == (
+        Identifier("bioimageio:model", "bioimage-io/preprocessing-model"),
+    )
+    assert pipeline_relation.locator == "$.artifact.manifest.inputs[0].output_of"
     assert first.releases[0].identifiers == (
         Identifier(
             "bioimageio:version",

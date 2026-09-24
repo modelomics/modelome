@@ -4,6 +4,8 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
+import pytest
+
 from modelome.http import HttpResponse
 from modelome.sources.kaggle import KaggleModelsSourceAdapter
 
@@ -127,6 +129,65 @@ def test_model_list_pagination_cycle_fails_instead_of_rereading_pages() -> None:
     assert client.calls[3][1] == {"sortBy": "createTime", "pageSize": 100}
 
 
+def test_version_file_metadata_is_opt_in_and_paginates_first_party_file_rows() -> None:
+    client = _Client(
+        {
+            "models": [
+                {
+                    "ref": "google/gemma",
+                    "instances": [{"id": 12, "slug": "2b", "framework": "PyTorch"}],
+                }
+            ],
+            "totalResults": 1,
+        },
+        {"instances": [{"id": 12, "slug": "2b", "framework": "PyTorch"}]},
+        {"versionList": {"versions": [{"id": 101, "versionNumber": 1}]}},
+        {
+            "files": [
+                {
+                    "name": "model.safetensors",
+                    "size": 12,
+                    "creationDate": "2025-01-01T00:00:00Z",
+                }
+            ],
+            "nextPageToken": "more-files",
+        },
+        {"files": [{"name": "config.json", "size": 3}]},
+    )
+    adapter = KaggleModelsSourceAdapter(
+        client=client,
+        page_size=3,
+        include_all_versions=True,
+        include_version_files=True,
+    )
+
+    page = adapter.fetch_page({})
+
+    assert page.records[0].releases[0].metadata["files"] == (
+        {
+            "name": "model.safetensors",
+            "size": 12,
+            "creation_date": "2025-01-01T00:00:00Z",
+        },
+        {"name": "config.json", "size": 3, "creation_date": None},
+    )
+    assert client.calls[-2:] == [
+        (
+            "https://www.kaggle.com/api/v1/models/google/gemma/PyTorch/2b/1/files",
+            {"pageSize": 3},
+        ),
+        (
+            "https://www.kaggle.com/api/v1/models/google/gemma/PyTorch/2b/1/files",
+            {"pageSize": 3, "pageToken": "more-files"},
+        ),
+    ]
+
+
+def test_version_file_metadata_requires_all_version_expansion() -> None:
+    with pytest.raises(ValueError, match="requires include_all_versions"):
+        KaggleModelsSourceAdapter(client=_Client(), include_version_files=True)
+
+
 def test_malformed_model_is_reported_without_dropping_valid_models() -> None:
     client = _Client(
         {
@@ -184,6 +245,7 @@ def test_optional_version_expansion_paginates_all_releases_and_builds_version_li
                         "id": 101,
                         "url": "/models/google/gemma/PyTorch/2b/1",
                         "totalUncompressedBytes": 10,
+                        "isTfhubModel": True,
                     },
                     {"versionNumber": 2, "id": 102, "totalUncompressedBytes": 20},
                     {"versionNumber": 4, "id": 104, "isPrivate": True},
@@ -215,6 +277,7 @@ def test_optional_version_expansion_paginates_all_releases_and_builds_version_li
         for release in page.records[0].releases
     )
     assert page.records[0].releases[0].metadata["total_uncompressed_bytes"] == 10
+    assert page.records[0].releases[0].metadata["is_tfhub_model"] is True
     assert page.records[0].releases[-1].metadata["base_model_instance_id"] == "77"
     assert page.records[0].releases[-1].metadata[
         "base_model_instance_information"

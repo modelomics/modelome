@@ -1,0 +1,18 @@
+# Optional bounded metadata scan for release assets on older public GitHub repositories.
+# Configure disjoint numeric repository ID ranges before enabling each source.
+# The scan does not download assets and does not claim global historical coverage.
+[[source]]
+name = "github-historical-release-assets-0-999999"
+adapter = "github_historical_release_assets"
+enabled = false
+initial_since = 0
+max_repository_id = 999999
+max_repositories = 1000
+page_size = 100
+max_releases_per_repository = 100
+max_assets_per_release = 100
+schedule = "monthly"
+entry_tags = ["ecosystem:github", "kind:release-asset"]
+
+# The public REST API permits unauthenticated access, subject to a lower rate limit.
+# GITHUB_TOKEN can be set in the environment for authenticated requests.

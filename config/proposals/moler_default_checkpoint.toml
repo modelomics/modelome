@@ -1,0 +1,15 @@
+# Microsoft's first-party MoLeR README links its default pretrained checkpoint.
+[[source]]
+name = "moler-default-checkpoint"
+adapter = "moler_default_checkpoint"
+enabled = false
+repository = "microsoft/molecule-generation"
+branch = "main"
+source_path = "README.md"
+entry_tags = ["field:computational-chemistry", "ecosystem:moler", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# The README identifies this exact file and links its first-party release at
+# https://figshare.com/ndownloader/files/34642724. The adapter reads that link
+# from the pinned README and never fetches the checkpoint bytes.

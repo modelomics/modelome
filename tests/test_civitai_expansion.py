@@ -84,6 +84,7 @@ def test_model_filters_and_version_file_evidence_are_retained() -> None:
         "limit": 100,
         "sort": "Newest",
         "nsfw": "true",
+        "earlyAccess": "true",
         "period": "Month",
         "query": "portrait",
         "tag": "illustration",
@@ -143,6 +144,7 @@ def test_next_page_keeps_unfiltered_public_scan_scope_when_provider_omits_params
     assert params["limit"] == ["100"]
     assert params["sort"] == ["Newest"]
     assert params["nsfw"] == ["true"]
+    assert params["earlyAccess"] == ["true"]
 
 
 def test_archived_models_remain_documented_without_implying_weights_are_available() -> None:
@@ -181,3 +183,44 @@ def test_archived_models_remain_documented_without_implying_weights_are_availabl
     assert "unpublished or moderator-only historical versions" in (
         CivitaiModelsSourceAdapter.coverage_limitation
     )
+
+
+def test_model_scan_requests_and_retains_public_early_access_versions() -> None:
+    endpoint = "https://civitai.com/api/v1/models"
+    client = _QueueClient(
+        _response(
+            {
+                "items": [
+                    {
+                        "id": 101,
+                        "name": "Early access model",
+                        "modelVersions": [
+                            {
+                                "id": 102,
+                                "name": "preview",
+                                "availability": "EarlyAccess",
+                                "usageControl": "Download",
+                                "files": [
+                                    {
+                                        "id": 103,
+                                        "name": "preview.safetensors",
+                                        "downloadUrl": "https://civitai.com/api/download/models/102",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+                "metadata": {},
+            },
+            endpoint,
+        )
+    )
+
+    page = CivitaiModelsSourceAdapter(client=client).fetch_page({})
+
+    assert client.calls[0][1]["earlyAccess"] == "true"
+    release = page.records[0].releases[0]
+    assert release.metadata["availability"] == "EarlyAccess"
+    assert release.metadata["usage_control"] == "Download"
+    assert any(link.url.endswith("/102") for link in page.records[0].links)

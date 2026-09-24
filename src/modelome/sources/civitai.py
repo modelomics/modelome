@@ -32,7 +32,8 @@ class CivitaiModelsSourceAdapter:
     """Page every public model exposed by CivitAI's model-list endpoint."""
 
     coverage_limitation = (
-        "The public models API exposes only Published versions to non-moderator callers; "
+        "The public models API exposes only Published and requested early-access versions "
+        "to non-moderator callers; "
         "archived models omit file links, and NSFW results can be silently restricted "
         "by region even when nsfw=true. This source cannot enumerate unpublished or "
         "moderator-only historical versions."
@@ -47,6 +48,7 @@ class CivitaiModelsSourceAdapter:
         sort_by: str = "Newest",
         period: str = "AllTime",
         include_nsfw: bool = True,
+        include_early_access: bool = True,
         query: str | None = None,
         tag: str | None = None,
         username: str | None = None,
@@ -67,6 +69,7 @@ class CivitaiModelsSourceAdapter:
         if self.period not in {"AllTime", "Year", "Month", "Week", "Day"}:
             raise ValueError(f"{self.name}: unsupported CivitAI sort period {self.period!r}")
         self.include_nsfw = bool(include_nsfw)
+        self.include_early_access = bool(include_early_access)
         self.query = _optional_text(query)
         self.tag = _optional_text(tag)
         self.username = _optional_text(username)
@@ -82,6 +85,7 @@ class CivitaiModelsSourceAdapter:
                 "sort_by": self.sort_by,
                 "period": self.period,
                 "include_nsfw": self.include_nsfw,
+                "include_early_access": self.include_early_access,
                 "query": self.query,
                 "tag": self.tag,
                 "username": self.username,
@@ -199,6 +203,7 @@ class CivitaiModelsSourceAdapter:
             "limit": self.page_size,
             "sort": self.sort_by,
             "nsfw": str(self.include_nsfw).lower(),
+            "earlyAccess": str(self.include_early_access).lower(),
         }
         if self.period != "AllTime":
             params["period"] = self.period

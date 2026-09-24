@@ -16,7 +16,9 @@ from modelome.lake import ParquetLandingZone, ShardApplicationOrder
 from modelome.semantic_scholar_bulk import (
     BulkLoadLimits,
     SemanticScholarBulkLoader,
+    _lake_record,
     _PublicHttpsRedirectHandler,
+    citation_edge_ids,
 )
 from modelome.sources.semantic_scholar import SemanticScholarDatasetSourceAdapter
 
@@ -293,6 +295,78 @@ def test_loader_reuses_the_configured_control_adapter(tmp_path: Path) -> None:
     )
 
     assert loader.control is control_adapter
+
+
+def test_citations_dataset_extracts_exact_corpus_edge_ids_without_enabling_it_by_default(
+    tmp_path: Path,
+) -> None:
+    payload = {"citingPaperId": 215416146, "citedPaperId": "123", "contexts": ["ctx"]}
+    assert citation_edge_ids(payload) == ("215416146", "123")
+    record = _lake_record(
+        json.dumps(payload).encode(),
+        dataset="citations",
+        operation="upsert",
+        line_number=1,
+        max_line_bytes=1024,
+    )
+    assert record.source_record_id == "semantic-scholar:citation:215416146:123"
+    assert record.payload == payload
+
+    lake = ParquetLandingZone(tmp_path / "lake")
+    default_loader = SemanticScholarBulkLoader(
+        lake,
+        api_key=API_KEY,
+        transport=FakeTransport([], []),
+    )
+    assert default_loader.control.datasets == ("papers", "abstracts", "paper-ids")
+
+    citation_adapter = SemanticScholarDatasetSourceAdapter(
+        datasets=("citations",),
+        release_id=TARGET_RELEASE,
+        api_key=API_KEY,
+        client=MetadataClient(snapshot_manifest("citations", signature="old")),
+    )
+    control_page = citation_adapter.fetch_page(
+        {
+            "stage": "snapshot",
+            "target_release": TARGET_RELEASE,
+            "dataset_index": 0,
+            "shard_offset": 0,
+            "control_records_seen": 1,
+            "release_signature": "release-signature",
+        }
+    )
+    control = control_page.records[0]
+    transport = FakeTransport(
+        [snapshot_manifest("citations", signature="fresh")],
+        [compressed_rows(payload)],
+    )
+    citation_adapter.client = transport
+    citation_loader = SemanticScholarBulkLoader(
+        lake,
+        control_adapter=citation_adapter,
+        transport=transport,
+    )
+    citation_receipt = citation_loader.load_shard(control)
+    citation_rows = landed_rows(lake, citation_receipt)
+    assert citation_loader.control is citation_adapter
+    assert citation_receipt.dataset == "citations"
+    assert citation_rows[0]["source_record_id"] == "semantic-scholar:citation:215416146:123"
+    assert json.loads(citation_rows[0]["payload_json"]) == payload
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"citingPaperId": 0, "citedPaperId": 123},
+        {"citingPaperId": True, "citedPaperId": 123},
+        {"citingPaperId": 123, "citedPaperId": "12.3"},
+        {"citingPaperId": 123},
+    ],
+)
+def test_citation_edge_ids_reject_missing_or_noncanonical_paper_ids(payload):
+    with pytest.raises(ValueError, match="corpus ID"):
+        citation_edge_ids(payload)
 
 
 def test_delete_diff_shard_lands_delete_operations(tmp_path: Path) -> None:

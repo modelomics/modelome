@@ -1,0 +1,36 @@
+# NeMo publishes separate first-party checkpoint tables for speaker
+# recognition and speech intent/slot filling. These task catalogs are distinct
+# from the active ASR and diarization indexes.
+[[source]]
+name = "nemo-speaker-recognition-checkpoints"
+adapter = "nemo_checkpoint_catalog"
+enabled = false
+entry_tags = [
+  "field:audio-machine-learning",
+  "task:speaker-recognition",
+  "ecosystem:nvidia-nemo",
+  "kind:checkpoint",
+]
+url = "https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/speaker_recognition/results.html"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 1000
+
+[[source]]
+name = "nemo-speech-intent-slot-checkpoints"
+adapter = "nemo_checkpoint_catalog"
+enabled = false
+entry_tags = [
+  "field:audio-machine-learning",
+  "task:speech-intent-slot-filling",
+  "ecosystem:nvidia-nemo",
+  "kind:checkpoint",
+]
+url = "https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/speech_intent_slot/results.html"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 1000
+
+[evidence]
+speaker_recognition = "https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/speaker_recognition/results.html"
+speech_intent_slot = "https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/speech_intent_slot/results.html"

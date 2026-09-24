@@ -37,7 +37,8 @@ _VECTOR_ARCHIVE = re.compile(
 _REPOSITORY = "bheinzerling/bpemb"
 _README = "README.md"
 _CODE_HOSTS = {"bpemb.h-its.org", "nlp.h-its.org"}
-_DEFAULT_HOST = "https://bpemb.h-its.org/"
+_MONOLINGUAL_HOST = "https://nlp.h-its.org/bpemb/"
+_MULTI_HOST = "https://bpemb.h-its.org/multi/multi/"
 _LANGUAGES_PER_PAGE = 10
 
 
@@ -110,7 +111,8 @@ class BPEmbPretrainedVectorRegistrySourceAdapter:
                 "repository": repository,
                 "branch": branch,
                 "readme": _README,
-                "language_page_base": _DEFAULT_HOST,
+                "monolingual_page_base": _MONOLINGUAL_HOST,
+                "multilingual_page": _MULTI_HOST,
                 "archive_pattern": _VECTOR_ARCHIVE.pattern,
                 "languages_per_page": languages_per_page,
             }
@@ -127,8 +129,15 @@ class BPEmbPretrainedVectorRegistrySourceAdapter:
             revision, languages = self._load_language_index()
         if not isinstance(languages, list) or not languages:
             raise ValueError(f"{self.name}: no supported language pages found")
-        if len(languages) > self.max_languages:
-            raise ValueError(f"{self.name}: language count exceeds configured limit")
+        if (
+            len(languages) > self.max_languages
+            or any(not isinstance(language, str) or not _LANGUAGE.fullmatch(language)
+                   for language in languages)
+            or len(set(languages)) != len(languages)
+            or "en" not in languages
+            or "multi" not in languages
+        ):
+            raise ValueError(f"{self.name}: invalid language index in cursor")
         offset = state.get("language_offset", 0)
         if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
             raise ValueError(f"{self.name}: invalid language cursor")
@@ -140,6 +149,7 @@ class BPEmbPretrainedVectorRegistrySourceAdapter:
                 not isinstance(model_count, int)
                 or isinstance(model_count, bool)
                 or model_count < 0
+                or model_count > self.max_entries
             ):
                 raise ValueError(f"{self.name}: invalid terminal model count")
             return SourcePage(
@@ -152,9 +162,9 @@ class BPEmbPretrainedVectorRegistrySourceAdapter:
         rows: dict[str, dict[str, Any]] = {}
         for language in batch:
             page_url = (
-                f"{_DEFAULT_HOST}{quote(language, safe='')}/"
+                f"{_MONOLINGUAL_HOST}{quote(language, safe='')}/"
                 if language != "multi"
-                else f"{_DEFAULT_HOST}multi/multi/"
+                else _MULTI_HOST
             )
             response = self.client.get(page_url, headers={"Accept": "text/html"})
             if response.status != 200:
@@ -231,7 +241,7 @@ class BPEmbPretrainedVectorRegistrySourceAdapter:
     def _record(self, row: Mapping[str, Any], revision: str) -> SourceRecord:
         lang, vs, dim = row["language"], row["vs"], row["dim"]
         model_id = f"model:{lang}:vs{vs}:d{dim}"
-        page_url = f"{_DEFAULT_HOST}multi/multi/" if lang == "multi" else f"{_DEFAULT_HOST}{lang}/"
+        page_url = _MULTI_HOST if lang == "multi" else f"{_MONOLINGUAL_HOST}{lang}/"
         archive_urls = tuple(sorted(row["urls"]))
         model = ModelHint(
             model_id,

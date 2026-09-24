@@ -28,7 +28,8 @@ from modelome.lake import (
 from modelome.models import SourceRecord
 from modelome.sources.semantic_scholar import SemanticScholarDatasetSourceAdapter
 
-_SUPPORTED_DATASETS = ("papers", "abstracts", "paper-ids")
+_DEFAULT_DATASETS = ("papers", "abstracts", "paper-ids")
+_SUPPORTED_DATASETS = (*_DEFAULT_DATASETS, "citations")
 _SHA1 = frozenset("0123456789abcdef")
 
 
@@ -181,7 +182,7 @@ class SemanticScholarBulkLoader:
             self.control = SemanticScholarDatasetSourceAdapter(
                 name=f"{self.source}-bulk-control",
                 url=url,
-                datasets=_SUPPORTED_DATASETS,
+                datasets=_DEFAULT_DATASETS,
                 api_key=api_key,
                 client=self.transport,
             )
@@ -464,6 +465,10 @@ def _lake_record(
 
 
 def _row_identity(dataset: str, payload: Mapping[str, Any], line_number: int) -> str:
+    if dataset == "citations":
+        citing_paper_id, cited_paper_id = citation_edge_ids(payload)
+        return f"semantic-scholar:citation:{citing_paper_id}:{cited_paper_id}"
+
     corpus_id = payload.get("corpusid")
     if isinstance(corpus_id, bool):
         corpus_id = None
@@ -490,6 +495,36 @@ def _row_identity(dataset: str, payload: Mapping[str, Any], line_number: int) ->
             )
         return f"semantic-scholar:paper-id:{normalized_sha}"
     return f"semantic-scholar:corpus:{normalized_corpus_id}"
+
+
+def citation_edge_ids(payload: Mapping[str, Any]) -> tuple[str, str]:
+    """Extract the exact S2 corpus IDs at both ends of one citation edge.
+
+    The Datasets API's ``citations`` records refer to papers by
+    ``citingPaperId`` and ``citedPaperId``. Both are corpus IDs. Canonical
+    decimal strings preserve those IDs without attempting title-based joins.
+    """
+
+    if not isinstance(payload, Mapping):
+        raise TypeError("citation row must be a mapping")
+    return (
+        _citation_corpus_id(payload.get("citingPaperId"), "citingPaperId"),
+        _citation_corpus_id(payload.get("citedPaperId"), "citedPaperId"),
+    )
+
+
+def _citation_corpus_id(value: Any, field: str) -> str:
+    if isinstance(value, bool):
+        raise ValueError(f"citation {field} must be a positive corpus ID")
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, str) and value.isascii() and value.isdigit():
+        parsed = int(value)
+    else:
+        parsed = 0
+    if parsed < 1:
+        raise ValueError(f"citation {field} must be a positive corpus ID")
+    return str(parsed)
 
 
 def _validate_resolved_download(url: str, *, expected_stable_url: str) -> None:

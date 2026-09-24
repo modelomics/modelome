@@ -1,0 +1,20 @@
+# NVIDIA lists five exact N1.7 checkpoint repos in the first-party README table.
+# Keep disabled until the adapter is registered and reviewed.
+[[source]]
+name = "nvidia-groot-n17-checkpoints"
+adapter = "nvidia_groot_n17_checkpoints"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:nvidia-isaac-groot", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 8
+
+# Primary inventory: https://github.com/NVIDIA/Isaac-GR00T/blob/main/README.md
+# Exact table refs:
+# https://huggingface.co/nvidia/GR00T-N1.7-3B
+# https://huggingface.co/nvidia/GR00T-N1.7-LIBERO
+# https://huggingface.co/nvidia/GR00T-N1.7-DROID
+# https://huggingface.co/nvidia/GR00T-N1.7-SimplerEnv-Bridge
+# https://huggingface.co/nvidia/GR00T-N1.7-SimplerEnv-Fractal
+# The runtime VLM backbone nvidia/Cosmos-Reason2-2B is gated; it is a dependency,
+# not a checkpoint declared in the inventory table, and is not indexed here.

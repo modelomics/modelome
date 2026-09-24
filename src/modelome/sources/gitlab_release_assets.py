@@ -41,6 +41,7 @@ _CHECKPOINT_SUFFIXES = (
     ".h5",
     ".keras",
     ".tflite",
+    ".ptl",
     ".pb",
     ".pdparams",
     ".msgpack",

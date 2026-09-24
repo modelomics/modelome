@@ -37,6 +37,7 @@ from modelome.sources.chem_ml_extra import (
 from modelome.sources.civitai import CivitaiModelsSourceAdapter
 from modelome.sources.cloud_extra import OciGenerativeAIModelCatalog
 from modelome.sources.commoncrawl import CommonCrawlWetSourceAdapter
+from modelome.sources.conceptnet_numberbatch import ConceptNetNumberbatchSourceAdapter
 from modelome.sources.crossref import CrossrefSourceAdapter
 from modelome.sources.csv_source import CsvSourceAdapter
 from modelome.sources.datacite import DataCiteSourceAdapter
@@ -49,6 +50,7 @@ from modelome.sources.eartharxiv import EarthArxivSourceAdapter
 from modelome.sources.espnet_model_zoo import EspnetModelZooSourceAdapter
 from modelome.sources.europe_pmc import EuropePmcSourceAdapter
 from modelome.sources.fairseq_language_models import FairseqPretrainedLanguageModelSourceAdapter
+from modelome.sources.fengwu_checkpoint_registry import FengWuCheckpointRegistrySourceAdapter
 from modelome.sources.galaxea_vla_checkpoints import GalaxeaVLACheckpointSourceAdapter
 from modelome.sources.generative_extra import (
     CompVisLatentDiffusionDownloadsSourceAdapter,
@@ -58,6 +60,9 @@ from modelome.sources.generative_extra import (
 from modelome.sources.gensim_registry import GensimDownloaderModelRegistrySourceAdapter
 from modelome.sources.geospatial_registry import GeospatialRegistrySourceAdapter
 from modelome.sources.gharchive import GhArchiveSourceAdapter
+from modelome.sources.github_historical_release_assets import (
+    GitHubHistoricalReleaseAssetsSourceAdapter,
+)
 from modelome.sources.github_repositories import GitHubPublicRepositoriesSourceAdapter
 from modelome.sources.gitlab_release_assets import GitLabPublicReleaseAssetsSourceAdapter
 from modelome.sources.gpt4all_model_catalog import Gpt4AllModelCatalogSourceAdapter
@@ -88,6 +93,7 @@ from modelome.sources.mediapipe_model_catalog import MediaPipeModelCatalogSource
 from modelome.sources.mindspore_registry import MindSporeModelZooSourceAdapter
 from modelome.sources.modelscope import ModelScopeModelsSourceAdapter
 from modelome.sources.molecular_registry import OpenFoldCheckpointRegistrySourceAdapter
+from modelome.sources.moler_checkpoint import MoLeRCheckpointSourceAdapter
 from modelome.sources.monai_model_zoo import MonaiModelZooSourceAdapter
 from modelome.sources.nemo_checkpoints import NemoCheckpointCatalogSourceAdapter
 from modelome.sources.neuralgcm_checkpoint_registry import (
@@ -97,6 +103,7 @@ from modelome.sources.ngc import NgcModelsSourceAdapter
 from modelome.sources.ngc_cli_versions import NgcCliModelVersionsSourceAdapter
 from modelome.sources.nltk_data_models import NltkDataModelIndexSourceAdapter
 from modelome.sources.nnunet_registry import NnUNetV1PretrainedRegistryAdapter
+from modelome.sources.nvidia_groot_n17_checkpoints import NvidiaGR00TN17CheckpointSourceAdapter
 from modelome.sources.ocp_model_registry import OCPModelRegistrySourceAdapter
 from modelome.sources.octo_checkpoints import OctoCheckpointSourceAdapter
 from modelome.sources.ollama_library_tags import OllamaLibraryTagCatalogAdapter
@@ -123,6 +130,9 @@ from modelome.sources.paddlenlp_taskflow_knowledge_mining import (
     PaddleNlpTaskflowKnowledgeMiningSourceAdapter,
 )
 from modelome.sources.paddlenlp_taskflow_sentiment import PaddleNlpTaskflowSentimentSourceAdapter
+from modelome.sources.paddlenlp_taskflow_text_similarity import (
+    PaddleNlpTaskflowTextSimilaritySourceAdapter,
+)
 from modelome.sources.paddlenlp_taskflow_uie import PaddleNlpTaskflowUieSourceAdapter
 from modelome.sources.paddleocr_current_model_list import (
     PaddleOcrCurrentModelListSourceAdapter,
@@ -870,6 +880,22 @@ def create_source(
             **injected,
         )
 
+    if adapter == "github_historical_release_assets":
+        token = _credential(expanded, environment, defaults=("GITHUB_TOKEN",))
+        return GitHubHistoricalReleaseAssetsSourceAdapter(
+            name=name,
+            initial_since=_nonnegative_integer(expanded.get("initial_since"), 0),
+            max_repository_id=_integer(expanded.get("max_repository_id"), 0),
+            max_repositories=_integer(expanded.get("max_repositories"), 10),
+            page_size=_integer(expanded.get("page_size"), 100),
+            max_releases_per_repository=_integer(
+                expanded.get("max_releases_per_repository"), 10
+            ),
+            max_assets_per_release=_integer(expanded.get("max_assets_per_release"), 100),
+            token=token or None,
+            client=injected["client"],
+        )
+
     if adapter in {"software_heritage_origins", "software-heritage-origins"}:
         return SoftwareHeritageOriginSourceAdapter(
             name=name,
@@ -979,6 +1005,11 @@ def create_source(
             "mace_off23_checkpoint_registry",
             "mace_foundation_checkpoint_registry",
             "mace_omol_checkpoint",
+            "moler_default_checkpoint",
+            "fengwu_checkpoint_registry",
+            "nvidia_groot_n17_checkpoints",
+            "paddlenlp_taskflow_text_similarity",
+            "conceptnet_numberbatch",
             "neuralgcm_checkpoint_registry",
             "pangu_weather_checkpoint_registry",
             "paddlex_model_list",
@@ -1128,6 +1159,7 @@ def create_source(
             page_size=_integer(expanded.get("page_size"), 100),
             sort_by=_text(expanded.get("sort_by")) or "createTime",
             include_all_versions=_boolean(expanded.get("include_all_versions"), default=True),
+            include_version_files=_boolean(expanded.get("include_version_files"), default=False),
             artifact_kind=artifact_kind or "model_card",
             client=client or HttpClient(),
         )
@@ -1710,6 +1742,16 @@ def create_source(
             **injected,
         )
 
+    if adapter == "moler_default_checkpoint":
+        return MoLeRCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            **injected,
+        )
+
     if adapter == "neuralgcm_checkpoint_registry":
         return NeuralGCMCheckpointRegistrySourceAdapter(
             name=name,
@@ -1731,6 +1773,37 @@ def create_source(
             provider_namespace=_required_text(expanded, "provider_namespace"),
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
             max_entries=_integer(expanded.get("max_entries"), 10),
+            **injected,
+        )
+
+    if adapter == "fengwu_checkpoint_registry":
+        return FengWuCheckpointRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 10),
+            **injected,
+        )
+
+    if adapter == "nvidia_groot_n17_checkpoints":
+        return NvidiaGR00TN17CheckpointSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 8),
+            **injected,
+        )
+
+    if adapter == "paddlenlp_taskflow_text_similarity":
+        return PaddleNlpTaskflowTextSimilaritySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
             **injected,
         )
 
@@ -2100,6 +2173,17 @@ def create_source(
             max_entries=_integer(expanded.get("max_entries"), 10_000),
             max_languages=_integer(expanded.get("max_languages"), 300),
             languages_per_page=_integer(expanded.get("languages_per_page"), 10),
+            **injected,
+        )
+
+    if adapter == "conceptnet_numberbatch":
+        return ConceptNetNumberbatchSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
             **injected,
         )
 

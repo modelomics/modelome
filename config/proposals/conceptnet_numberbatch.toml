@@ -1,0 +1,13 @@
+# First-party README links enumerate historical/current Numberbatch vectors.
+# Disabled pending catalog-scale source review; archives are reference-only.
+[[source]]
+name = "conceptnet-numberbatch"
+adapter = "conceptnet_numberbatch"
+enabled = false
+entry_tags = ["field:natural-language-processing", "ecosystem:conceptnet", "kind:pretrained-vectors"]
+repository = "commonsense/conceptnet-numberbatch"
+branch = "master"
+provider_namespace = "conceptnet-numberbatch:embedding"
+schedule = "monthly"
+max_response_bytes = 2097152
+max_entries = 100

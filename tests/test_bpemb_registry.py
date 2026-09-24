@@ -34,7 +34,7 @@ class _FakeClient:
                 b"[English](http://nlp.h-its.org/bpemb/en) "
                 b"[Japanese](http://nlp.h-its.org/bpemb/ja)"
             )
-        elif url == "https://bpemb.h-its.org/en/":
+        elif url == "https://nlp.h-its.org/bpemb/en/":
             body = b"""<table>
               <tr><td>10000</td><td><a href="en.wiki.bpe.vs10000.model">model</a></td>
               <td><a href="en.wiki.bpe.vs10000.d50.w2v.bin.tar.gz">bin</a></td>
@@ -43,7 +43,7 @@ class _FakeClient:
               <td><a href="en.wiki.bpe.vs10000.d100.w2v.bin.tar.gz">bin</a></td></tr>
               <a href="https://example.test/en.wiki.bpe.vs10000.d300.w2v.bin.tar.gz">bad</a>
             </table>"""
-        elif url == "https://bpemb.h-its.org/ja/":
+        elif url == "https://nlp.h-its.org/bpemb/ja/":
             body = b"""<a href="ja.wiki.bpe.vs5000.d100.w2v.bin.tar.gz">bin</a>
               <a href="ja.wiki.bpe.vs5000.d100.w2v.txt.tar.gz">txt</a>"""
         elif url == "https://bpemb.h-its.org/multi/multi/":
@@ -84,8 +84,8 @@ def test_bpemb_registry_groups_exact_public_vector_formats_and_paginates() -> No
     english = entries["model:en:vs10000:d50"]
     assert english.canonical_url.endswith("/en.wiki.bpe.vs10000.d50.w2v.bin.tar.gz")
     assert set(english.raw["weight_urls"]) == {
-        "https://bpemb.h-its.org/en/en.wiki.bpe.vs10000.d50.w2v.bin.tar.gz",
-        "https://bpemb.h-its.org/en/en.wiki.bpe.vs10000.d50.w2v.txt.tar.gz",
+        "https://nlp.h-its.org/bpemb/en/en.wiki.bpe.vs10000.d50.w2v.bin.tar.gz",
+        "https://nlp.h-its.org/bpemb/en/en.wiki.bpe.vs10000.d50.w2v.txt.tar.gz",
     }
     assert english.models[0].identifiers[0].value == "en:vs10000:d50"
     assert english.releases[0].metadata["dimension"] == 50
@@ -98,13 +98,17 @@ def test_bpemb_registry_rejects_malformed_terminal_cursors() -> None:
     )
     base_state = {
         "catalog_revision": _REVISION,
-        "languages": ["en", "ja"],
+        "languages": ["en", "ja", "multi"],
     }
 
     with pytest.raises(ValueError, match="cursor exceeds"):
-        adapter.fetch_page({**base_state, "language_offset": 3, "model_count": 4})
+        adapter.fetch_page({**base_state, "language_offset": 4, "model_count": 4})
     with pytest.raises(ValueError, match="invalid terminal model count"):
-        adapter.fetch_page({**base_state, "language_offset": 2})
+        adapter.fetch_page({**base_state, "language_offset": 3})
+    with pytest.raises(ValueError, match="invalid language index"):
+        adapter.fetch_page({**base_state, "languages": ["en", "../../host", "multi"]})
+    with pytest.raises(ValueError, match="invalid terminal model count"):
+        adapter.fetch_page({**base_state, "language_offset": 3, "model_count": True})
 
 
 def test_bpemb_registry_enforces_cumulative_entry_limit_across_pages() -> None:

@@ -319,13 +319,20 @@ class ZenodoModelRecordsSourceAdapter:
         for related_index, related in enumerate(_sequence(metadata.get("related_identifiers"))):
             if not isinstance(related, Mapping):
                 continue
-            if url := _related_url(related.get("identifier")):
+            related_identifier = related.get("identifier")
+            relation = _related_identifier_relation(
+                related.get("relation"), related.get("resource_type")
+            )
+            # A DOI explicitly declared IsIdenticalTo is a source-asserted
+            # identity bridge. Other related DOIs describe versions,
+            # publications, datasets, or citations and must remain links only.
+            if relation == "identical_to" and (doi := _doi(related_identifier)):
+                record_identifiers.append(Identifier("doi", doi))
+            if url := _related_url(related_identifier):
                 links_out.append(
                     Link(
                         url,
-                        relation=_related_identifier_relation(
-                            related.get("relation"), related.get("resource_type")
-                        ),
+                        relation=relation,
                         locator=f"$.metadata.related_identifiers[{related_index}].identifier",
                     )
                 )

@@ -116,7 +116,7 @@ The following are available capabilities, not a directive to run every source or
 loader now. During the entry-first phase, use only the bounded source or link operations
 needed to validate the per-paper workflow. Their later corpus-scale role is documented in
 [Entry-first modelome](docs/entry-first.md#path-to-complete-paper-ingestion).
-The default catalog currently has **328 enabled sources** (313 loadable without provider credentials); this is a configuration count,
+The default catalog currently has **336 enabled sources** (321 loadable without provider credentials); this is a configuration count,
 not a claim that all upstream inventories have been exhausted.
 
 The default catalog enables independent, unfiltered streams for:

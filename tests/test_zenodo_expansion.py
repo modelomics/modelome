@@ -52,3 +52,37 @@ def test_zenodo_preserves_version_graph_and_related_identifier_relation() -> Non
     assert ("https://zenodo.org/records/42", "latest_version") in links
     assert ("https://zenodo.org/api/records/40/versions", "versions") in links
     assert ("https://doi.org/10.5281/zenodo.41", "version_of") in links
+
+
+def test_zenodo_adds_exact_doi_identity_bridge_only_for_is_identical_to() -> None:
+    record = {
+        "id": 42,
+        "metadata": {
+            "title": "Model record",
+            "resource_type": {"type": "model"},
+            "related_identifiers": [
+                {
+                    "identifier": "https://doi.org/10.5281/Zenodo.99",
+                    "relation": "IsIdenticalTo",
+                },
+                {
+                    "identifier": "10.5281/zenodo.100",
+                    "relation": "IsSupplementTo",
+                },
+            ],
+        },
+        "links": {
+            "self": "https://zenodo.org/api/records/42",
+            "self_html": "https://zenodo.org/records/42",
+        },
+    }
+    payload = {"hits": {"hits": [record], "total": 1}, "links": {}}
+
+    page = ZenodoModelRecordsSourceAdapter(client=_Client(payload)).fetch_page({})
+
+    observed_dois = {
+        identifier.value
+        for identifier in page.records[0].identifiers
+        if identifier.namespace == "doi"
+    }
+    assert observed_dois == {"10.5281/zenodo.99"}

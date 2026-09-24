@@ -1,0 +1,25 @@
+# Mistral's first-party Search Toolkit documentation names the exact hosted
+# embedding API models and dimensions for the supported Mistral presets. This
+# complements the broad model directory, which does not enumerate the newer
+# dimension-specific embedding identifiers.
+# Primary source: https://docs.mistral.ai/studio/search/search-toolkit/concepts/embedding-model
+[[source]]
+name = "mistral-embedding-model-presets"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "field:multimodal-learning", "ecosystem:mistral", "kind:hosted-model", "modality:embedding"]
+url = "https://docs.mistral.ai/studio/search/search-toolkit/concepts/embedding-model"
+provider_namespace = "mistral:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Preset \\| Full model name \\| Dimensions \\| Distance metric$'
+name_column = 1
+identity_column = 1
+identity_source = "id"
+require_url = false

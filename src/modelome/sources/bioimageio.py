@@ -576,26 +576,38 @@ class BioImageIoSourceAdapter:
             status=ModelStatus.RELEASED,
             locator="$.artifact.manifest.name",
         )
-        model_relations: tuple[ModelRelationHint, ...] = ()
+        model_relations: list[ModelRelationHint] = []
         parent = manifest.get("parent")
         if isinstance(parent, Mapping):
             parent_id = _optional_text(parent.get("id"), _MAX_ID_CHARS)
             if parent_id:
                 parent_locator = "$.artifact.manifest.parent.id"
-                model_relations = (
-                    ModelRelationHint(
+                model_relations.append(
+                    _model_relation(
                         subject_local_id=local_model_id,
+                        source_record_id=control.source_record_id,
+                        target_id=parent_id,
                         predicate="derived_from",
-                        target=ModelHint(
-                            local_id=f"{control.source_record_id}#parent:{parent_id}",
-                            name=parent_id,
-                            identifiers=(Identifier("bioimageio:model", parent_id),),
-                            status=ModelStatus.DOCUMENTED,
-                            locator=parent_locator,
-                        ),
                         locator=parent_locator,
-                    ),
+                    )
                 )
+        raw_inputs = manifest.get("inputs")
+        if _is_sequence(raw_inputs):
+            for input_index, input_value in enumerate(raw_inputs):
+                if not isinstance(input_value, Mapping):
+                    continue
+                upstream_id = _optional_text(input_value.get("output_of"), _MAX_ID_CHARS)
+                if upstream_id:
+                    locator = f"$.artifact.manifest.inputs[{input_index}].output_of"
+                    model_relations.append(
+                        _model_relation(
+                            subject_local_id=local_model_id,
+                            source_record_id=control.source_record_id,
+                            target_id=upstream_id,
+                            predicate="pipeline_input_from",
+                            locator=locator,
+                        )
+                    )
         release_identifiers = (
             (
                 Identifier(
@@ -677,7 +689,7 @@ class BioImageIoSourceAdapter:
             identifiers=artifact_identifiers,
             links=_unique_links(links, self.max_links, self.name),
             models=(model,),
-            model_relations=model_relations,
+            model_relations=tuple(model_relations),
             releases=releases,
         )
 
@@ -1061,6 +1073,28 @@ def _optional_count(value: Any) -> int | None:
     if isinstance(value, str) and value.isdigit():
         return int(value)
     return None
+
+
+def _model_relation(
+    *,
+    subject_local_id: str,
+    source_record_id: str,
+    target_id: str,
+    predicate: str,
+    locator: str,
+) -> ModelRelationHint:
+    return ModelRelationHint(
+        subject_local_id=subject_local_id,
+        predicate=predicate,
+        target=ModelHint(
+            local_id=f"{source_record_id}#related-model:{target_id}",
+            name=target_id,
+            identifiers=(Identifier("bioimageio:model", target_id),),
+            status=ModelStatus.DOCUMENTED,
+            locator=locator,
+        ),
+        locator=locator,
+    )
 
 
 def _state_count(state: Mapping[str, Any], key: str, source: str) -> int | None:

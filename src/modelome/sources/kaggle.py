@@ -41,6 +41,7 @@ class KaggleModelsSourceAdapter:
         search: str | None = None,
         owner: str | None = None,
         include_all_versions: bool = False,
+        include_version_files: bool = False,
         artifact_kind: str | ArtifactKind = ArtifactKind.MODEL_CARD,
         client: HttpClient | Any | None = None,
     ) -> None:
@@ -54,7 +55,14 @@ class KaggleModelsSourceAdapter:
         self.owner = _optional_text(owner)
         if not isinstance(include_all_versions, bool):
             raise ValueError(f"{self.name}: include_all_versions must be a boolean")
+        if not isinstance(include_version_files, bool):
+            raise ValueError(f"{self.name}: include_version_files must be a boolean")
+        if include_version_files and not include_all_versions:
+            raise ValueError(
+                f"{self.name}: include_version_files requires include_all_versions"
+            )
         self.include_all_versions = include_all_versions
+        self.include_version_files = include_version_files
         if self.sort_by not in {
             "hotness",
             "downloadCount",
@@ -74,6 +82,7 @@ class KaggleModelsSourceAdapter:
                 "search": self.search,
                 "owner": self.owner,
                 "include_all_versions": self.include_all_versions,
+                "include_version_files": self.include_version_files,
                 "artifact_kind": self.artifact_kind.value,
             }
         )
@@ -523,6 +532,11 @@ class KaggleModelsSourceAdapter:
                 ),
                 locator="$.instances.externalBaseModelUrl",
             )
+        version_files = (
+            self._version_files(model_ref, framework, slug, version)
+            if self.include_version_files
+            else ()
+        )
         release = ReleaseHint(
             local_id=(
                 f"{model_ref}#release:{instance_id or instance_ref}"
@@ -552,6 +566,13 @@ class KaggleModelsSourceAdapter:
                 "sigstore_state": _optional_text(
                     instance.get("sigstoreState", instance.get("sigstore_state"))
                 ),
+                "is_tfhub_model": _optional_bool(
+                    (version_item or {}).get(
+                        "isTfhubModel",
+                        (version_item or {}).get("is_tfhub_model"),
+                    )
+                ),
+                "files": version_files,
                 "total_uncompressed_bytes": _optional_nonnegative_int(
                     instance.get("totalUncompressedBytes")
                 ),
@@ -655,6 +676,70 @@ class KaggleModelsSourceAdapter:
                 )
         return tuple(versions)
 
+    def _version_files(
+        self,
+        model_ref: str,
+        framework: str,
+        slug: str,
+        version: str,
+    ) -> tuple[dict[str, Any], ...]:
+        """List files for one exact version when explicitly requested."""
+        parts = urlsplit(self.url)
+        path = "/".join(
+            quote(part, safe="/") for part in (model_ref, framework, slug, version)
+        )
+        url = f"{parts.scheme}://{parts.netloc}/api/v1/models/{path}/files"
+        token: str | None = None
+        seen_tokens: set[str] = set()
+        files: list[dict[str, Any]] = []
+        while True:
+            params: dict[str, str | int] = {"pageSize": self.page_size}
+            if token is not None:
+                params["pageToken"] = token
+            response: HttpResponse = self.client.get(
+                url,
+                params=params,
+                headers={"Accept": "application/json"},
+            )
+            if response.status != 200:
+                raise ValueError(
+                    f"{self.name}: files for {model_ref}/{framework}/{slug}/{version} "
+                    f"returned HTTP {response.status}"
+                )
+            if len(response.body) > 4 * 1024 * 1024:
+                raise ValueError(f"{self.name}: model version files response is too large")
+            payload = response.json()
+            if not isinstance(payload, Mapping):
+                raise ValueError(f"{self.name}: model version files response is not an object")
+            page_files = payload.get("files")
+            if not _is_sequence(page_files):
+                raise ValueError(f"{self.name}: model version files are not a list")
+            for file in page_files:
+                if not isinstance(file, Mapping):
+                    raise ValueError(f"{self.name}: model version file row is not an object")
+                name = _optional_text(file.get("name"))
+                if name is None:
+                    raise ValueError(f"{self.name}: model version file has no name")
+                files.append(
+                    {
+                        "name": name,
+                        "size": _optional_nonnegative_int(file.get("size")),
+                        "creation_date": _optional_text(
+                            file.get("creationDate", file.get("creation_date"))
+                        ),
+                    }
+                )
+            next_token = _optional_text(
+                payload.get("nextPageToken", payload.get("next_page_token"))
+            )
+            if next_token is None:
+                break
+            if next_token in seen_tokens or next_token == token:
+                raise ValueError(f"{self.name}: model version file pagination did not advance")
+            seen_tokens.add(next_token)
+            token = next_token
+        return tuple(files)
+
 
 def _versions_with_latest(
     instance: Mapping[str, Any],
@@ -752,6 +837,10 @@ def _optional_text(value: Any) -> str | None:
     if isinstance(value, (int, float)):
         return str(value)
     return None
+
+
+def _optional_bool(value: Any) -> bool | None:
+    return value if isinstance(value, bool) else None
 
 
 def _mapping_or_none(value: Any) -> dict[str, Any] | None:
