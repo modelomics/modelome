@@ -1,0 +1,13 @@
+# FAIR Chemistry's first-party UMA model card lists exact checkpoint files and MD5s.
+[[source]]
+name = "fairchem-uma-checkpoints"
+adapter = "fairchem_uma_checkpoints"
+enabled = false
+page_url = "https://huggingface.co/facebook/UMA"
+entry_tags = ["field:computational-chemistry", "ecosystem:fairchem", "model-family:uma", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# Five exact files are listed: four current checkpoints and one archived UMA 1.0
+# reference checkpoint. Hugging Face requires agreement/contact information for
+# file access; this adapter records links and MD5s without accessing model bytes.

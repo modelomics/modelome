@@ -1,0 +1,14 @@
+# The official Clay v0 documentation names this exact checkpoint S3 URI.
+# Clay v1.5 Hub weights are excluded because the generic Hugging Face source
+# already covers them; this bounded adapter preserves the legacy S3 release.
+[[source]]
+name = "clay-legacy-checkpoint"
+adapter = "clay_legacy_checkpoint"
+enabled = false
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:clay", "kind:pretrained-checkpoint"]
+url = "https://clay-foundation.github.io/model/clay-v0/model_embeddings.html"
+max_response_bytes = 2097152
+
+[evidence]
+documentation = "https://clay-foundation.github.io/model/clay-v0/model_embeddings.html"
+checkpoint_s3_uri = "s3://clay-model-ckpt/v0/clay-small-70MT-1100T-10E.ckpt"

@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **389 enabled
-source entries** (373 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **398 enabled
+source entries** (381 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -64,6 +64,16 @@ download weights.
 An opt-in Vertex Model Garden source lists Google-published models and their
 immutable versions through the documented v1beta1 API. It requires
 `VERTEX_AI_ACCESS_TOKEN` and `GOOGLE_CLOUD_PROJECT`.
+The same scoped Vertex listing covers Anthropic publisher offerings when those
+credentials are supplied. Moonshot's documentation preserves current and
+retired Kimi IDs. Cloudflare's dated announcement preserves 18 deprecated
+Workers AI IDs alongside its live catalog.
+Further checkpoint sources add the nnU-Net v2 DSA bundle, five gated UMA files,
+NVIDIA Cosmos 3 base and example mappings, exact Ultralytics YOLOv8/YOLO11
+release assets, Chai-1 components, and 18 WeatherNext 2 object paths declared
+by Google DeepMind. Artifact inventories record metadata; no weights are fetched.
+The WeatherNext object paths are source-declared patterns, without a separate
+object-existence check.
 The GitLab adapter scans public project release metadata one request per page and emits
 low-confidence model-file candidates. The Cohere and Mistral Models API proposals
 remain opt-in because their authenticated lists can include caller-owned models.

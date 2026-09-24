@@ -23,6 +23,22 @@ class OnePageClient:
         )
 
 
+class CursorClient:
+    def __init__(self, pages: dict[int | None, list[dict[str, Any]]]) -> None:
+        self.pages = pages
+        self.calls: list[tuple[str, dict[str, int] | None]] = []
+
+    def get(self, url: str, *, params=None, headers=None) -> HttpResponse:
+        self.calls.append((url, params))
+        cursor = params.get("since") if params is not None else None
+        return HttpResponse(
+            status=200,
+            headers={},
+            body=json.dumps(self.pages[cursor]).encode(),
+            url=url,
+        )
+
+
 def _repository(repository_id: Any) -> dict[str, Any]:
     return {
         "id": repository_id,
@@ -93,3 +109,25 @@ def test_catalog_can_scan_a_closed_historical_id_range_without_following_past_it
 def test_catalog_rejects_a_historical_ceiling_before_its_start() -> None:
     with pytest.raises(ValueError, match="max_repository_id must be >= initial_since"):
         GitHubPublicRepositoriesSourceAdapter(initial_since=200, max_repository_id=199)
+
+
+def test_exact_full_terminal_page_uses_since_cursor_probe() -> None:
+    client = CursorClient(
+        {
+            None: [_repository(101), _repository(102)],
+            102: [],
+        }
+    )
+    adapter = GitHubPublicRepositoriesSourceAdapter(page_size=2, client=client)
+
+    full_page = adapter.fetch_page({})
+    terminal_probe = adapter.fetch_page(full_page.next_state)
+
+    assert len(full_page.records) == 2
+    assert full_page.complete is False
+    assert full_page.next_state["last_repository_id"] == 102
+    assert terminal_probe.complete is True
+    assert client.calls == [
+        ("https://api.github.com/repositories", {"per_page": 2}),
+        ("https://api.github.com/repositories", {"per_page": 2, "since": 102}),
+    ]

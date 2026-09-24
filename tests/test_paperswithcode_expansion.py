@@ -263,3 +263,45 @@ def test_evaluation_candidates_include_recursive_task_and_subdataset_scope() -> 
     }
     assert all(record.raw["datasets"] == ["ImageNet", "ImageNet-1K"] for record in records)
     assert len({record.source_record_id for record in records}) == 2
+
+
+def test_evaluation_model_links_project_exact_huggingface_model_identity() -> None:
+    from modelome.sources.paperswithcode import _evaluation_records
+
+    model_row = {
+        "model_name": "Published Model",
+        "paper_url": "https://arxiv.org/abs/2401.12345",
+        "paper_title": "Published Model paper",
+        "model_links": [
+            {
+                "url": "https://huggingface.co/example/published-model/blob/main/model.safetensors",
+                "title": "Published Model weights",
+            }
+        ],
+    }
+    rows = [
+        {
+            "task": "Classification",
+            "datasets": [{"dataset": "Example", "sota": {"rows": [model_row]}}],
+        }
+    ]
+    records, rejected, _ = _evaluation_records(
+        rows,
+        revision="c" * 40,
+        data_path="data/train.parquet",
+        dataset_id="pwc-archive/evaluation-tables",
+        license="CC-BY-SA-4.0",
+        max_model_rows=10,
+    )
+
+    assert rejected == {}
+    linked_model = next(
+        model
+        for model in records[0].models
+        if model.identifiers and model.identifiers[0].namespace == "huggingface:model"
+    )
+    assert linked_model.identifiers[0].value == "example/published-model"
+    assert linked_model.status is ModelStatus.CANDIDATE
+    assert linked_model.confidence == 0.65
+    model_link = next(link for link in records[0].links if link.relation == "model_artifact")
+    assert model_link.model_local_ids == (linked_model.local_id,)

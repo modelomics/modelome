@@ -13,7 +13,7 @@ from modelome.models import ArtifactKind, Identifier, Link, SourceIssue, SourceP
 from modelome.normalize import canonicalize_url, content_hash, identifier_from_url
 
 Clock = Callable[[], datetime]
-_LINK_RE = re.compile(r'<([^>]+)>\s*((?:;\s*[^,]+)*)')
+_LINK_RE = re.compile(r"<([^>]+)>\s*((?:;\s*[^,]+)*)")
 _REL_RE = re.compile(r'\brel\s*=\s*(?:"([^"]+)"|([^;\s,]+))', re.IGNORECASE)
 _MAX_PAGE_SIZE = 100
 _GITHUB_API_VERSION = "2026-03-10"
@@ -71,10 +71,7 @@ class GitHubPublicRepositoriesSourceAdapter:
             if max_repository_id is None
             else _positive_int(max_repository_id, "max_repository_id", self.name)
         )
-        if (
-            self.max_repository_id is not None
-            and self.max_repository_id < self.initial_since
-        ):
+        if self.max_repository_id is not None and self.max_repository_id < self.initial_since:
             raise ValueError(f"{self.name}: max_repository_id must be >= initial_since")
         self.token = _optional_text(token)
         self.client = client or HttpClient()
@@ -144,10 +141,7 @@ class GitHubPublicRepositoriesSourceAdapter:
                     raise ValueError("repository IDs are not strictly increasing")
                 if last_repository_id is not None and repository_id <= last_repository_id:
                     raise ValueError("repository ID did not advance past checkpoint")
-                if (
-                    self.max_repository_id is not None
-                    and repository_id > self.max_repository_id
-                ):
+                if self.max_repository_id is not None and repository_id > self.max_repository_id:
                     reached_range_end = True
                     break
                 records.append(record)
@@ -201,7 +195,22 @@ class GitHubPublicRepositoriesSourceAdapter:
                 upstream_count=None,
             )
         if len(payload) == self.page_size:
-            raise ValueError(f"{self.name}: full page omitted GitHub's next cursor")
+            # A full terminal page is valid and GitHub only emits a Link next
+            # relation when another page exists. The documented numeric `since`
+            # cursor is sufficient to probe once more: an empty follow-up ends
+            # the census, while additional rows continue without losing data.
+            final_page_id = observed_ids[-1] if observed_ids else last_repository_id
+            next_state: dict[str, Any] = {
+                "raw_items_seen": _state_count(state, "raw_items_seen") + len(records),
+            }
+            if final_page_id is not None:
+                next_state["last_repository_id"] = final_page_id
+            return SourcePage(
+                records=tuple(records),
+                next_state=next_state,
+                complete=False,
+                upstream_count=None,
+            )
 
         final_id = observed_ids[-1] if observed_ids else last_repository_id
         return self._completed_page(final_id, records)

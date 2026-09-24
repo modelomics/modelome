@@ -1,0 +1,17 @@
+# NVIDIA's official Cosmos README declares three base models and six exact
+# post-trained example checkpoint refs, including Nano/Edge DROID policies.
+[[source]]
+name = "nvidia-cosmos3-checkpoints"
+adapter = "nvidia_cosmos3_checkpoints"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:nvidia-cosmos", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 12
+
+# Primary source tables: https://github.com/NVIDIA/cosmos/blob/main/README.md
+# Directly named policy examples:
+# https://huggingface.co/nvidia/Cosmos3-Nano-Policy-DROID
+# https://huggingface.co/nvidia/Cosmos3-Edge-Policy-DROID
+# Other listed refs are base models and text/video examples. The adapter retains
+# the README's base-model mapping for each post-trained example.

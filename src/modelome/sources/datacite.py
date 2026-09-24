@@ -443,6 +443,21 @@ def _links(
             locator=f"$.attributes.relatedIdentifiers[{index}].relatedIdentifier",
         )
 
+    for index, raw in enumerate(_sequence(attributes.get("relatedItems"))):
+        if not isinstance(raw, Mapping):
+            continue
+        url = _related_url(
+            raw.get("relatedItemIdentifier"),
+            raw.get("relatedItemIdentifierType"),
+        )
+        if not url:
+            continue
+        yield Link(
+            url,
+            relation=_relation_name(raw.get("relationType")),
+            locator=f"$.attributes.relatedItems[{index}].relatedItemIdentifier",
+        )
+
 
 def _identical_related_dois(attributes: Mapping[str, Any]) -> tuple[Identifier, ...]:
     """Expose only DataCite DOIs that the depositor marks as identical."""

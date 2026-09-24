@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from modelome.entries import build_entries, source_record_to_entry_seed
 from modelome.http import HttpResponse
 from modelome.sources.meta_sam3_checkpoints import MetaSAM3CheckpointSourceAdapter
 
@@ -66,6 +67,17 @@ def test_meta_sam3_maps_both_gated_checkpoint_releases_without_fetching_weights(
     assert all(record.releases[0].metadata["access_restricted"] for record in records.values())
     assert all(record.links[-1].relation == "weights" for record in records.values())
     assert not any("huggingface.co" in url for url in client.calls)
+
+    entries = build_entries(
+        source_record_to_entry_seed(record, source="meta-sam3-checkpoints")
+        for record in page.records
+    )
+    assert len(entries.entries) == 2
+    assert {entry.canonical_name for entry in entries.entries} == {
+        "sam3",
+        "sam3.1",
+    }
+    assert all(len(entry.releases) == 1 for entry in entries.entries)
 
 
 def test_adapter_rejects_readme_without_gated_access_notice() -> None:

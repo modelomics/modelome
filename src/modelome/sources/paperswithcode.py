@@ -938,10 +938,37 @@ def _evaluation_records(
                 relation="model_artifact",
                 locator="$.datasets[].sota.rows[].model_links[].url",
                 crawl=False,
+                model_local_ids=(
+                    ("pwc-linked-model:" + content_hash(model_identifier.value)[:32],)
+                    if (model_identifier := identifier_from_url(model_url))
+                    and model_identifier.namespace == "huggingface:model"
+                    else ()
+                ),
             )
             for model_url in sorted(entry["model_links"])
         )
         local_id = f"pwc-evaluation:{identity}"
+        linked_model_hints: dict[str, ModelHint] = {}
+        for model_url in sorted(entry["model_links"]):
+            model_identifier = identifier_from_url(model_url)
+            if not model_identifier or model_identifier.namespace != "huggingface:model":
+                continue
+            linked_local_id = "pwc-linked-model:" + content_hash(model_identifier.value)[:32]
+            linked_model_hints.setdefault(
+                linked_local_id,
+                ModelHint(
+                    local_id=linked_local_id,
+                    name=(
+                        sorted(entry["model_link_titles"].get(model_url, set()))[0]
+                        if entry["model_link_titles"].get(model_url)
+                        else model_identifier.value
+                    ),
+                    identifiers=(model_identifier,),
+                    status=ModelStatus.CANDIDATE,
+                    confidence=0.65,
+                    locator="$.datasets[].sota.rows[].model_links[].url",
+                ),
+            )
         records.append(
             SourceRecord(
                 source_record_id=f"evaluation-result:{identity}",
@@ -980,6 +1007,7 @@ def _evaluation_records(
                         confidence=0.35,
                         locator="$.datasets[].sota.rows[].model_name",
                     ),
+                    *linked_model_hints.values(),
                 ),
             )
         )

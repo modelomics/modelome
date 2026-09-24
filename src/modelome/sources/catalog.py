@@ -37,12 +37,14 @@ from modelome.sources.biorxiv_jats_supplementary import (
 from modelome.sources.bpemb_registry import BPEmbPretrainedVectorRegistrySourceAdapter
 from modelome.sources.cellpose_registry import CellposeRegistrySourceAdapter
 from modelome.sources.cgschnet_pretrained_bundle import CGSchNetPretrainedBundleSourceAdapter
+from modelome.sources.chai1_components import Chai1ComponentRegistryAdapter
 from modelome.sources.chem_ml_extra import (
     ChempropCheMeleonCheckpointSourceAdapter,
     UniMofCheckpointSourceAdapter,
 )
 from modelome.sources.civitai import CivitaiModelsSourceAdapter
 from modelome.sources.cloud_extra import OciGenerativeAIModelCatalog
+from modelome.sources.cloudflare_workers_ai_deprecations import CloudflareWorkersAIDeprecations
 from modelome.sources.commoncrawl import CommonCrawlWetSourceAdapter
 from modelome.sources.conceptnet_numberbatch import ConceptNetNumberbatchSourceAdapter
 from modelome.sources.crossref import CrossrefSourceAdapter
@@ -59,6 +61,7 @@ from modelome.sources.esa_fm4cs import EsaFm4csSourceAdapter
 from modelome.sources.espnet_model_zoo import EspnetModelZooSourceAdapter
 from modelome.sources.europe_pmc import EuropePmcSourceAdapter
 from modelome.sources.fairchem_omat24_checkpoints import FairChemOMat24CheckpointSourceAdapter
+from modelome.sources.fairchem_uma_checkpoints import FairChemUMACheckpointSourceAdapter
 from modelome.sources.fairseq_language_models import FairseqPretrainedLanguageModelSourceAdapter
 from modelome.sources.fengwu_checkpoint_registry import FengWuCheckpointRegistrySourceAdapter
 from modelome.sources.fourcastnet_checkpoint_registry import (
@@ -134,6 +137,7 @@ from modelome.sources.ngc_cli_versions import NgcCliModelVersionsSourceAdapter
 from modelome.sources.nltk_data_models import NltkDataModelIndexSourceAdapter
 from modelome.sources.nnunet_registry import NnUNetV1PretrainedRegistryAdapter
 from modelome.sources.nnunet_zenodo_bundles import NnUNetZenodoBundleRegistryAdapter
+from modelome.sources.nvidia_cosmos3_checkpoints import NvidiaCosmos3CheckpointSourceAdapter
 from modelome.sources.nvidia_earth2 import NvidiaEarth2SourceAdapter
 from modelome.sources.nvidia_groot_n17_checkpoints import NvidiaGR00TN17CheckpointSourceAdapter
 from modelome.sources.ocp_model_registry import OCPModelRegistrySourceAdapter
@@ -236,8 +240,14 @@ from modelome.sources.torchvision_weight_registry import (
     TorchvisionWeightRegistrySourceAdapter,
 )
 from modelome.sources.torchxrayvision_registry import TorchXRayVisionRegistrySourceAdapter
+from modelome.sources.ultralytics_release_checkpoints import (
+    UltralyticsReleaseCheckpointSourceAdapter,
+)
 from modelome.sources.unimol_checkpoint import UniMolCheckpointSourceAdapter
 from modelome.sources.vq_diffusion import MicrosoftVqDiffusionCheckpointManifestSourceAdapter
+from modelome.sources.weathernext2_checkpoint_registry import (
+    WeatherNext2CheckpointRegistrySourceAdapter,
+)
 from modelome.sources.wenet_model_zoo import WenetPretrainedModelSourceAdapter
 from modelome.sources.yolox_model_zoo import YOLOXModelZooSourceAdapter
 from modelome.sources.zenodo import ZenodoModelRecordsSourceAdapter
@@ -806,6 +816,69 @@ def create_source(
             page_url=_required_text(expanded, "page_url"),
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
             **injected,
+        )
+
+    if adapter == "fairchem_uma_checkpoints":
+        return FairChemUMACheckpointSourceAdapter(
+            name=name,
+            page_url=_required_text(expanded, "page_url"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "nvidia_cosmos3_checkpoints":
+        return NvidiaCosmos3CheckpointSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 12),
+            **injected,
+        )
+
+    if adapter == "ultralytics_release_checkpoints":
+        model_docs = expanded.get("model_docs", ())
+        if not isinstance(model_docs, list | tuple):
+            raise ValueError(f"{name}: model_docs must be an array")
+        return UltralyticsReleaseCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            assets_repository=_required_text(expanded, "assets_repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            model_docs=model_docs,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_releases=_integer(expanded.get("max_releases"), 500),
+            max_assets_per_release=_integer(expanded.get("max_assets_per_release"), 1_000),
+            client=injected["client"],
+        )
+
+    if adapter == "chai1_component_registry":
+        return Chai1ComponentRegistryAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            max_source_bytes=_integer(expanded.get("max_source_bytes"), 512 * 1024),
+            max_components=_integer(expanded.get("max_components"), 64),
+            client=injected["client"],
+        )
+
+    if adapter == "weathernext2_checkpoint_registry":
+        return WeatherNext2CheckpointRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 18),
+            **injected,
+        )
+
+    if adapter == "cloudflare_workers_ai_deprecations":
+        return CloudflareWorkersAIDeprecations(
+            name=name,
+            url=_required_text(expanded, "url"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 200),
+            client=injected["client"],
         )
 
     if adapter in {
@@ -2400,6 +2473,22 @@ def create_source(
 
     if adapter == "gitlab_public_release_assets":
         return GitLabPublicReleaseAssetsSourceAdapter(
+            name=name,
+            initial_project_id=(
+                _nonnegative_integer(expanded["initial_project_id"], 0)
+                if "initial_project_id" in expanded
+                else None
+            ),
+            max_project_id=(
+                _integer(expanded["max_project_id"], 1)
+                if "max_project_id" in expanded
+                else None
+            ),
+            max_projects=(
+                _integer(expanded["max_projects"], 1)
+                if "max_projects" in expanded
+                else None
+            ),
             page_size=_integer(expanded.get("page_size"), 100),
             max_projects_per_page=_integer(expanded.get("max_projects_per_page"), 100),
             max_releases_per_page=_integer(expanded.get("max_releases_per_page"), 100),

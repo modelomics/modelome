@@ -137,6 +137,38 @@ def test_nnunet_v2_autopet_record_keeps_each_configuration_attached_to_its_file(
     }
 
 
+def test_nnunet_v2_dsa_record_identifies_the_exact_published_model_bundle() -> None:
+    record_id = "20330403"
+    payload = {
+        "metadata": {
+            "doi": "10.5281/zenodo.20330403",
+            "title": "DSA cranium segmentation",
+            "version": "1.0.0",
+        },
+        "files": [
+            _bundle(record_id, "Dataset006_DSAMAP_model.zip", "f" * 32, 441_900_000),
+            _bundle(record_id, "README.md", "1" * 32, 5600),
+        ],
+    }
+
+    page = _adapter(record_id, payload).fetch_page({})
+
+    assert page.upstream_count == 1
+    record = page.records[0]
+    model = record.models[0]
+    assert model.name == "Dataset006_DSAMAP_model"
+    assert model.identifiers == (
+        Identifier("nnunet:v2:model", "Dataset006_DSAMAP_model"),
+    )
+    release = record.releases[0]
+    assert release.version == "1.0.0"
+    assert release.metadata["release_doi"] == "10.5281/zenodo.20330403"
+    assert release.metadata["archive_checksum"] == "f" * 32
+    assert record.links[0].url == (
+        "https://zenodo.org/api/records/20330403/files/Dataset006_DSAMAP_model.zip/content"
+    )
+
+
 def test_nnunet_bundle_adapter_rejects_other_records_and_foreign_file_urls() -> None:
     with pytest.raises(ValueError, match="only the verified"):
         NnUNetZenodoBundleRegistryAdapter(record_id="8360190")

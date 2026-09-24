@@ -1,0 +1,14 @@
+# Exact joins between the Ultralytics model docs' YOLOv8/YOLO11 checkpoint
+# filenames and browser_download_url values from official GitHub releases.
+[[source]]
+name = "ultralytics-yolo-release-checkpoints"
+adapter = "ultralytics_release_checkpoints"
+enabled = false
+entry_tags = ["field:computer-vision", "ecosystem:ultralytics", "model-family:yolov8", "model-family:yolo11", "kind:checkpoint", "evidence:first-party-doc-release-asset-join"]
+repository = "ultralytics/ultralytics"
+assets_repository = "ultralytics/assets"
+branch = "main"
+model_docs = ["docs/en/models/yolov8.md", "docs/en/models/yolo11.md"]
+max_response_bytes = 4194304
+max_releases = 500
+max_assets_per_release = 1000

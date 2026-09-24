@@ -402,6 +402,31 @@ class AclAnthologySourceAdapter:
         identifiers = [Identifier("acl-anthology", anthology_id)]
         if doi and re.fullmatch(r"10\.\d{4,9}/\S+", doi, flags=re.IGNORECASE):
             identifiers.append(Identifier("doi", doi.casefold()))
+        attachments: list[dict[str, str]] = []
+        links = [
+            Link(landing, relation="landing_page", locator=f"xml:paper[{index}]", crawl=False),
+            Link(pdf, relation="full_text", locator=f"xml:paper[{index}]/url", crawl=False),
+        ]
+        for attachment_index, node in enumerate(paper.findall("attachment")):
+            filename = _element_text(node)
+            if not re.fullmatch(r"[A-Za-z0-9._-]{1,255}", filename):
+                raise ValueError("paper attachment has an invalid local filename")
+            attachment_type = _text(node.get("type") or "attachment", "attachment type")
+            normalized_type = re.sub(r"[^a-z0-9]+", "_", attachment_type.casefold()).strip("_")
+            relation = _attachment_relation(normalized_type)
+            attachment_url = canonicalize_url(
+                f"https://aclanthology.org/attachments/{quote(filename, safe='')}"
+            )
+            locator = f"xml:paper[{index}]/attachment[{attachment_index}]"
+            links.append(Link(attachment_url, relation=relation, locator=locator, crawl=False))
+            attachments.append(
+                {
+                    "type": attachment_type,
+                    "filename": filename,
+                    "hash": node.get("hash", ""),
+                    "url": attachment_url,
+                }
+            )
         text = "\n".join(value for value in (title, abstract, booktitle) if value)
         return SourceRecord(
             source_record_id=anthology_id,
@@ -411,10 +436,7 @@ class AclAnthologySourceAdapter:
             text=text,
             published_at=f"{year}-01-01T00:00:00Z" if re.fullmatch(r"\d{4}", year) else None,
             identifiers=tuple(identifiers),
-            links=(
-                Link(landing, relation="landing_page", locator=f"xml:paper[{index}]", crawl=False),
-                Link(pdf, relation="full_text", locator=f"xml:paper[{index}]/url", crawl=False),
-            ),
+            links=tuple(links),
             raw={
                 "collection_id": collection_id,
                 "volume_id": volume_id,
@@ -423,8 +445,19 @@ class AclAnthologySourceAdapter:
                 "authors": authors,
                 "abstract": abstract,
                 "doi": doi,
+                "attachments": attachments,
             },
         )
+
+
+def _attachment_relation(attachment_type: str) -> str:
+    if any(token in attachment_type for token in ("model", "checkpoint", "weight")):
+        return "weights"
+    if any(token in attachment_type for token in ("software", "code", "implementation")):
+        return "implementation"
+    if any(token in attachment_type for token in ("dataset", "data")):
+        return "dataset"
+    return "supplementary_material"
 
 
 def _paper_id(paper: ElementTree.Element) -> str:

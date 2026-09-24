@@ -7,6 +7,7 @@ import pytest
 
 from modelome.http import HttpResponse
 from modelome.models import ArtifactKind, ModelStatus
+from modelome.sources.catalog import create_source
 from modelome.sources.gitlab_release_assets import (
     GitLabPublicReleaseAssetsSourceAdapter,
     plan_gitlab_project_id_ranges,
@@ -45,6 +46,26 @@ def project(project_id: int = 42, path: str = "lab/qwen-model") -> dict[str, Any
         "web_url": f"https://gitlab.com/{path}",
         "visibility": "public",
     }
+
+
+def test_catalog_wires_bounded_project_id_range() -> None:
+    adapter = create_source(
+        {
+            "name": "gitlab-releases-100-200",
+            "adapter": "gitlab_public_release_assets",
+            "initial_project_id": 100,
+            "max_project_id": 200,
+            "max_projects": 100,
+        },
+        client=QueuedClient(),
+        environ={},
+    )
+    assert isinstance(adapter, GitLabPublicReleaseAssetsSourceAdapter)
+    assert (adapter.name, adapter.initial_project_id, adapter.max_project_id) == (
+        "gitlab-releases-100-200",
+        100,
+        200,
+    )
 
 
 def release(*links: dict[str, Any]) -> dict[str, Any]:

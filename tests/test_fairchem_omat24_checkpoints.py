@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from modelome.entries import build_entries, source_record_to_entry_seed
 from modelome.http import HttpResponse
 from modelome.models import Identifier
 from modelome.sources.fairchem_omat24_checkpoints import (
@@ -70,6 +71,25 @@ def test_indexes_only_exact_fairchem_omat24_checkpoint_rows() -> None:
     assert record.raw["access_restricted"] is True
     assert record.releases[0].metadata["binary_reachability_checked"] is False
     assert record.links[1].url == ACCESS_URL
+
+
+def test_entry_assembly_keeps_omat24_models_distinct_under_shared_documentation() -> None:
+    page = adapter(QueueClient(response(document().encode()))).fetch_page({})
+
+    result = build_entries(
+        source_record_to_entry_seed(record, source="fairchem-omat24-legacy-checkpoints")
+        for record in page.records
+    )
+
+    assert len(result.entries) == len(_CHECKPOINTS)
+    assert {entry.canonical_name for entry in result.entries} == set(_CHECKPOINTS)
+    assert all(len(entry.members) == len(entry.releases) == 1 for entry in result.entries)
+    assert {
+        resource.url
+        for entry in result.entries
+        for resource in entry.resources
+        if resource.relation == "source_documentation"
+    } == {DOCS_URL.rstrip("/")}
 
 
 def test_skips_record_emission_when_source_content_is_unchanged() -> None:

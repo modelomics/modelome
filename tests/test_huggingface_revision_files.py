@@ -386,5 +386,49 @@ def test_refs_with_same_exact_target_commit_share_one_history_scan() -> None:
     assert tree_page.records[0].releases[0].metadata["weight_files"] == [
         "model.safetensors"
     ]
+    assert tree_page.records[0].releases[0].metadata["git_refs"] == [
+        "refs/heads/main",
+        "refs/tags/v1",
+    ]
     assert client.calls.count(commits) == 1
     assert client.calls.count(tree) == 1
+
+
+def test_ref_names_attach_only_to_their_exact_target_commit() -> None:
+    repo = "lab/revision-model"
+    refs = f"https://huggingface.co/api/models/{repo}/refs"
+    commits = f"https://huggingface.co/api/models/{repo}/commits/refs%2Fheads%2Fmain"
+    tree_target = f"https://huggingface.co/api/models/{repo}/tree/commit-a?recursive=true&expand=false"
+    tree_parent = f"https://huggingface.co/api/models/{repo}/tree/commit-parent?recursive=true&expand=false"
+    routes = _revision_routes(repo)
+    routes[refs] = (
+        200,
+        {
+            "branches": [{"ref": "refs/heads/main", "target_commit": "commit-a"}],
+            "tags": [],
+            "converts": [],
+        },
+        {},
+    )
+    routes[commits] = (200, [{"id": "commit-a"}, {"id": "commit-parent"}], {})
+    routes[tree_target] = (200, [{"type": "file", "path": "model.safetensors"}], {})
+    routes[tree_parent] = (200, [{"type": "file", "path": "old-model.safetensors"}], {})
+    client = _RouteClient(routes)
+    adapter = HuggingFaceSourceAdapter(
+        client=client,
+        include_revisions=True,
+        include_revision_files=True,
+    )
+
+    catalog = adapter.fetch_page({})
+    ref_page = adapter.fetch_page(catalog.next_state)
+    commit_page = adapter.fetch_page(ref_page.next_state)
+    target = adapter.fetch_page(commit_page.next_state)
+    parent = adapter.fetch_page(target.next_state)
+
+    assert target.records[0].releases[0].metadata["git_refs"] == ["refs/heads/main"]
+    assert target.records[0].releases[0].metadata["weight_files"] == ["model.safetensors"]
+    assert "git_refs" not in parent.records[0].releases[0].metadata
+    assert parent.records[0].releases[0].metadata["weight_files"] == [
+        "old-model.safetensors"
+    ]

@@ -387,6 +387,49 @@ def test_protocol_related_identifier_categories_become_relation_links_only() -> 
     assert ("has_metadata", "https://n2t.net/urn:nbn:de:example") in relations
 
 
+def test_related_item_software_url_is_preserved_as_an_exact_relation_link() -> None:
+    item = resource()
+    item["attributes"]["types"] = {
+        "resourceTypeGeneral": "JournalArticle",
+        "resourceType": "Research article",
+    }
+    item["attributes"]["relatedItems"] = [
+        {
+            "relatedItemType": "Software",
+            "relatedItemIdentifier": (
+                "https://zenodo.org/records/123/files/model.safetensors?download=1"
+            ),
+            "relatedItemIdentifierType": "URL",
+            "relationType": "IsSupplementedBy",
+            "title": "Trained model weights",
+        },
+        {
+            "relatedItemType": "Model",
+            "relatedItemIdentifier": "javascript:alert(1)",
+            "relatedItemIdentifierType": "URL",
+            "relationType": "HasPart",
+        },
+    ]
+
+    page = adapter(QueuedClient(response([item], total=1))).fetch_page({})
+
+    assert page.complete is True
+    assert len(page.records) == 1
+    record = page.records[0]
+    artifact_link = next(
+        link
+        for link in record.links
+        if link.url.startswith("https://zenodo.org/records/123/files/")
+    )
+    assert artifact_link.url == (
+        "https://zenodo.org/records/123/files/model.safetensors?download=1"
+    )
+    assert artifact_link.relation == "is_supplemented_by"
+    assert artifact_link.locator == "$.attributes.relatedItems[0].relatedItemIdentifier"
+    assert not any(link.url.startswith("javascript:") for link in record.links)
+    assert record.models == ()
+
+
 def test_datacite_bridges_only_related_dois_marked_identical() -> None:
     item = resource()
     item["attributes"]["relatedIdentifiers"] = [

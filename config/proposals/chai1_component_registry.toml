@@ -1,0 +1,13 @@
+# First-party Chai-1 inference component names mapped to the official asset host.
+[[source]]
+name = "chai1-component-registry"
+adapter = "chai1_component_registry"
+enabled = false
+repository = "chaidiscovery/chai-lab"
+branch = "main"
+max_source_bytes = 524288
+max_components = 64
+schedule = "monthly"
+
+# The source records only literal component names and exact URL-template outputs.
+# It does not fetch weights or infer assets beyond official inference call sites.

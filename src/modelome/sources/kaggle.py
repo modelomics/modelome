@@ -641,6 +641,11 @@ class KaggleModelsSourceAdapter:
             version_list = payload.get("versionList", payload.get("version_list"))
             if isinstance(version_list, Mapping):
                 page_versions = version_list.get("versions")
+            elif version_list is None:
+                # The first-party SDK declares version_list optional. A null or
+                # omitted list is therefore an empty page; the page token still
+                # determines whether traversal continues.
+                page_versions = ()
             else:
                 page_versions = version_list
             if not _is_sequence(page_versions):
@@ -728,6 +733,11 @@ class KaggleModelsSourceAdapter:
             if not isinstance(payload, Mapping):
                 raise ValueError(f"{self.name}: model version files response is not an object")
             page_files = payload.get("files")
+            if page_files is None:
+                # ApiListModelInstanceVersionFilesResponse.files is optional in
+                # the SDK schema; do not drop a valid continuation page because
+                # this response omitted its empty collection.
+                page_files = ()
             if not _is_sequence(page_files):
                 raise ValueError(f"{self.name}: model version files are not a list")
             for file in page_files:

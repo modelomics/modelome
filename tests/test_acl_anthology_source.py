@@ -66,6 +66,51 @@ def test_reads_official_collection_xml_as_paper_records_and_skips_unchanged_snap
     assert same.records == ()
 
 
+def test_extracts_first_party_dataset_and_software_attachment_files() -> None:
+    # The official ACL XML schema declares attachment type, checksum, and local
+    # filename. ACL's page exposes these files under /attachments/{filename}.
+    xml = b"""<collection id="2023.eacl">
+      <volume id="main"><meta><booktitle>Proceedings</booktitle><year>2023</year></meta>
+        <paper id="1"><title>Model paper</title><url>2023.eacl-main.1</url>
+          <attachment type="dataset" hash="0e68ee43">2023.eacl-main.1.dataset.zip</attachment>
+          <attachment type="software" hash="deadbeef">2023.eacl-main.1.software.tar.gz</attachment>
+        </paper>
+      </volume>
+    </collection>"""
+    page = AclAnthologySourceAdapter(
+        url="https://aclanthology.org/2023.eacl.xml",
+        client=QueueClient(xml),
+        clock=lambda: NOW,
+    ).fetch_page({})
+
+    record = page.records[0]
+    links = {(link.relation, link.url, link.crawl) for link in record.links}
+    assert (
+        "dataset",
+        "https://aclanthology.org/attachments/2023.eacl-main.1.dataset.zip",
+        False,
+    ) in links
+    assert (
+        "implementation",
+        "https://aclanthology.org/attachments/2023.eacl-main.1.software.tar.gz",
+        False,
+    ) in links
+    assert record.raw["attachments"] == [
+        {
+            "type": "dataset",
+            "filename": "2023.eacl-main.1.dataset.zip",
+            "hash": "0e68ee43",
+            "url": "https://aclanthology.org/attachments/2023.eacl-main.1.dataset.zip",
+        },
+        {
+            "type": "software",
+            "filename": "2023.eacl-main.1.software.tar.gz",
+            "hash": "deadbeef",
+            "url": "https://aclanthology.org/attachments/2023.eacl-main.1.software.tar.gz",
+        },
+    ]
+
+
 def test_recovers_historical_paper_id_from_adjacent_official_xml_comment() -> None:
     # The official 1952.earlymt.xml historical collection includes a paper
     # whose canonical ACL URL is recorded in a comment, without a <url> node.

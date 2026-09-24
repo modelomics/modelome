@@ -212,6 +212,41 @@ def test_version_file_metadata_is_opt_in_and_paginates_first_party_file_rows() -
     ]
 
 
+def test_optional_null_version_and_file_collections_do_not_truncate_cursor_pages() -> None:
+    client = _Client(
+        {
+            "models": [
+                {
+                    "ref": "google/gemma",
+                    "instances": [{"id": 12, "slug": "2b", "framework": "PyTorch"}],
+                }
+            ],
+            "totalResults": 1,
+        },
+        {"instances": [{"id": 12, "slug": "2b", "framework": "PyTorch"}]},
+        {"versionList": None, "nextPageToken": "more-versions"},
+        {"versionList": {"versions": [{"id": 101, "versionNumber": 1}]}},
+        {"files": None, "nextPageToken": "more-files"},
+        {"files": [{"name": "weights.bin", "size": 7}]},
+    )
+
+    page = KaggleModelsSourceAdapter(
+        client=client,
+        include_all_versions=True,
+        include_version_files=True,
+    ).fetch_page({})
+
+    release = page.records[0].releases[0]
+    assert release.version == "1"
+    assert release.metadata["files"] == (
+        {"name": "weights.bin", "size": 7, "creation_date": None},
+    )
+    assert client.calls[2][1] == {"pageSize": 100}
+    assert client.calls[3][1] == {"pageSize": 100, "pageToken": "more-versions"}
+    assert client.calls[4][1] == {"pageSize": 100}
+    assert client.calls[5][1] == {"pageSize": 100, "pageToken": "more-files"}
+
+
 def test_version_file_metadata_requires_all_version_expansion() -> None:
     with pytest.raises(ValueError, match="requires include_all_versions"):
         KaggleModelsSourceAdapter(client=_Client(), include_version_files=True)

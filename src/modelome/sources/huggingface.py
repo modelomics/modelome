@@ -585,6 +585,7 @@ class HuggingFaceSourceAdapter:
                     ),
                     weight_file_metadata=file_metadata,
                     weight_file_metadata_truncated=metadata_truncated,
+                    git_refs=_sequence(task.get("git_refs")),
                 )
                 tree_queue.pop(0)
                 item["tree_queue"] = tree_queue
@@ -608,8 +609,9 @@ class HuggingFaceSourceAdapter:
             url = f"https://huggingface.co/api/models/{encoded_id}/refs"
             response = self.client.get(url, headers=headers)
             payload = self._revision_json(response)
-            refs: list[str] = []
-            seen_ref_targets: set[str] = set()
+            refs: list[dict[str, Any]] = []
+            target_ref_indexes: dict[str, int] = {}
+            seen_ref_names: set[str] = set()
             if isinstance(payload, Mapping):
                 for group in ("branches", "tags", "converts"):
                     for ref in _sequence(payload.get(group)):
@@ -618,24 +620,63 @@ class HuggingFaceSourceAdapter:
                             target_commit = _text(
                                 ref.get("target_commit") or ref.get("targetCommit")
                             )
-                            deduplication_key = (
-                                f"target:{target_commit}" if target_commit else f"ref:{value}"
+                            if not value:
+                                continue
+                            if target_commit:
+                                if target_commit in target_ref_indexes:
+                                    refs[target_ref_indexes[target_commit]]["aliases"].append(value)
+                                    continue
+                                target_ref_indexes[target_commit] = len(refs)
+                            elif value in seen_ref_names:
+                                continue
+                            seen_ref_names.add(value)
+                            refs.append(
+                                {
+                                    "ref": value,
+                                    "target_commit": target_commit or None,
+                                    "aliases": [value],
+                                }
                             )
-                            if value and deduplication_key not in seen_ref_targets:
-                                seen_ref_targets.add(deduplication_key)
-                                refs.append(value)
             item["refs"] = refs
             item["ref_index"] = 0
             item["phase"] = "commits"
             if not refs:
                 queue.pop(0)
         elif phase == "commits":
-            refs = [str(value) for value in _sequence(item.get("refs")) if _text(value)]
+            refs = []
+            for value in _sequence(item.get("refs")):
+                if isinstance(value, Mapping):
+                    ref_value = _text(value.get("ref"))
+                    if ref_value:
+                        refs.append(
+                            {
+                                "ref": ref_value,
+                                "target_commit": _text(value.get("target_commit")) or None,
+                                "aliases": [
+                                    _text(alias)
+                                    for alias in _sequence(value.get("aliases"))
+                                    if _text(alias)
+                                ]
+                                or [ref_value],
+                            }
+                        )
+                elif _text(value):
+                    # Accept older checkpoint states created before ref target
+                    # metadata was retained.
+                    refs.append(
+                        {"ref": _text(value), "target_commit": None, "aliases": [_text(value)]}
+                    )
             index = _state_count(item, "ref_index") or 0
             if index >= len(refs):
                 queue.pop(0)
                 return self._revision_page_result(state, queue, ())
-            ref = refs[index]
+            ref_entry = refs[index]
+            ref = ref_entry["ref"]
+            target_ref_aliases: dict[str, list[str]] = {}
+            for candidate_ref in refs:
+                target = _text(candidate_ref.get("target_commit"))
+                if target:
+                    target_ref_aliases[target] = list(candidate_ref["aliases"])
             next_url = _text(item.get("next_url"))
             url = self._safe_next_url(next_url, self.url) if next_url else (
                 f"https://huggingface.co/api/models/{encoded_id}/commits/{quote(ref, safe='')}"
@@ -656,7 +697,13 @@ class HuggingFaceSourceAdapter:
             )
             if self.include_revision_files:
                 tree_queue.extend(
-                    {"commit": _revision_commit_payload(commit), "weight_candidates": []}
+                    {
+                        "commit": _revision_commit_payload(commit),
+                        "weight_candidates": [],
+                        "git_refs": target_ref_aliases.get(
+                            _text(commit.get("id") or commit.get("commit_id")), []
+                        ),
+                    }
                     for commit in valid_commits
                 )
                 item["tree_queue"] = tree_queue
@@ -673,7 +720,16 @@ class HuggingFaceSourceAdapter:
                         queue.pop(0)
             if self.include_revision_files:
                 return self._revision_page_result(state, queue, ())
-            records = tuple(self._revision_record(repo_id, commit) for commit in valid_commits)
+            records = tuple(
+                self._revision_record(
+                    repo_id,
+                    commit,
+                    git_refs=target_ref_aliases.get(
+                        _text(commit.get("id") or commit.get("commit_id")), []
+                    ),
+                )
+                for commit in valid_commits
+            )
             return self._revision_page_result(state, queue, records)
         else:
             raise ValueError(f"{self.name}: invalid revision checkpoint phase {phase!r}")
@@ -697,6 +753,7 @@ class HuggingFaceSourceAdapter:
         weight_files_complete: bool | None = None,
         weight_file_metadata: Mapping[str, Mapping[str, int | str]] | None = None,
         weight_file_metadata_truncated: bool = False,
+        git_refs: Sequence[Any] = (),
     ) -> SourceRecord:
         sha = _text(commit.get("id") or commit.get("commit_id"))
         model = ModelHint(
@@ -731,6 +788,9 @@ class HuggingFaceSourceAdapter:
                 }
             if weight_file_metadata_truncated:
                 release_metadata["weight_file_metadata_truncated"] = True
+        if refs := sorted({_text(value) for value in git_refs if _text(value)}):
+            release_metadata["git_refs"] = refs
+        if weight_files_complete is not None:
             links.extend(
                 Link(
                     canonicalize_url(

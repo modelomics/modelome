@@ -34,6 +34,11 @@ _RECORDS = {
             r"^nnUNetTrainer__nnUNetPlans__(?P<model>3d_fullres_resenc(?:_192x192x192_b24|_bs80))_exported\.zip$"
         ),
     },
+    "20330403": {
+        "doi": "10.5281/zenodo.20330403",
+        "generation": "v2",
+        "filename": re.compile(r"^(?P<model>Dataset006_DSAMAP_model)\.zip$"),
+    },
 }
 _MD5 = re.compile(r"^[0-9a-f]{32}$")
 
@@ -43,18 +48,20 @@ def _utcnow() -> datetime:
 
 
 class NnUNetZenodoBundleRegistryAdapter:
-    """Enumerate only author-declared files from two fixed Zenodo records.
+    """Enumerate only author-declared files from fixed Zenodo records.
 
     Record 4003545 is the v1 dataset bundle inventory, a later version of the
     record already covered by the older adapter. Record 8362371 is the two-model
     AutoPET II nnU-Net v2 release linked by the first-party competition guide.
+    Record 20330403 contains one separately authored nnU-Net v2 DSA model.
     """
 
     disable_derived_extraction = True
     coverage_limitation = (
-        "Covers file metadata in fixed Zenodo records 4003545 (nnU-Net v1) and "
-        "8362371 (two AutoPET II nnU-Net v2 configurations). It does not discover "
-        "a general v2 model zoo, inspect archives, or download checkpoint bytes."
+        "Covers file metadata in fixed Zenodo records 4003545 (nnU-Net v1), "
+        "8362371 (two AutoPET II nnU-Net v2 configurations), and 20330403 (one "
+        "DSA cranium nnU-Net v2 bundle). It does not discover a general v2 model "
+        "zoo, inspect archives, or download checkpoint bytes."
     )
 
     def __init__(

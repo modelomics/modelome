@@ -7053,3 +7053,144 @@ name_path = "name"
 version_path = "versionId"
 release_id_template = "{id}@{version}"
 next_cursor_path = "nextPageToken"
+
+# Anthropic's versioned Google Vertex publisher inventory, credential-gated.
+[[source]]
+name = "vertex-model-garden-anthropic-publisher"
+adapter = "json_catalog"
+enabled = true
+activation_env = "VERTEX_AI_ACCESS_TOKEN"
+entry_tags = ["field:machine-learning", "ecosystem:anthropic", "ecosystem:google-vertex-ai", "kind:hosted-model-offering", "evidence:provider-catalog"]
+url = "https://us-central1-aiplatform.googleapis.com/v1beta1/publishers/anthropic/models?listAllVersions=true"
+provider_namespace = "google:vertex-model-garden"
+model_card_url_template = "https://us-central1-aiplatform.googleapis.com/v1beta1/{id_path}"
+model_page_crawl = false
+model_status = "documented"
+auth_env = "VERTEX_AI_ACCESS_TOKEN"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+headers = { "x-goog-user-project" = "${GOOGLE_CLOUD_PROJECT}" }
+cursor_param = "pageToken"
+page_size = 100
+page_size_param = "pageSize"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "publisherModels"
+id_path = "name"
+name_path = "name"
+version_path = "versionId"
+release_id_template = "{id}@{version}"
+next_cursor_path = "nextPageToken"
+
+# Current and retired Kimi model IDs are declared by Moonshot's docs.
+[[source]]
+name = "moonshot-kimi-model-lifecycle-documentation"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:moonshot", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history"]
+url = "https://platform.kimi.ai/docs/models"
+provider_namespace = "moonshot:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model Name \| Description$'
+name_column = 0
+identity_source = "name"
+name_pattern = '^(?P<name>kimi-[a-z0-9.-]+|moonshot-v1-[a-z0-9.-]+)$'
+skip_nonmatching_names = true
+require_url = false
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '<code>(?P<name>kimi-latest|kimi-thinking-preview)</code>'
+identity_source = "name"
+require_url = false
+
+# Author-published nnU-Net v2 DSA cranium model bundle and checksum.
+[[source]]
+name = "nnunet-v2-dsa-cranium-zenodo-bundle"
+adapter = "nnunet_zenodo_bundle_registry"
+enabled = true
+entry_tags = ["field:medical-imaging", "ecosystem:nnunet", "model-generation:v2", "task:dsa-cranium-segmentation", "kind:checkpoint-bundle"]
+record_id = "20330403"
+max_record_bytes = 4194304
+max_files = 500
+schedule = "monthly"
+
+# Gated FAIR Chemistry UMA model card lists five exact file checksums.
+[[source]]
+name = "fairchem-uma-checkpoints"
+adapter = "fairchem_uma_checkpoints"
+enabled = true
+page_url = "https://huggingface.co/facebook/UMA"
+entry_tags = ["field:computational-chemistry", "ecosystem:fairchem", "model-family:uma", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# NVIDIA maps three Cosmos 3 bases to six named post-trained examples.
+[[source]]
+name = "nvidia-cosmos3-checkpoints"
+adapter = "nvidia_cosmos3_checkpoints"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:nvidia-cosmos", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 12
+
+# Docs filenames are joined to complete, paginated official GitHub release assets.
+[[source]]
+name = "ultralytics-yolo-release-checkpoints"
+adapter = "ultralytics_release_checkpoints"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:ultralytics", "model-family:yolov8", "model-family:yolo11", "kind:checkpoint", "evidence:first-party-doc-release-asset-join"]
+repository = "ultralytics/ultralytics"
+assets_repository = "ultralytics/assets"
+branch = "main"
+model_docs = ["docs/en/models/yolov8.md", "docs/en/models/yolo11.md"]
+max_response_bytes = 4194304
+max_releases = 500
+max_assets_per_release = 1000
+schedule = "weekly"
+
+# Chai-1's official inference code names six component files on its asset host.
+[[source]]
+name = "chai1-component-registry"
+adapter = "chai1_component_registry"
+enabled = true
+repository = "chaidiscovery/chai-lab"
+branch = "main"
+max_source_bytes = 524288
+max_components = 64
+schedule = "monthly"
+
+# Six first-party WeatherNext filename patterns describe 18 checkpoint objects.
+[[source]]
+name = "google-deepmind-weathernext2-checkpoint-registry"
+adapter = "weathernext2_checkpoint_registry"
+enabled = true
+entry_tags = ["field:weather-machine-learning", "ecosystem:google-deepmind-weathernext", "kind:pretrained-checkpoint"]
+repository = "google-deepmind/weathernext"
+branch = "main"
+source_path = "README.md"
+provider_namespace = "weathernext2:checkpoint"
+max_response_bytes = 4194304
+max_entries = 18
+schedule = "weekly"
+
+# Cloudflare's dated deprecation announcement preserves historical Workers AI IDs.
+[[source]]
+name = "cloudflare-workers-ai-deprecations-2026-05"
+adapter = "cloudflare_workers_ai_deprecations"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:cloudflare-workers-ai", "kind:model-lifecycle-documentation"]
+url = "https://developers.cloudflare.com/changelog/post/2026-05-08-planned-model-deprecations/"
+max_response_bytes = 2097152
+max_entries = 200
+schedule = "monthly"

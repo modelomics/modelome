@@ -5,6 +5,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+from modelome.entries import build_entries, source_record_to_entry_seed
 from modelome.http import HttpResponse
 from modelome.sources.catalog import create_source
 from modelome.sources.json_catalog import JsonCatalogSourceAdapter
@@ -118,6 +119,42 @@ def test_vertex_google_publisher_list_paginates_with_project_oauth_and_exact_nam
     assert client.calls[1][1] == {"pageSize": 100, "pageToken": "next-page-token"}
     assert client.calls[1][2]["Authorization"] == f"Bearer {TOKEN}"
     assert client.calls[1][0].endswith("?listAllVersions=true")
+
+
+def test_entry_assembly_groups_vertex_versions_but_keeps_different_models_separate() -> None:
+    proposal_path = (
+        Path(__file__).parents[1]
+        / "config/proposals/vertex_model_garden_google_publisher.toml"
+    )
+    with proposal_path.open("rb") as handle:
+        config = tomllib.load(handle)["source"][0]
+    client = FixtureClient()
+    adapter = create_source(
+        config,
+        client=client,
+        environ={
+            "VERTEX_AI_ACCESS_TOKEN": TOKEN,
+            "GOOGLE_CLOUD_PROJECT": PROJECT,
+        },
+    )
+    first = adapter.fetch_page({})
+    second = adapter.fetch_page(first.next_state)
+    records = (*first.records, *second.records)
+
+    result = build_entries(
+        source_record_to_entry_seed(record, source="vertex-model-garden-google-publisher")
+        for record in records
+    )
+
+    assert len(result.entries) == 3
+    gemini = next(
+        entry
+        for entry in result.entries
+        if entry.canonical_name == "publishers/google/models/gemini-2.5-pro"
+    )
+    assert len(gemini.members) == 2
+    assert {release.version for release in gemini.releases} == {"6", "7"}
+    assert all(len(entry.releases) == 1 for entry in result.entries if entry is not gemini)
 
 
 def test_vertex_google_publisher_source_requires_caller_oauth_token() -> None:

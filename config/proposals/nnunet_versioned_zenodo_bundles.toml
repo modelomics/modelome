@@ -13,6 +13,18 @@ max_files = 500
 schedule = "monthly"
 
 [[source]]
+name = "nnunet-v2-dsa-cranium-zenodo-bundle"
+adapter = "nnunet_zenodo_bundle_registry"
+enabled = false
+record_id = "20330403"
+max_record_bytes = 4194304
+max_files = 500
+schedule = "monthly"
+
+# Model release: https://zenodo.org/records/20330403
+# First-party software instructions: https://github.com/RoelvH97/GeoReg
+
+[[source]]
 name = "nnunet-v2-autopet-ii-zenodo-bundles"
 adapter = "nnunet_zenodo_bundle_registry"
 enabled = false
