@@ -1,0 +1,17 @@
+# Extend Ollama's family-card inventory with the exact public tag links shown
+# on each family's first-party “View all” tag page. Only HTML pages are fetched;
+# tags are recorded as release variants with listed size metadata, without pulling
+# manifests or blobs. The adapter follows only explicit next-page links.
+[[source]]
+name = "ollama-library-tags"
+adapter = "ollama_library_tags"
+enabled = false
+entry_tags = ["field:language-modeling", "ecosystem:ollama", "kind:model-library"]
+url = "https://ollama.com/library"
+provider_namespace = "ollama:model-family"
+schedule = "daily"
+max_response_bytes = 8388608
+max_families = 5000
+max_tags_per_family = 10000
+max_pages_per_family = 100
+max_anchors_per_page = 100000

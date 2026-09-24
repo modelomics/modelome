@@ -109,6 +109,29 @@ False splits are inexpensive to review. False merges destroy the entry's usefuln
 especially in biology where the same short name frequently labels a method, a dataset,
 and a software package.
 
+## Closed citation graph
+
+`build-entry-corpus` resolves citations after assembling and deduplicating the full
+input set of entries. Each entry's `citations` array contains outgoing edges with a
+`target_entry_id` and an `evidence` array retaining the source, source record, model
+scope, URL, locator, and any exported relation provenance. Repeated observations of
+the same edge share one citation row. The manifest reports `citation_count`.
+
+Only targets that resolve to exactly one existing entry through an exact identifier,
+canonical artifact URL, or associated paper URL are included. Citations to external
+works, artifacts without entries, ambiguous targets, and the entry itself are omitted.
+Citation links do not create entries, merge identities, supply target identity aliases,
+or trigger fetches. Rebuilding with a different entry set recomputes the closed graph.
+
+The builder recognizes explicit `cites`, `cited_by`, and `is-cited-by` links, including
+the incoming/outgoing direction retained by the artifact relation exporter. Generic
+`references` resource links are not assumed to be bibliographic citations. OpenAlex's
+[`referenced_works`](https://help.openalex.org/data/works/citations/) and Crossref's
+DOI references supply non-crawling `cites` links. Raw source observations remain in
+the evidence store; citation links appear only in `citations` in the entry bundle.
+The per-seed planner emits `attach_citation_if_present` actions for later corpus
+resolution instead of scheduling citation-target downloads.
+
 ## Tags: loose navigation, not an ontology gate
 
 Entries need a light way to browse across departments and fields. Tags are that layer.

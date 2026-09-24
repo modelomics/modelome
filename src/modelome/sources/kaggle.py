@@ -448,11 +448,45 @@ class KaggleModelsSourceAdapter:
                 payload.get("nextPageToken", payload.get("next_page_token"))
             )
             if next_token is None:
-                return tuple(versions)
+                break
             if next_token in seen_tokens or next_token == token:
                 raise ValueError(f"{self.name}: version pagination token did not advance")
             seen_tokens.add(next_token)
             token = next_token
+
+        # The versions endpoint is scoped to one instance, but retain the SDK's
+        # explicit association fields when present as a guard against malformed
+        # or unexpectedly mixed pages. ModelInstanceVersion identifies both its
+        # owning instance and variation in the first-party schema.
+        expected_instance_id = _optional_text(instance.get("id"))
+        for version in versions:
+            associated_instance_id = _optional_text(
+                version.get("modelInstanceId", version.get("model_instance_id"))
+            )
+            if (
+                expected_instance_id is not None
+                and associated_instance_id is not None
+                and associated_instance_id != expected_instance_id
+            ):
+                raise ValueError(
+                    f"{self.name}: version row belongs to model instance "
+                    f"{associated_instance_id}, expected {expected_instance_id}"
+                )
+            version_slug = _optional_text(
+                version.get("variationSlug", version.get("variation_slug"))
+            )
+            if version_slug is not None and version_slug != slug:
+                raise ValueError(
+                    f"{self.name}: version row belongs to variation {version_slug!r}, "
+                    f"expected {slug!r}"
+                )
+            version_framework = _optional_text(version.get("framework"))
+            if version_framework is not None and version_framework != framework:
+                raise ValueError(
+                    f"{self.name}: version row belongs to framework "
+                    f"{version_framework!r}, expected {framework!r}"
+                )
+        return tuple(versions)
 
 
 def _versions_with_latest(

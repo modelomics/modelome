@@ -155,10 +155,44 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
             canonical_url = _public_https(value)
 
     links: list[Link] = []
+    instance_pids: list[dict[str, str]] = []
+    code_repository_urls = _safe_urls(payload.get("codeRepositoryUrl"))
+    documentation_urls = _safe_urls(payload.get("documentationUrl"))
+    for url in code_repository_urls:
+        links.append(Link(url, relation="code_repository", locator="codeRepositoryUrl"))
+    for index, url in enumerate(documentation_urls):
+        links.append(
+            Link(url, relation="documentation", locator=f"documentationUrl[{index}]")
+        )
+
     instances = _sequence(payload.get("instances")) or _sequence(payload.get("instance"))
     for instance_index, instance in enumerate(instances):
         if not isinstance(instance, Mapping):
             continue
+        instance_pid_values = _sequence(instance.get("pids")) or _sequence(
+            instance.get("pid")
+        )
+        instance_pid_values += _sequence(instance.get("alternateIdentifiers")) or _sequence(
+            instance.get("alternateIdentifier")
+        )
+        for pid in instance_pid_values:
+            if not isinstance(pid, Mapping):
+                continue
+            scheme = _text(pid.get("scheme"))
+            value = _text(pid.get("value"))
+            if scheme is None or value is None:
+                continue
+            instance_pids.append({"scheme": scheme, "value": value})
+            pid_url = _pid_url(scheme, value)
+            if pid_url is not None:
+                links.append(
+                    Link(
+                        pid_url,
+                        relation="instance_identifier",
+                        locator=f"instance[{instance_index}].pid",
+                        crawl=False,
+                    )
+                )
         urls = _sequence(instance.get("urls")) or _sequence(instance.get("url"))
         if not urls:
             urls = _sequence(instance.get("webresource"))
@@ -177,11 +211,18 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
                     )
                 )
     if canonical_url is None and links:
-        canonical_url = links[0].url
+        canonical_url = next(
+            (
+                item.url
+                for item in links
+                if item.relation == "code_repository"
+            ),
+            links[0].url,
+        )
     if canonical_url is None:
         return None
 
-    title = _title(payload.get("title")) or graph_id
+    title = _title(payload.get("mainTitle")) or _title(payload.get("title")) or graph_id
     unique_identifiers = tuple(dict.fromkeys(identifiers))
     unique_links = tuple(dict.fromkeys(links))
     return SourceRecord(
@@ -203,6 +244,9 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
                 if item.namespace.startswith("openaire-pid:")
             ],
             "provider_urls": [item.url for item in unique_links],
+            "code_repository_urls": list(code_repository_urls),
+            "documentation_urls": list(documentation_urls),
+            "instance_pids": instance_pids,
         },
     )
 
@@ -246,6 +290,25 @@ def _sequence(value: Any) -> tuple[Any, ...]:
     if value is None:
         return ()
     return (value,)
+
+
+def _safe_urls(value: Any) -> tuple[str, ...]:
+    urls: list[str] = []
+    for item in _sequence(value):
+        text = _text(item)
+        url = _public_https(text) if text is not None else None
+        if url is not None and url not in urls:
+            urls.append(url)
+    return tuple(urls)
+
+
+def _pid_url(scheme: str, value: str) -> str | None:
+    normalized = scheme.casefold()
+    if normalized == "doi":
+        return f"https://doi.org/{quote(value, safe='/')}"
+    if normalized in {"url", "uri"}:
+        return _public_https(value)
+    return None
 
 
 def _text(value: Any) -> str | None:

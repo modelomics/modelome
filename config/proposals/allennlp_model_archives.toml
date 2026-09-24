@@ -1,0 +1,17 @@
+# AllenNLP's archived first-party model repository programmatically enumerates
+# ModelCard JSON files. Their model_usage.archive_file fields declare exact
+# versioned .tar.gz artifact filenames; the adapter records the card and archive
+# references only, without fetching archive bytes. Disabled because upstream is
+# archived and the historical compatibility/runtime status requires review.
+[[source]]
+name = "allennlp-pretrained-model-archives"
+adapter = "allennlp_model_archives"
+enabled = false
+entry_tags = ["field:natural-language-processing", "ecosystem:allennlp", "kind:checkpoint", "era:historical"]
+repository = "allenai/allennlp-models"
+branch = "main"
+modelcards_path = "allennlp_models/modelcards"
+provider_namespace = "allennlp:pretrained-model"
+schedule = "monthly"
+max_response_bytes = 4194304
+max_entries = 100

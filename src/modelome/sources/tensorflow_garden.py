@@ -6,7 +6,7 @@ import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from modelome.http import HttpClient
 from modelome.models import (
@@ -211,6 +211,7 @@ class TensorFlowGardenSourceAdapter:
             release = ReleaseHint(
                 local_id=f"release:{content_hash(identity)[:24]}",
                 model_local_id=model_id,
+                version=_declared_tfhub_version(checkpoint_links),
                 revision=revision,
                 identifiers=release_identifiers,
                 metadata={
@@ -267,3 +268,19 @@ def _gcs_https(url: str) -> str:
     """Represent an explicitly declared GCS checkpoint path as an HTTPS URL."""
     bucket_and_path = url.removeprefix("gs://")
     return f"https://storage.googleapis.com/{bucket_and_path}"
+
+
+def _declared_tfhub_version(checkpoint_links: list[tuple[str, str]]) -> str | None:
+    """Keep an explicit numeric TF Hub version when the doc declares one.
+
+    Hub handles conventionally end in a version path segment (for example
+    ``https://tfhub.dev/tf/bert/1``). Other checkpoint URLs and unversioned
+    handles do not provide a reliable release version and remain unset.
+    """
+    versions = {
+        match.group("version")
+        for _, url in checkpoint_links
+        if urlsplit(url).hostname == "tfhub.dev"
+        if (match := re.search(r"/(?P<version>[0-9]+)/?$", urlsplit(url).path))
+    }
+    return next(iter(versions)) if len(versions) == 1 else None

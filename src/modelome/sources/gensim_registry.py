@@ -46,8 +46,9 @@ class GensimDownloaderModelRegistrySourceAdapter:
 
     disable_derived_extraction = True
     coverage_limitation = (
-        "Covers single-file model weights in Gensim-data's official `models` "
-        "manifest section. Corpora, multipart entries, malformed/incomplete rows, "
+        "Covers models in Gensim-data's official `models` manifest section when "
+        "the declared single-file or multipart gzip archives have matching MD5 "
+        "values and first-party reader paths. Corpora, malformed/incomplete rows, "
         "and weight-byte downloads are excluded."
     )
 
@@ -75,7 +76,7 @@ class GensimDownloaderModelRegistrySourceAdapter:
             "repository": repository,
             "branch": branch,
             "manifest": _MANIFEST,
-            "admission": "models section, one gzip file, matching MD5 and reader path",
+            "admission": "models section, declared gzip parts, matching MD5s and reader path",
             "max_response_bytes": max_response_bytes,
             "max_entries": max_entries,
         })
@@ -131,7 +132,9 @@ class GensimDownloaderModelRegistrySourceAdapter:
 
     def _record(self, handle: str, row: Mapping[str, Any], revision: str) -> SourceRecord:
         filename = f"{handle}.gz"
-        weight_url = f"{_DOWNLOAD_BASE}/{quote(handle, safe='')}/{quote(filename, safe='')}"
+        parts = row["parts"]
+        weight_urls = _weight_urls(handle, parts)
+        checksums = _model_checksums(row, parts)
         manifest_url = (
             f"{self.repository_url}/blob/{revision}/{_MANIFEST}"
         )
@@ -153,24 +156,26 @@ class GensimDownloaderModelRegistrySourceAdapter:
                 "manifest_revision": revision,
                 "checkpoint_handle": handle,
                 "checkpoint_filename": filename,
-                "weight_url": weight_url,
+                "weight_urls": weight_urls,
                 "file_size": row["file_size"],
-                "md5": row["checksum"],
-                "parts": 1,
+                "md5_parts": checksums,
+                "parts": parts,
             },
         )
         return SourceRecord(
             source_record_id=f"model:{handle}", kind=ArtifactKind.MODEL_CARD,
-            canonical_url=canonicalize_url(weight_url), title=f"Gensim {handle}",
+            canonical_url=canonicalize_url(weight_urls[0]), title=f"Gensim {handle}",
             raw={"repository": self.repository, "manifest_revision": revision,
                  "manifest_path": _MANIFEST, "handle": handle,
-                 "file_name": filename, "weight_url": weight_url,
-                 "file_size": row["file_size"], "md5": row["checksum"],
+                 "file_name": filename, "weight_urls": weight_urls,
+                 "file_size": row["file_size"], "md5_parts": checksums,
+                 "parts": parts,
                  "description": description},
             text=str(description or f"Gensim-data pretrained model: {handle}"),
             identifiers=(Identifier(namespace, handle),),
             links=(
-                Link(weight_url, "weights", crawl=False, model_local_ids=(model_id,)),
+                *(Link(url, "weights", crawl=False, model_local_ids=(model_id,))
+                  for url in weight_urls),
                 Link(manifest_url, "model_card", crawl=False,
                      model_local_ids=(model_id,)),
                 Link(self.repository_url, "source_implementation", crawl=False,
@@ -194,17 +199,36 @@ def _model_rows(
         file_size = row.get("file_size")
         if (
             row.get("file_name") != f"{handle}.gz"
-            or parts != 1
+            or not isinstance(parts, int)
+            or isinstance(parts, bool)
+            or parts <= 0
             or not isinstance(file_size, int)
             or isinstance(file_size, bool)
             or file_size <= 0
-            or not isinstance(row.get("checksum"), str)
-            or not _MD5.fullmatch(row["checksum"])
+            or not _has_model_checksums(row, parts)
             or reader_code != f"{_DOWNLOAD_BASE}/{handle}/__init__.py"
         ):
             continue
         rows.append((handle, row))
     return tuple(rows)
+
+
+def _has_model_checksums(row: Mapping[str, Any], parts: int) -> bool:
+    keys = ("checksum",) if parts == 1 else tuple(f"checksum-{i}" for i in range(parts))
+    return all(isinstance(row.get(key), str) and _MD5.fullmatch(row[key]) for key in keys)
+
+
+def _model_checksums(row: Mapping[str, Any], parts: int) -> tuple[str, ...]:
+    keys = ("checksum",) if parts == 1 else tuple(f"checksum-{i}" for i in range(parts))
+    return tuple(row[key] for key in keys)
+
+
+def _weight_urls(handle: str, parts: int) -> tuple[str, ...]:
+    """Use Gensim downloader's literal single and multipart release templates."""
+    base = f"{_DOWNLOAD_BASE}/{quote(handle, safe='')}"
+    if parts == 1:
+        return (f"{base}/{quote(handle + '.gz', safe='')}",)
+    return tuple(f"{base}/{quote(handle + f'.gz_0{i}', safe='')}" for i in range(parts))
 
 
 __all__ = ["GensimDownloaderModelRegistrySourceAdapter"]

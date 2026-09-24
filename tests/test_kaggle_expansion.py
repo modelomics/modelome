@@ -203,3 +203,136 @@ def test_version_pagination_cycle_fails_instead_of_returning_partial_releases() 
     assert not page.records
     assert len(page.issues) == 1
     assert "version pagination token did not advance" in page.issues[0].error
+
+
+def test_all_versions_are_scoped_and_paginated_independently_per_variation() -> None:
+    client = _Client(
+        {
+            "models": [
+                {
+                    "ref": "google/gemma",
+                    "instances": [
+                        {
+                            "id": 12,
+                            "slug": "2b",
+                            "framework": "PyTorch",
+                            "versionNumber": 2,
+                        },
+                        {
+                            "id": 13,
+                            "slug": "7b",
+                            "framework": "PyTorch",
+                            "versionNumber": 1,
+                        },
+                    ],
+                }
+            ],
+            "totalResults": 1,
+        },
+        {
+            "versionList": {
+                "versions": [
+                    {
+                        "id": 101,
+                        "versionNumber": 1,
+                        "modelInstanceId": 12,
+                        "variationSlug": "2b",
+                        "framework": "PyTorch",
+                    }
+                ]
+            },
+            "nextPageToken": "older",
+        },
+        {
+            "versionList": {
+                "versions": [
+                    {
+                        "id": 102,
+                        "versionNumber": 2,
+                        "modelInstanceId": 12,
+                        "variationSlug": "2b",
+                        "framework": "PyTorch",
+                    }
+                ]
+            },
+        },
+        {
+            "versionList": {
+                "versions": [
+                    {
+                        "id": 201,
+                        "versionNumber": 1,
+                        "modelInstanceId": 13,
+                        "variationSlug": "7b",
+                        "framework": "PyTorch",
+                    }
+                ]
+            },
+        },
+    )
+
+    page = KaggleModelsSourceAdapter(
+        client=client,
+        page_size=1,
+        include_all_versions=True,
+    ).fetch_page({})
+
+    releases = page.records[0].releases
+    assert [(release.metadata["instance_slug"], release.version) for release in releases] == [
+        ("2b", "1"),
+        ("2b", "2"),
+        ("7b", "1"),
+    ]
+    assert [release.revision for release in releases] == ["101", "102", "201"]
+    assert client.calls[1:] == [
+        (
+            "https://www.kaggle.com/api/v1/models/google/gemma/PyTorch/2b/list",
+            {"pageSize": 1},
+        ),
+        (
+            "https://www.kaggle.com/api/v1/models/google/gemma/PyTorch/2b/list",
+            {"pageSize": 1, "pageToken": "older"},
+        ),
+        (
+            "https://www.kaggle.com/api/v1/models/google/gemma/PyTorch/7b/list",
+            {"pageSize": 1},
+        ),
+    ]
+
+
+def test_version_rows_for_another_variation_are_rejected() -> None:
+    client = _Client(
+        {
+            "models": [
+                {
+                    "ref": "google/gemma",
+                    "instances": [
+                        {"id": 12, "slug": "2b", "framework": "PyTorch"}
+                    ],
+                }
+            ],
+            "totalResults": 1,
+        },
+        {
+            "versionList": {
+                "versions": [
+                    {
+                        "id": 201,
+                        "versionNumber": 1,
+                        "modelInstanceId": 13,
+                        "variationSlug": "7b",
+                        "framework": "PyTorch",
+                    }
+                ]
+            },
+        },
+    )
+
+    page = KaggleModelsSourceAdapter(
+        client=client,
+        include_all_versions=True,
+    ).fetch_page({})
+
+    assert not page.records
+    assert len(page.issues) == 1
+    assert "belongs to model instance 13, expected 12" in page.issues[0].error

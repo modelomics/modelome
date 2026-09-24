@@ -84,6 +84,9 @@ def test_opencv_dnn_index_extracts_exact_checkpoint_urls_and_metadata() -> None:
     assert caffe.identifiers[0].namespace == "opencv:dnn-sample-model"
     assert caffe.identifiers[0].value == "opencv_fd"
     assert caffe.releases[0].metadata["format"] == "caffemodel"
+    assert caffe.releases[0].metadata["sha1"] == (
+        "15aa726b4d46d9f023526d85537db81cbc8dd566"
+    )
     assert any(
         link.url.endswith("res10.caffemodel") and link.relation == "weights"
         for link in caffe.links
@@ -92,9 +95,12 @@ def test_opencv_dnn_index_extracts_exact_checkpoint_urls_and_metadata() -> None:
     assert tensorflow.releases[0].metadata["download_sha"] == (
         "6157ddb6da55db2da89dd561eceb7f944928e317"
     )
+    assert tensorflow.releases[0].metadata["download_name"] == "ssd_mobilenet.tar.gz"
     assert tensorflow.releases[0].metadata["member"] == (
         "ssd_mobilenet/frozen_inference_graph.pb"
     )
+    assert tensorflow.raw["model_filename"] == "ssd_mobilenet.pb"
+    assert tensorflow.raw["config_filename"] == "ssd_mobilenet.pbtxt"
 
 
 def test_opencv_dnn_index_honors_conditional_request_and_size_bounds() -> None:

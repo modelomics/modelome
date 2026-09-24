@@ -1,0 +1,49 @@
+# xAI's richer language-model listing adds provider-declared model version,
+# fingerprint, and aliases to the current API-key availability view. It is still
+# a live list, not a version-history feed; preserve the extra fields as source
+# evidence without crawling credentialed model-detail URLs.
+[[source]]
+name = "xai-language-model-versions"
+adapter = "json_catalog"
+enabled = true
+activation_env = "XAI_API_KEY"
+entry_tags = ["field:machine-learning", "ecosystem:xai", "kind:hosted-model", "evidence:current-api-availability"]
+url = "https://api.x.ai/v1/language-models"
+provider_namespace = "xai:model"
+model_card_url_template = "https://api.x.ai/v1/language-models/{id_path}"
+model_page_crawl = false
+auth_env = "XAI_API_KEY"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "models"
+id_path = "id"
+name_path = "id"
+created_path = "created"
+
+# Groq explicitly calls /openai/v1/models a list of all active models. Its
+# separately maintained deprecation history documents exact retired IDs,
+# shutdown dates, and optional replacements. Capture rows as historical
+# provider evidence; a row does not imply the model remains callable today.
+[[source]]
+name = "groq-model-deprecation-history"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:groq", "kind:hosted-model", "evidence:provider-deprecation-history"]
+url = "https://console.groq.com/docs/deprecations"
+provider_namespace = "groq:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 2097152
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Deprecated Model \| Shutdown Date \| Recommended Replacement Model ID$'
+name_column = 0
+identity_column = 0
+identity_source = "id"

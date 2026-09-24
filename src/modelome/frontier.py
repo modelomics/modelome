@@ -17,12 +17,13 @@ from modelome.fetchers import (
     NvidiaNgcModelCardFetcher,
     OpenAIModelDocumentationFetcher,
     PrivateResourceError,
+    PublicUrlPolicy,
     PyTorchHubModelPageFetcher,
     WebPageFetcher,
     WeightReferenceFetcher,
 )
-from modelome.models import SourcePage, SyncStats
-from modelome.normalize import identifier_from_url
+from modelome.models import ArtifactKind, Identifier, SourcePage, SourceRecord, SyncStats
+from modelome.normalize import canonicalize_url, identifier_from_url
 from modelome.storage import Database
 
 _BINARY_SUFFIXES = {
@@ -114,20 +115,39 @@ class FrontierCrawler:
                 limit=limit,
                 lease_seconds=self.claim_lease_seconds,
             )
+            declared_weight_urls = _declared_weight_urls(self.database, items)
+            reference_fetcher = _DeclaredWeightReferenceFetcher(declared_weight_urls)
 
             for item in items:
                 url = str(item["url"])
                 depth = int(item.get("depth") or 0)
-                if depth > max_depth or not _worth_fetching(url):
+                declared_extensionless_weight = url in declared_weight_urls
+                if depth > max_depth or not (
+                    _worth_fetching(url)
+                    or (
+                        declared_extensionless_weight
+                        and _is_extensionless_github_release_asset(url)
+                    )
+                ):
                     self.database.update_frontier(
                         url, "ignored", error="outside crawl policy"
                     )
                     continue
 
-                fetcher = next(
-                    (candidate for candidate in self.fetchers if candidate.accepts(url)),
-                    None,
-                )
+                if (
+                    declared_extensionless_weight
+                    and _is_extensionless_github_release_asset(url)
+                ):
+                    fetcher = reference_fetcher
+                else:
+                    fetcher = next(
+                        (
+                            candidate
+                            for candidate in self.fetchers
+                            if candidate.accepts(url)
+                        ),
+                        None,
+                    )
                 if fetcher is None:
                     self.database.update_frontier(
                         url, "ignored", error="no artifact fetcher"
@@ -195,6 +215,62 @@ class FrontierCrawler:
             stats.errors.append(message)
             self.database.finish_run(run_id, "failed", stats, error=message)
             return FrontierOutcome("failed", run_id, stats.as_dict())
+
+
+class _DeclaredWeightReferenceFetcher:
+    """Materialize specifically declared extensionless release assets by URL only."""
+
+    def __init__(self, declared_urls: set[str]) -> None:
+        self.declared_urls = declared_urls
+        self.url_policy = PublicUrlPolicy()
+
+    def accepts(self, url: str) -> bool:
+        return (
+            url in self.declared_urls
+            and _is_extensionless_github_release_asset(url)
+            and self.url_policy.allows(url, resolve=False)
+        )
+
+    def fetch(self, url: str) -> SourceRecord:
+        canonical_url = self.url_policy.validate(url, resolve=False)
+        filename = PurePosixPath(urlsplit(canonical_url).path).name
+        return SourceRecord(
+            source_record_id=canonical_url,
+            kind=ArtifactKind.WEIGHTS,
+            canonical_url=canonical_url,
+            title=filename or canonical_url,
+            raw={"reference_only": True, "suffix": ""},
+            identifiers=(Identifier("url", canonical_url),),
+        )
+
+
+def _declared_weight_urls(database: Database, items: list[dict[str, Any]]) -> set[str]:
+    url_by_id = {
+        str(item["id"]): canonicalize_url(str(item["url"]))
+        for item in items
+        if item.get("id") and item.get("url")
+    }
+    if not url_by_id:
+        return set()
+    return {
+        url_by_id[str(row["url_id"])]
+        for row in database.table_rows("url_discoveries")
+        if str(row.get("url_id")) in url_by_id
+        and str(row.get("relation", "")).casefold() in {"weights", "checkpoint"}
+    }
+
+
+def _is_extensionless_github_release_asset(url: str) -> bool:
+    parts = urlsplit(url)
+    segments = [segment for segment in parts.path.split("/") if segment]
+    return (
+        parts.scheme.casefold() == "https"
+        and (parts.hostname or "").casefold() == "github.com"
+        and len(segments) == 6
+        and segments[2:4] == ["releases", "download"]
+        and bool(segments[5])
+        and not PurePosixPath(segments[5]).suffix
+    )
 
 
 def _worth_fetching(url: str) -> bool:

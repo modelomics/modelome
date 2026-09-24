@@ -118,51 +118,76 @@ def test_metadata_export_preserves_joins_without_raw_source_content(tmp_path) ->
 def test_metadata_export_projects_only_huggingface_release_weight_filenames(tmp_path) -> None:
     store = Database(tmp_path / "store")
     store.initialize()
-    record = SourceRecord(
-        source_record_id="lab/checkpoint",
-        kind=ArtifactKind.MODEL_CARD,
-        canonical_url="https://huggingface.co/lab/checkpoint",
-        title="Checkpoint",
-        raw={"private_body": "PRIVATE MODEL CARD BODY"},
-        text="PRIVATE MODEL CARD BODY",
-        models=(
-            ModelHint(
-                "model",
-                "Checkpoint",
-                identifiers=(Identifier("huggingface:model", "lab/checkpoint"),),
+
+    def record(revision: str, filenames: list[str], raw_body: str) -> SourceRecord:
+        return SourceRecord(
+            source_record_id="lab/checkpoint",
+            kind=ArtifactKind.MODEL_CARD,
+            canonical_url="https://huggingface.co/lab/checkpoint",
+            title="Checkpoint",
+            raw={"private_body": raw_body},
+            text=raw_body,
+            models=(
+                ModelHint(
+                    "model",
+                    "Checkpoint",
+                    identifiers=(Identifier("huggingface:model", "lab/checkpoint"),),
+                ),
+            ),
+            releases=(
+                ReleaseHint(
+                    f"release:{revision}",
+                    "model",
+                    revision=revision,
+                    identifiers=(
+                        Identifier("huggingface:revision", f"lab/checkpoint@{revision}"),
+                    ),
+                    metadata={
+                        "weight_files": filenames,
+                        "private_note": "PRIVATE RELEASE METADATA",
+                    },
+                ),
+            ),
+        )
+
+    store.ingest_page(
+        "huggingface",
+        (
+            record(
+                "abc123",
+                ["model.safetensors", "shards/part-00001.safetensors"],
+                "PRIVATE OLD MODEL CARD BODY",
             ),
         ),
-        releases=(
-            ReleaseHint(
-                "release",
-                "model",
-                revision="abc123",
-                metadata={
-                    "weight_files": [
-                        "model.safetensors",
-                        "shards/part-00001.safetensors",
-                        "../outside.safetensors",
-                        "https://private.example/secret.safetensors",
-                    ],
-                    "private_note": "PRIVATE RELEASE METADATA",
-                },
-            ),
-        ),
+        {},
+        extractor="fixture",
     )
-    store.ingest_page("huggingface", (record,), {}, extractor="fixture")
+    store.ingest_page(
+        "huggingface",
+        (
+            record(
+                "def456",
+                ["model-v2.safetensors", "../outside.safetensors", "https://private.example/secret.safetensors"],
+                "PRIVATE CURRENT MODEL CARD BODY",
+            ),
+        ),
+        {},
+        extractor="fixture",
+    )
 
     output = tmp_path / "bundle"
     export_public_metadata(store, output, source_configs=())
 
     releases = pq.read_table(output / "model_releases.parquet").to_pylist()
-    assert len(releases) == 1
-    assert releases[0]["revision"] == "abc123"
-    assert json.loads(releases[0]["weight_files_json"]) == [
-        "model.safetensors",
-        "shards/part-00001.safetensors",
-    ]
+    assert {row["revision"] for row in releases} == {"abc123", "def456"}
+    release_files = {row["revision"]: json.loads(row["weight_files_json"]) for row in releases}
+    assert release_files == {
+        "abc123": ["model.safetensors", "shards/part-00001.safetensors"],
+        "def456": ["model-v2.safetensors"],
+    }
     bundle_bytes = b"".join(path.read_bytes() for path in output.iterdir() if path.is_file())
-    assert b"PRIVATE MODEL CARD BODY" not in bundle_bytes
+    assert b"PRIVATE OLD MODEL CARD BODY" not in bundle_bytes
+    assert b"PRIVATE CURRENT MODEL CARD BODY" not in bundle_bytes
     assert b"PRIVATE RELEASE METADATA" not in bundle_bytes
     assert b"outside.safetensors" not in bundle_bytes
     assert b"private.example" not in bundle_bytes

@@ -73,9 +73,10 @@ _NON_FETCHABLE_RELATIONS = frozenset(
         "weights",
     }
 )
-# Generic weights/model_weights links may participate only when an independent
-# source explicitly labels the same URL as a checkpoint.
+# Generic weights/model_weights links are collected so provenance can identify
+# shared URLs, but only URLs that every owner calls a checkpoint may merge.
 _CHECKPOINT_IDENTITY_RELATIONS = frozenset({"checkpoint", "model_weights", "weights"})
+_CITATION_RELATIONS = frozenset({"cites", "cited_by", "is-cited-by"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,6 +184,14 @@ class EntryModelRelation:
 
 
 @dataclass(frozen=True, slots=True)
+class EntryCitation:
+    """An outgoing citation to an existing entry, with all supporting observations."""
+
+    target_entry_id: str
+    evidence: tuple[EntryResource, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class Entry:
     """A portable, resource-complete entry assembled from declared observations."""
 
@@ -195,6 +204,7 @@ class Entry:
     resources: tuple[EntryResource, ...]
     releases: tuple[EntryRelease, ...]
     model_relations: tuple[EntryModelRelation, ...]
+    citations: tuple[EntryCitation, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +221,7 @@ class EntryBuildResult:
             "seed_count": self.seed_count,
             "candidate_count": self.candidate_count,
             "resource_count": self.resource_count,
+            "citation_count": sum(len(entry.citations) for entry in self.entries),
             "release_count": sum(len(entry.releases) for entry in self.entries),
             "model_relation_count": sum(
                 len(entry.model_relations) for entry in self.entries
@@ -363,7 +374,8 @@ def source_record_to_entry_seed(
 def plan_entry_seed(seed: Mapping[str, Any]) -> dict[str, Any]:
     """Return a no-side-effect per-seed plan for review or a queue worker.
 
-    ``attach_resource`` actions preserve every declared relation.  A later
+    ``attach_resource`` actions preserve declared resource relations. Citations
+    use ``attach_citation_if_present`` and require corpus membership resolution. A later
     resolver may act on ``resolve_resource`` actions one-at-a-time; reference-only
     checkpoints are retained as links but never scheduled for byte downloads.
     """
@@ -403,6 +415,9 @@ def plan_entry_seed(seed: Mapping[str, Any]) -> dict[str, Any]:
                 payload["resolved_artifact"] = asdict(resource.resolved_artifact)
             if resource.relation_evidence is not None:
                 payload["relation_evidence"] = asdict(resource.relation_evidence)
+            if resource.relation.casefold() in _CITATION_RELATIONS:
+                actions.append({"action": "attach_citation_if_present", **payload})
+                continue
             actions.append({"action": "attach_resource", **payload})
             if resource.crawl and resource.relation not in _NON_FETCHABLE_RELATIONS:
                 actions.append({"action": "resolve_resource", **payload})
@@ -493,11 +508,11 @@ def build_entries(seeds: Iterable[Mapping[str, Any]]) -> EntryBuildResult:
     # A source-declared direct checkpoint URL can bridge otherwise unrelated
     # catalog identities when independent sources point to the same artifact.
     # Generic weights links may name shared tokenizers or backbone files, so a
-    # URL is eligible only if at least one source calls it a checkpoint. Require
-    # one model candidate per source record for that URL: catalog-wide links are
+    # URL is eligible only if every owner calls it a checkpoint. Require one
+    # model candidate per source record for that URL: catalog-wide links are
     # ambiguous.
     checkpoint_owners: dict[str, list[int]] = defaultdict(list)
-    explicit_checkpoint_urls: set[str] = set()
+    explicit_checkpoint_owners: dict[str, set[int]] = defaultdict(set)
     for index, candidate in enumerate(candidates):
         urls = set()
         for resource in candidate.resources:
@@ -505,11 +520,11 @@ def build_entries(seeds: Iterable[Mapping[str, Any]]) -> EntryBuildResult:
             if relation in _CHECKPOINT_IDENTITY_RELATIONS:
                 urls.add(resource.url)
             if relation == "checkpoint":
-                explicit_checkpoint_urls.add(resource.url)
+                explicit_checkpoint_owners[resource.url].add(index)
         for url in urls:
             checkpoint_owners[url].append(index)
     for url, owners in checkpoint_owners.items():
-        if url not in explicit_checkpoint_urls or len(owners) < 2:
+        if len(owners) < 2 or len(explicit_checkpoint_owners[url]) != len(owners):
             continue
         records_by_url: dict[tuple[str, str], int] = {}
         for index in owners:
@@ -546,13 +561,102 @@ def build_entries(seeds: Iterable[Mapping[str, Any]]) -> EntryBuildResult:
         for entry in entries
     )
     entries = tuple(
-        sorted(entries, key=lambda item: (normalize_name(item.canonical_name), item.id))
+        sorted(
+            _resolve_entry_citations(entries),
+            key=lambda item: (normalize_name(item.canonical_name), item.id),
+        )
     )
     return EntryBuildResult(
         entries=entries,
         seed_count=seed_count,
         candidate_count=len(candidates),
         resource_count=sum(len(entry.resources) for entry in entries),
+    )
+
+
+def _citation_url_keys(url: str) -> set[tuple[str, str]]:
+    keys = {("url", url)}
+    identifier = identifier_from_url(url)
+    if identifier is not None:
+        normalized = _identifiers([asdict(identifier)], "citation identifier")[0]
+        keys.add((normalized.namespace, normalized.value))
+    # OpenAlex work IDs identify papers even when their landing URL is a DOI.
+    if match := re.fullmatch(r"https?://openalex\.org/(W\d+)", url):
+        keys.add(("openalex", match[1]))
+    return keys
+
+
+def _resolve_entry_citations(entries: Sequence[Entry]) -> tuple[Entry, ...]:
+    """Project declared citations onto the closed set of assembled entries.
+
+    Citation URLs never become identity evidence. Ambiguous paper ownership is
+    ignored: a paper mentioning several techniques cannot identify one of them.
+    """
+
+    owners: dict[tuple[str, str], set[str]] = defaultdict(set)
+    record_owners: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for entry in entries:
+        keys = {(item.namespace, item.value) for item in entry.identifiers}
+        for member in entry.members:
+            record_owners[member.source, member.source_record_id].add(entry.id)
+            keys.update(_citation_url_keys(member.artifact_url))
+            keys.update((item.namespace, item.value) for item in member.artifact_identifiers)
+        for resource in entry.resources:
+            if resource.relation.casefold() not in _PAPER_RELATIONS | {"openalex_record"}:
+                continue
+            if resource.relation_evidence is not None and (
+                resource.relation_evidence.direction == "incoming"
+            ):
+                continue
+            keys.update(_citation_url_keys(resource.url))
+        for key in keys:
+            owners[key].add(entry.id)
+
+    edges: dict[str, dict[str, set[EntryResource]]] = defaultdict(lambda: defaultdict(set))
+    for entry in entries:
+        for resource in entry.resources:
+            predicate = resource.relation.casefold()
+            if predicate not in _CITATION_RELATIONS:
+                continue
+            matched = set().union(
+                *(owners.get(key, set()) for key in _citation_url_keys(resource.url))
+            )
+            if resource.resolved_artifact is not None:
+                artifact = resource.resolved_artifact
+                matched.update(record_owners.get((artifact.source, artifact.source_record_id), ()))
+            if len(matched) != 1:
+                continue
+            source_id, target_id = entry.id, next(iter(matched))
+            reverse = predicate != "cites"
+            if resource.relation_evidence is not None:
+                direction = resource.relation_evidence.direction
+                if direction == "symmetric":
+                    continue
+                reverse ^= direction == "incoming"
+            if reverse:
+                source_id, target_id = target_id, source_id
+            if source_id != target_id:
+                edges[source_id][target_id].add(replace(resource, crawl=False))
+
+    return tuple(
+        replace(
+            entry,
+            resources=tuple(
+                resource
+                for resource in entry.resources
+                if resource.relation.casefold() not in _CITATION_RELATIONS
+            ),
+            citations=tuple(
+                EntryCitation(
+                    target_entry_id=target_id,
+                    evidence=tuple(
+                        sorted(evidence, key=lambda item: json.dumps(asdict(item), sort_keys=True))
+                    ),
+                )
+                for target_id, evidence in sorted(edges.get(entry.id, {}).items())
+            ),
+        )
+        for entry in entries
     )
 
 
@@ -967,6 +1071,7 @@ def _entry_dict(entry: Entry) -> dict[str, Any]:
         "members": [asdict(item) for item in entry.members],
         "resources": [asdict(item) for item in entry.resources],
         "releases": [_release_dict(item) for item in entry.releases],
+        "citations": [asdict(item) for item in entry.citations],
         "model_relations": [
             {
                 "source": relation.source,
@@ -1038,10 +1143,6 @@ def _identifiers(value: Any, field: str) -> tuple[EntryIdentifier, ...]:
                 if identifier_value.casefold().startswith("doi:"):
                     identifier_value = identifier_value[4:]
                 identifier_value = identifier_value.casefold()
-        elif namespace == "doi":
-            # DOI names are case-insensitive, but several adapters preserve the
-            # publisher's spelling while others already case-fold them.
-            identifier_value = identifier_value.casefold()
         result.append(EntryIdentifier(namespace=namespace, value=identifier_value))
     return tuple(sorted(set(result), key=lambda item: item.key))
 
@@ -1238,6 +1339,7 @@ __all__ = [
     "ENTRY_FORMAT",
     "Entry",
     "EntryBuildResult",
+    "EntryCitation",
     "EntryIdentifier",
     "EntryMember",
     "EntryRelationEvidence",

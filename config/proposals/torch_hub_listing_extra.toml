@@ -1,0 +1,19 @@
+# Disabled proposal for PyTorch's first-party curated Hub listing source. It
+# captures exact repo/ref/entrypoint declarations from listing pages only; it
+# does not crawl or execute the referenced model repositories. pytorch/vision
+# calls are excluded because TorchVision weights have their own source.
+[[source]]
+name = "torch-hub-listing-extra"
+adapter = "torch_hub_listing_extra"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:pytorch-hub", "kind:hub-entrypoint"]
+repository = "pytorch/hub"
+branch = "master"
+max_archive_bytes = 33554432
+max_file_bytes = 2097152
+max_files = 10000
+
+[evidence]
+hub_listing = "https://pytorch.org/hub/"
+listing_repository = "https://github.com/pytorch/hub"
+hub_load_contract = "https://docs.pytorch.org/docs/stable/hub.html"

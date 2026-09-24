@@ -384,6 +384,11 @@ def test_evaluation_tables_emit_only_paper_backed_candidate_labels(
                                 "code_links": [
                                     {"url": "https://github.com/example/implementation"},
                                 ],
+                                "model_links": [
+                                    {"url": "https://example.org/models/candidate.safetensors"},
+                                    {"url": "https://example.org/models/candidate.safetensors"},
+                                    {"url": "javascript:alert(1)"},
+                                ],
                             },
                             {
                                 "model_name": "Example Candidate",
@@ -441,6 +446,16 @@ def test_evaluation_tables_emit_only_paper_backed_candidate_labels(
         "https://github.com/example/implementation",
         "https://github.com/example/second",
     }
+    model_artifact_links = [
+        link for link in record.links if link.relation == "model_artifact"
+    ]
+    assert [link.url for link in model_artifact_links] == [
+        "https://example.org/models/candidate.safetensors"
+    ]
+    assert model_artifact_links[0].crawl is False
+    assert record.raw["model_artifact_urls"] == [
+        "https://example.org/models/candidate.safetensors"
+    ]
     assert second.complete is True
     assert second.next_state["completed_snapshot_revision"] == revision
     # The second immutable shard resumes directly; no redundant metadata call.

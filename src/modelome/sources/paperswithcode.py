@@ -492,7 +492,16 @@ class PapersWithCodeValidatedMethodsSourceAdapter:
             )
         )
         return SourceRecord(
-            source_record_id=f"method:{content_hash(method_url)[:32]}",
+            # The method URL identifies the method, while this source record
+            # represents its particular paper relationship. Include both so a
+            # repeated method URL with another linked paper cannot overwrite or
+            # collapse that provenance across pages or shards.
+            source_record_id=(
+                "method-paper:"
+                + content_hash(
+                    {"method_url": method_url, "paper_url": candidate["paper_url"]}
+                )[:32]
+            ),
             kind=ArtifactKind.CATALOG_RECORD,
             canonical_url=method_url,
             title=display_name,
@@ -804,10 +813,13 @@ def _evaluation_records(
                                     "tasks": task_path,
                                     "datasets": dataset_scope,
                                     "code_links": set(),
+                                    "model_links": set(),
                                 },
                             )
                             for code in _evaluation_code_urls(value.get("code_links")):
                                 entry["code_links"].add(code)
+                            for model_url in _evaluation_code_urls(value.get("model_links")):
+                                entry["model_links"].add(model_url)
                 # The metrics object can contain tens of thousands of metric keys;
                 # model observations live only on this declared structural path.
                 pending.extend(
@@ -881,6 +893,15 @@ def _evaluation_records(
             )
             for code_url in sorted(entry["code_links"])
         )
+        links.extend(
+            Link(
+                model_url,
+                relation="model_artifact",
+                locator="$.datasets[].sota.rows[].model_links[].url",
+                crawl=False,
+            )
+            for model_url in sorted(entry["model_links"])
+        )
         local_id = f"pwc-evaluation:{identity}"
         records.append(
             SourceRecord(
@@ -900,6 +921,7 @@ def _evaluation_records(
                     "tasks": list(entry["tasks"]),
                     "datasets": list(entry["datasets"]),
                     "code_urls": sorted(entry["code_links"]),
+                    "model_artifact_urls": sorted(entry["model_links"]),
                 },
                 identifiers=(identifier,),
                 links=tuple(links),
@@ -1016,7 +1038,13 @@ def _method_candidates(
                 "collections": str(row.get("collections") or ""),
             }
         )
-    return candidates, rejected
+    # Duplicate archive rows can occur within a shard and are also stable across
+    # shards. Suppress exact repeats here; shard-level repeats retain the same
+    # deterministic method-paper source identity during downstream upsert.
+    unique_candidates: dict[str, dict[str, Any]] = {}
+    for candidate in candidates:
+        unique_candidates.setdefault(content_hash(candidate), candidate)
+    return list(unique_candidates.values()), rejected
 
 
 def _arxiv_id_from_url(value: str) -> str | None:

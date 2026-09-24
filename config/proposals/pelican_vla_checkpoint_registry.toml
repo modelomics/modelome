@@ -1,0 +1,18 @@
+# First-party Pelican-VLA 0.5 documentation enumerates the pretrained backbone
+# and RoboTwin fine-tuned checkpoint as exact Hub repository identities. Keep
+# disabled until this dedicated adapter is registered and reviewed.
+[[source]]
+name = "pelican-vla-checkpoint-registry"
+adapter = "pelican_vla_checkpoint_registry"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:pelican-vla", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 20
+
+# The adapter reads only the Model Download table from the first-party README.
+# It records Hugging Face repository IDs and does not enumerate Hub files or
+# download model weights. Exact first-party model identities:
+# https://huggingface.co/X-Humanoid/Pelican-VLA05
+# https://huggingface.co/X-Humanoid/Pelican-VLA05-Robotwin
+# Source document: https://github.com/Open-X-Humanoid/Pelican-VLA05/blob/main/readme.md

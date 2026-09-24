@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -327,6 +328,16 @@ def _work_links(work: Mapping[str, Any]) -> Iterable[Link]:
         yield Link(canonicalize_url(url), relation="openalex_record", locator="$.id")
     if url := _doi_url(work):
         yield Link(canonicalize_url(url), relation="doi", locator="$.doi")
+
+    for index, value in enumerate(_sequence(work.get("referenced_works"))):
+        url = _text(value)
+        if re.fullmatch(r"https?://openalex\.org/W\d+", url):
+            yield Link(
+                canonicalize_url(url),
+                relation="cites",
+                locator=f"$.referenced_works[{index}]",
+                crawl=False,
+            )
 
     locations = []
     for key in ("primary_location", "best_oa_location"):

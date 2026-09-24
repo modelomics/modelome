@@ -19,8 +19,13 @@ import pyarrow.parquet as pq
 from modelome.lake import ParquetLandingZone
 
 _FORMAT = "modelome-semantic-scholar-projection-v2"
-_ALGORITHM = "sha256-corpus-bucket-stateful-join-v3"
-_LEGACY_ALGORITHMS = frozenset({"sha256-corpus-bucket-stateful-join-v2"})
+_ALGORITHM = "sha256-corpus-bucket-stateful-join-v4"
+_LEGACY_ALGORITHMS = frozenset(
+    {
+        "sha256-corpus-bucket-stateful-join-v2",
+        "sha256-corpus-bucket-stateful-join-v3",
+    }
+)
 _DATASETS = ("papers", "abstracts", "paper-ids")
 _SHA1 = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -2471,6 +2476,13 @@ def _external_identifier_urls(external_ids: Mapping[str, Any]) -> list[dict[str,
             r"10\.\d{4,9}/[^\s]+", identifier, re.IGNORECASE
         ):
             url = f"https://doi.org/{quote(identifier, safe='/()') }"
+        elif normalized_key == "acl" and re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9.-]*(?:/[A-Za-z0-9][A-Za-z0-9.-]*)?",
+            identifier,
+        ):
+            url = f"https://aclanthology.org/{quote(identifier, safe='./-')}/"
+        elif normalized_key == "pubmed" and re.fullmatch(r"[1-9]\d*", identifier):
+            url = f"https://pubmed.ncbi.nlm.nih.gov/{identifier}/"
         else:
             continue
         found.append({"locator": f"$.paper.externalids.{key}", "url": url})

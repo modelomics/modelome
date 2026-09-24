@@ -1,0 +1,85 @@
+# fairseq's first-party README model tables expose released RoBERTa, BART,
+# XLM-R, mBART, and transformer-LM checkpoints as direct archives on
+# dl.fbaipublicfiles.com. Keep each model family independently identified and
+# disabled until the dedicated fixed-document adapter is wired into catalog.py.
+[[source]]
+name = "fairseq-roberta-model-zoo"
+adapter = "fairseq_pretrained_language_models"
+enabled = false
+entry_tags = [
+  "field:natural-language-processing",
+  "model-family:roberta",
+  "ecosystem:fairseq",
+  "kind:checkpoint",
+]
+document_path = "examples/roberta/README.md"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_rows = 10000
+
+[[source]]
+name = "fairseq-bart-model-zoo"
+adapter = "fairseq_pretrained_language_models"
+enabled = false
+entry_tags = [
+  "field:natural-language-processing",
+  "model-family:bart",
+  "ecosystem:fairseq",
+  "kind:checkpoint",
+]
+document_path = "examples/bart/README.md"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_rows = 10000
+
+[[source]]
+name = "fairseq-xlmr-model-zoo"
+adapter = "fairseq_pretrained_language_models"
+enabled = false
+entry_tags = [
+  "field:natural-language-processing",
+  "model-family:xlm-roberta",
+  "ecosystem:fairseq",
+  "kind:checkpoint",
+]
+document_path = "examples/xlmr/README.md"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_rows = 10000
+
+[[source]]
+name = "fairseq-mbart-model-zoo"
+adapter = "fairseq_pretrained_language_models"
+enabled = false
+entry_tags = [
+  "field:natural-language-processing",
+  "model-family:mbart",
+  "ecosystem:fairseq",
+  "kind:checkpoint",
+]
+document_path = "examples/mbart/README.md"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_rows = 10000
+
+[[source]]
+name = "fairseq-transformer-language-model-zoo"
+adapter = "fairseq_pretrained_language_models"
+enabled = false
+entry_tags = [
+  "field:natural-language-processing",
+  "task:language-modeling",
+  "ecosystem:fairseq",
+  "kind:checkpoint",
+]
+document_path = "examples/language_model/README.md"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_rows = 10000
+
+[evidence]
+roberta = "https://github.com/facebookresearch/fairseq/blob/main/examples/roberta/README.md"
+bart = "https://github.com/facebookresearch/fairseq/blob/main/examples/bart/README.md"
+xlmr = "https://github.com/facebookresearch/fairseq/blob/main/examples/xlmr/README.md"
+mbart = "https://github.com/facebookresearch/fairseq/blob/main/examples/mbart/README.md"
+transformer_lm = "https://github.com/facebookresearch/fairseq/tree/main/examples/language_model"

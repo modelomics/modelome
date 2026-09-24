@@ -1,0 +1,18 @@
+# Google's NeuralGCM repository maintains this exact checkpoint inventory in
+# docs/checkpoints.md. The adapter records declared Cloud Storage object paths
+# as URLs and does not list the bucket or download checkpoint contents.
+[[source]]
+name = "google-neuralgcm-checkpoint-registry"
+adapter = "neuralgcm_checkpoint_registry"
+enabled = false
+entry_tags = ["field:weather-machine-learning", "ecosystem:google-neuralgcm", "kind:pretrained-checkpoint"]
+repository = "google-deepmind/neuralgcm"
+branch = "main"
+source_path = "docs/checkpoints.md"
+provider_namespace = "neuralgcm:checkpoint"
+max_response_bytes = 4194304
+max_entries = 100
+
+[evidence]
+checkpoint_table = "https://github.com/google-deepmind/neuralgcm/blob/main/docs/checkpoints.md"
+declared_storage_root = "gs://neuralgcm/models/"

@@ -1,0 +1,19 @@
+# Bounded MACE-OFF23 checkpoint list from the first-party MACE loader.
+[[source]]
+name = "mace-off23-checkpoints"
+adapter = "mace_off23_checkpoint_registry"
+enabled = false
+repository = "ACEsuit/mace"
+branch = "develop"
+source_path = "mace/calculators/foundations_models.py"
+mapping_variable = "mace_off_urls"
+provider_namespace = "mace:off23-checkpoint"
+entry_tags = ["field:computational-chemistry", "ecosystem:mace", "model-family:mace-off23", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100
+
+# The upstream literal mapping names exact small/medium/large files at
+# https://raw.githubusercontent.com/ACEsuit/mace-off/main/mace_off23/.
+# The adapter pins the mapping source, admits only those exact URLs, and does not
+# download weight bytes.

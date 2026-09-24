@@ -49,3 +49,74 @@ def test_source_declared_huggingface_checkpoint_is_materialized(tmp_path) -> Non
         if row["source"] == "frontier"
     )
     assert checkpoint["kind"] == "weights"
+
+
+def test_declared_extensionless_github_checkpoint_is_reference_only(tmp_path) -> None:
+    database = Database(tmp_path / "store")
+    database.initialize()
+    checkpoint_url = (
+        "https://github.com/lab/model/releases/download/v1/model-checkpoint"
+    )
+    database.ingest_page(
+        "catalog",
+        SourcePage(
+            records=(
+                SourceRecord(
+                    source_record_id="catalog-model",
+                    kind=ArtifactKind.CATALOG_RECORD,
+                    canonical_url="https://catalog.example/models/model",
+                    title="Model record",
+                    raw={},
+                    links=(Link(checkpoint_url, relation="checkpoint"),),
+                ),
+            ),
+            next_state={"done": True},
+            complete=True,
+        ),
+    )
+
+    outcome = FrontierCrawler(database, fetchers=[]).crawl(limit=10)
+
+    assert outcome.status == "complete"
+    assert outcome.stats["records_seen"] == 1
+    assert database.list_frontier(status="done")[0]["url"] == checkpoint_url
+    checkpoint = next(
+        row
+        for row in database.table_rows("artifacts")
+        if row["source"] == "frontier"
+    )
+    assert (checkpoint["kind"], checkpoint["title"]) == (
+        "weights",
+        "model-checkpoint",
+    )
+
+
+def test_extensionless_github_release_link_needs_weight_relation(tmp_path) -> None:
+    database = Database(tmp_path / "store")
+    database.initialize()
+    checkpoint_url = (
+        "https://github.com/lab/model/releases/download/v1/model-checkpoint"
+    )
+    database.ingest_page(
+        "catalog",
+        SourcePage(
+            records=(
+                SourceRecord(
+                    source_record_id="catalog-model",
+                    kind=ArtifactKind.CATALOG_RECORD,
+                    canonical_url="https://catalog.example/models/model",
+                    title="Model record",
+                    raw={},
+                    links=(Link(checkpoint_url, relation="references"),),
+                ),
+            ),
+            next_state={"done": True},
+            complete=True,
+        ),
+    )
+
+    outcome = FrontierCrawler(database, fetchers=[]).crawl(limit=10)
+
+    assert outcome.status == "complete"
+    assert outcome.stats["records_seen"] == 0
+    assert database.list_frontier(status="ignored")[0]["url"] == checkpoint_url

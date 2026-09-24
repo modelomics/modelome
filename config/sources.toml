@@ -5206,3 +5206,408 @@ max_response_bytes = 4194304
 items_path = "data"
 id_path = "id"
 name_path = "id"
+
+# TorchGeo source-declared pretrained weights.
+[[source]]
+name = "torchgeo-pretrained-weight-registry"
+adapter = "torchgeo_weight_registry"
+enabled = true
+entry_tags = ["field:geospatial-machine-learning", "ecosystem:torchgeo", "kind:pretrained-weights"]
+repository = "torchgeo/torchgeo"
+branch = "main"
+package_path = "torchgeo/models"
+max_archive_bytes = 67108864
+max_module_bytes = 2097152
+max_modules = 1000
+
+# Historical AllenNLP model archives.
+[[source]]
+name = "allennlp-pretrained-model-archives"
+adapter = "allennlp_model_archives"
+enabled = true
+entry_tags = ["field:natural-language-processing", "ecosystem:allennlp", "kind:checkpoint", "era:historical"]
+repository = "allenai/allennlp-models"
+branch = "main"
+modelcards_path = "allennlp_models/modelcards"
+provider_namespace = "allennlp:pretrained-model"
+schedule = "monthly"
+max_response_bytes = 4194304
+max_entries = 100
+
+# Additional first-party language model releases.
+
+[[source]]
+name = "fairseq-roberta-model-zoo"
+adapter = "fairseq_pretrained_language_models"
+enabled = true
+entry_tags = [
+  "field:natural-language-processing",
+  "model-family:roberta",
+  "ecosystem:fairseq",
+  "kind:checkpoint",
+]
+document_path = "examples/roberta/README.md"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_rows = 10000
+
+[[source]]
+name = "fairseq-bart-model-zoo"
+adapter = "fairseq_pretrained_language_models"
+enabled = true
+entry_tags = [
+  "field:natural-language-processing",
+  "model-family:bart",
+  "ecosystem:fairseq",
+  "kind:checkpoint",
+]
+document_path = "examples/bart/README.md"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_rows = 10000
+
+[[source]]
+name = "fairseq-xlmr-model-zoo"
+adapter = "fairseq_pretrained_language_models"
+enabled = true
+entry_tags = [
+  "field:natural-language-processing",
+  "model-family:xlm-roberta",
+  "ecosystem:fairseq",
+  "kind:checkpoint",
+]
+document_path = "examples/xlmr/README.md"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_rows = 10000
+
+[[source]]
+name = "fairseq-mbart-model-zoo"
+adapter = "fairseq_pretrained_language_models"
+enabled = true
+entry_tags = [
+  "field:natural-language-processing",
+  "model-family:mbart",
+  "ecosystem:fairseq",
+  "kind:checkpoint",
+]
+document_path = "examples/mbart/README.md"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_rows = 10000
+
+[[source]]
+name = "fairseq-transformer-language-model-zoo"
+adapter = "fairseq_pretrained_language_models"
+enabled = true
+entry_tags = [
+  "field:natural-language-processing",
+  "task:language-modeling",
+  "ecosystem:fairseq",
+  "kind:checkpoint",
+]
+document_path = "examples/language_model/README.md"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_rows = 10000
+
+[[source]]
+name = "ollama-library-tags"
+adapter = "ollama_library_tags"
+enabled = true
+entry_tags = ["field:language-modeling", "ecosystem:ollama", "kind:model-library"]
+url = "https://ollama.com/library"
+provider_namespace = "ollama:model-family"
+schedule = "daily"
+max_response_bytes = 8388608
+max_families = 5000
+max_tags_per_family = 10000
+max_pages_per_family = 100
+max_anchors_per_page = 100000
+
+# First-party source from config/proposals/dgl_lifesci_generative.toml.
+[[source]]
+name = "dgllife-generative-checkpoints"
+adapter = "dgl_lifesci_checkpoint_registry"
+enabled = true
+entry_tags = ["field:graph-machine-learning", "field:computational-chemistry", "ecosystem:dgl-lifesci", "task:molecular-generation", "kind:checkpoint"]
+repository = "awslabs/dgl-lifesci"
+branch = "master"
+source_path = "python/dgllife/model/pretrain/generative_models.py"
+mapping_variable = "generative_url"
+provider_namespace = "dgllife:generative-checkpoint"
+checkpoint_base_url = "https://data.dgl.ai/"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 10000
+
+# First-party source from config/proposals/openfold3_registry.toml.
+[[source]]
+name = "openfold3-parameter-registry"
+adapter = "openfold3_parameter_registry"
+enabled = true
+repository = "aqlaboratory/openfold-3"
+branch = "main"
+max_source_bytes = 524288
+max_entries = 100
+schedule = "monthly"
+
+# First-party registry: https://github.com/aqlaboratory/openfold-3/blob/main/openfold3/entry_points/parameters.py
+# Model parameter reference: https://openfold-3.readthedocs.io/en/latest/parameters_reference.html
+# Records exact S3 object identities and compatibility metadata without downloading weights.
+# Legacy entries are retained as documented identities; current upstream marks them unsupported.
+
+# First-party source from config/proposals/vendor_apis_wave6.toml.
+[[source]]
+name = "xai-language-model-versions"
+adapter = "json_catalog"
+enabled = true
+activation_env = "XAI_API_KEY"
+entry_tags = ["field:machine-learning", "ecosystem:xai", "kind:hosted-model", "evidence:current-api-availability"]
+url = "https://api.x.ai/v1/language-models"
+provider_namespace = "xai:model"
+model_card_url_template = "https://api.x.ai/v1/language-models/{id_path}"
+model_page_crawl = false
+auth_env = "XAI_API_KEY"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "models"
+id_path = "id"
+name_path = "id"
+created_path = "created"
+
+# Groq explicitly calls /openai/v1/models a list of all active models. Its
+# separately maintained deprecation history documents exact retired IDs,
+# shutdown dates, and optional replacements. Capture rows as historical
+# provider evidence; a row does not imply the model remains callable today.
+
+# First-party source from config/proposals/vendor_apis_wave6.toml.
+[[source]]
+name = "groq-model-deprecation-history"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:groq", "kind:hosted-model", "evidence:provider-deprecation-history"]
+url = "https://console.groq.com/docs/deprecations"
+provider_namespace = "groq:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 2097152
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Deprecated Model \| Shutdown Date \| Recommended Replacement Model ID$'
+name_column = 0
+identity_column = 0
+identity_source = "id"
+
+# First-party source from config/proposals/scispacy_models.toml.
+[[source]]
+name = "scispacy-pretrained-model-pipelines"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:biomedical-nlp", "field:natural-language-processing", "ecosystem:scispacy", "kind:pretrained-pipeline"]
+url = "https://github.com/allenai/scispacy/blob/main/README.md"
+provider_namespace = "scispacy:pretrained-pipeline"
+artifact_kind = "catalog_record"
+model_status = "released"
+allowed_origins = ["https://github.com", "https://s3-us-west-2.amazonaws.com"]
+schedule = "monthly"
+max_response_bytes = 8388608
+max_entries = 100
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model \| Description \| Install URL$'
+name_column = 0
+link_column = 2
+identity_source = "url"
+identity_pattern = '/releases/(?P<id>v[0-9.]+/[a-z0-9_]+-[0-9.]+\.tar\.gz)$'
+relation = "checkpoint"
+crawl = false
+require_url = true
+
+# First-party source from config/proposals/google_neuralgcm_checkpoint_registry.toml.
+[[source]]
+name = "google-neuralgcm-checkpoint-registry"
+adapter = "neuralgcm_checkpoint_registry"
+enabled = true
+entry_tags = ["field:weather-machine-learning", "ecosystem:google-neuralgcm", "kind:pretrained-checkpoint"]
+repository = "google-deepmind/neuralgcm"
+branch = "main"
+source_path = "docs/checkpoints.md"
+provider_namespace = "neuralgcm:checkpoint"
+max_response_bytes = 4194304
+max_entries = 100
+
+# First-party source from config/proposals/generative_extra.toml.
+[[source]]
+name = "compvis-stable-diffusion-first-stages"
+adapter = "compvis_stable_diffusion_first_stages"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:compvis", "kind:checkpoint-bundle"]
+repository = "CompVis/stable-diffusion"
+branch = "main"
+source_path = "scripts/download_first_stages.sh"
+provider_namespace = "compvis:stable-diffusion-first-stage"
+max_response_bytes = 4194304
+max_entries = 10000
+schedule = "weekly"
+
+# First-party source from config/proposals/mace_off_registry.toml.
+[[source]]
+name = "mace-off23-checkpoints"
+adapter = "mace_off23_checkpoint_registry"
+enabled = true
+repository = "ACEsuit/mace"
+branch = "develop"
+source_path = "mace/calculators/foundations_models.py"
+mapping_variable = "mace_off_urls"
+provider_namespace = "mace:off23-checkpoint"
+entry_tags = ["field:computational-chemistry", "ecosystem:mace", "model-family:mace-off23", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100
+
+# The upstream literal mapping names exact small/medium/large files at
+# https://raw.githubusercontent.com/ACEsuit/mace-off/main/mace_off23/.
+# The adapter pins the mapping source, admits only those exact URLs, and does not
+# download weight bytes.
+
+# First-party source from config/proposals/provider_model_lifecycle.toml.
+[[source]]
+name = "azure-foundry-model-lifecycle"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:azure-foundry", "kind:model-lifecycle-documentation"]
+url = "https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/model-retirement-schedule"
+provider_namespace = "azure:foundry-model-lifecycle"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 8388608
+max_entries = 5000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model \\| Version \\| Lifecycle \\| Retirement date \\| Replacement$'
+name_column = 0
+identity_source = "name"
+require_url = false
+
+# Anthropic's public deprecation page contains exact API model names for current
+# and recently retired versions and retains earlier retirement/replacement rows
+# in its history section. This supplements the credentialed current-model API
+# without querying or recording any account data.
+# Primary source: https://platform.claude.com/docs/en/about-claude/model-deprecations
+
+# First-party source from config/proposals/provider_model_lifecycle.toml.
+[[source]]
+name = "anthropic-model-lifecycle-documentation"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:anthropic", "kind:model-lifecycle-documentation"]
+url = "https://platform.claude.com/docs/en/about-claude/model-deprecations"
+provider_namespace = "anthropic:model-lifecycle"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 8388608
+max_entries = 5000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^API model name \\| Current state \\| Deprecated \\| Tentative retirement date$'
+name_column = 0
+identity_source = "name"
+require_url = false
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Retirement date \\| Deprecated model \\| Recommended replacement$'
+name_column = 1
+identity_source = "name"
+require_url = false
+
+# First-party source from config/proposals/aws_bedrock_lifecycle_models.toml.
+[[source]]
+name = "aws-bedrock-legacy-model-lifecycle"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:aws-bedrock", "kind:hosted-model", "evidence:provider-lifecycle-history"]
+url = "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html"
+provider_namespace = "aws-bedrock:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model provider \| Model name \| Model ID \| Regions \| Legacy date \| EOL date \| Public extended access start date$'
+name_column = 1
+identity_column = 2
+identity_source = "id"
+
+# First-party source from config/proposals/paddlex_model_list.toml.
+[[source]]
+name = "paddlex-model-list"
+adapter = "paddlex_model_list"
+enabled = true
+repository = "PaddlePaddle/PaddleX"
+branch = "release/3.7"
+source_path = "docs/support_list/models_list.en.md"
+provider_namespace = "paddlex:model"
+max_response_bytes = 8388608
+max_rows = 10000
+
+# PaddleX's first-party model list pairs models with direct Inference Model,
+# Training Model, and occasional Pre-trained Model links. The adapter reads
+# only explicit links in the matching model row; it does not construct URLs.
+# Example source rows include the Cascade-FasterRCNN-ResNet50-FPN artifact pair
+# and the korean_PP-OCRv5_mobile_rec pre-trained pdparams link.
+
+# First-party source from config/proposals/wenet_models.toml.
+[[source]]
+name = "wenet-pretrained-models"
+adapter = "wenet_pretrained_models"
+enabled = true
+entry_tags = [
+  "field:speech",
+  "task:automatic-speech-recognition",
+  "ecosystem:wenet",
+  "kind:checkpoint",
+]
+repository = "wenet-e2e/wenet"
+branch = "main"
+document_path = "docs/pretrained_models.md"
+schedule = "weekly"
+max_response_bytes = 2097152
+max_rows = 2000
+
+# First-party source from config/proposals/rl_clarity_checkpoints.toml.
+[[source]]
+name = "openai-rl-clarity-checkpoints"
+adapter = "rl_clarity_checkpoint_index"
+enabled = true
+entry_tags = ["field:reinforcement-learning", "ecosystem:openai-rl-clarity", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_entries = 100
+
+# First-party source from config/proposals/zenodo_oai_model_candidates.toml.
+[[source]]
+name = "zenodo-oai-model-candidates"
+adapter = "zenodo_oai_model_candidates"
+enabled = true
+entry_tags = ["ecosystem:zenodo", "kind:checkpoint-candidate-evidence"]
+url = "https://zenodo.org/oai2d"
+metadata_prefix = "dcat"
+schedule = "monthly"
+max_response_bytes = 16777216

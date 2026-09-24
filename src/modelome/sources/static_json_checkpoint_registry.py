@@ -40,6 +40,7 @@ _CHECKPOINT_SUFFIXES = (
     ".bin",
     ".ckpt",
     ".onnx",
+    ".model",
     ".pdparams",
     ".pkl",
     ".pt",

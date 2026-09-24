@@ -1,0 +1,27 @@
+# SciSpaCy's first-party README pairs each public pipeline with a versioned
+# installable model archive. This captures those explicit release assets only;
+# entity-linker knowledge bases and spaCy base models are outside this catalog.
+[[source]]
+name = "scispacy-pretrained-model-pipelines"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:biomedical-nlp", "field:natural-language-processing", "ecosystem:scispacy", "kind:pretrained-pipeline"]
+url = "https://github.com/allenai/scispacy/blob/main/README.md"
+provider_namespace = "scispacy:pretrained-pipeline"
+artifact_kind = "catalog_record"
+model_status = "released"
+allowed_origins = ["https://github.com", "https://s3-us-west-2.amazonaws.com"]
+schedule = "monthly"
+max_response_bytes = 8388608
+max_entries = 100
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model \| Description \| Install URL$'
+name_column = 0
+link_column = 2
+identity_source = "url"
+identity_pattern = '/releases/(?P<id>v[0-9.]+/[a-z0-9_]+-[0-9.]+\.tar\.gz)$'
+relation = "checkpoint"
+crawl = false
+require_url = true

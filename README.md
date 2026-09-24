@@ -116,7 +116,7 @@ The following are available capabilities, not a directive to run every source or
 loader now. During the entry-first phase, use only the bounded source or link operations
 needed to validate the per-paper workflow. Their later corpus-scale role is documented in
 [Entry-first modelome](docs/entry-first.md#path-to-complete-paper-ingestion).
-The default catalog currently has **270 enabled sources**; this is a configuration count,
+The default catalog currently has **293 enabled sources** (280 loadable without provider credentials); this is a configuration count,
 not a claim that all upstream inventories have been exhausted.
 
 The default catalog enables independent, unfiltered streams for:
@@ -135,7 +135,7 @@ The default catalog enables independent, unfiltered streams for:
   checkpoint tables, retaining only rows with a direct Hugging Face or NGC model card
   and bridging to those provider identities only when the card URL is unambiguous;
 - every model-family card structurally listed in Ollama's first-party library document,
-  retaining its source-native card URL without fetching any manifest or blob layer;
+  plus source-declared tag releases from each family's tags page, without fetching manifests or blobs;
 - every current model card in Cloudflare Workers AI's first-party catalog, retaining its
   native runtime ID and documentation URL as provider-availability evidence only;
 - every model currently declared by OpenRouter's complete public provider catalog,
@@ -145,14 +145,15 @@ The default catalog enables independent, unfiltered streams for:
   code, paper, license, weight, README, and checkpointed per-model version history without fetching bytes;
 - all public Kaggle model variations and their historical versions, retaining variation- and
   version-scoped metadata and download references without fetching model files;
-- first-party checkpoint registries for Scenic, StarDist, Coqui TTS, DGL-LifeSci, Uni-MOF,
-  OpenFold, and Argus robotics, retaining exact source-native handles and checkpoint links;
+- TorchGeo source-declared pretrained weight definitions and historical AllenNLP model archives, plus five first-party Fairseq NLP model zoos: RoBERTa, BART, XLM-R, mBART, and Transformer language models;
+- first-party checkpoint registries for Scenic, StarDist, Coqui TTS, DGL-LifeSci (including generative models), Uni-MOF, OpenFold/OpenFold3, and Argus robotics, retaining exact source-native handles and checkpoint links;
 - the complete ACL Anthology XML manifest traversal, plus Oracle OCI pretrained-model and
   Azure Foundry models-sold-by-Azure catalogs; these are paper or hosted-offering evidence,
   not inferred weight claims;
-- first-party Cellpose legacy checkpoint declarations, PyG GPSE checkpoint mappings, nnU-Net v1
-  task bundles, CompVis latent-diffusion bundles, Diffusion Policy checkpoints, the Chemprop
+- Google NeuralGCM checkpoint declarations, CompVis Stable Diffusion first-stage weights, and MACE-OFF23 checkpoints, alongside first-party Cellpose legacy checkpoint declarations, PyG GPSE checkpoint mappings, nnU-Net v1 task bundles, CompVis latent-diffusion bundles, Diffusion Policy checkpoints, the Chemprop
   CheMeleon checkpoint, official MindSpore model-zoo checkpoint files, and RT-1 SavedModels;
+- OpenAI RL Clarity's exact Procgen/IMPALA `.jd` pretrained-policy checkpoints, indexed from its public release page;
+- Zenodo's public OAI-PMH DCAT stream for candidate neural-model records with matching checkpoint distributions;
 - additional literal model/repository declarations from PyTorch Hub's curated listing, distinct
   from the separately enumerated TorchVision weight registry;
 - additional first-party checkpoint indexes for AlphaFold's parameter archive, the GraphGPS
@@ -164,6 +165,7 @@ The default catalog enables independent, unfiltered streams for:
 - TensorFlow Model Garden's checkpoint-linked vision and NLP rows, T5X's declared
   pretrained checkpoints, and ProteinMPNN's official weight files, all pinned to
   first-party Git revisions and retained as references;
+- SciSpaCy pretrained pipelines, PaddleX's source-declared model list, and WeNet's pretrained model registry;
 - OpenML's public versioned flows as documented algorithm implementations,
   robomimic's declared policy checkpoints, and first-party LightGBM and
   imbalanced-learn technique pages;
@@ -184,6 +186,7 @@ The default catalog enables independent, unfiltered streams for:
 - every active Groq-hosted model from its documented Models API, retaining its exact
   serving ID, owner and timestamp metadata as a credential-gated, current-availability
   observation rather than an ownership or weight-distribution claim;
+- public lifecycle and retirement documentation for Groq, Azure Foundry, Anthropic, and AWS Bedrock, plus xAI API version/lifecycle metadata when `XAI_API_KEY` is configured;
 - Together, Cerebras, DeepSeek, and SambaNova's credential-gated Models APIs, plus Cerebras'
   public model overview and Perplexity's public router-model table; API rows are current hosting
   availability, and public docs are provider offerings, not origin-checkpoint claims;

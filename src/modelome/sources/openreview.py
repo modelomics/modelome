@@ -1069,7 +1069,17 @@ def _link_relation(key: str, text: str, locator: str) -> str:
 
 def _attachment_field(key: str) -> bool:
     return any(
-        token in key for token in ("pdf", "supplement", "attachment", "code", "data", "material")
+        token in key
+        for token in (
+            "pdf",
+            "supplement",
+            "attachment",
+            "code",
+            "data",
+            "material",
+            "checkpoint",
+            "weight",
+        )
     )
 
 

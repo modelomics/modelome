@@ -1,0 +1,19 @@
+# Independent first-party PaddleX CPU/GPU model table with explicit row-scoped
+# artifact URLs. Keep disabled until reviewed for overlap with Paddle project
+# sources; no artifact URL is inferred from the model name.
+[[source]]
+name = "paddlex-model-list"
+adapter = "paddlex_model_list"
+enabled = false
+repository = "PaddlePaddle/PaddleX"
+branch = "release/3.7"
+source_path = "docs/support_list/models_list.en.md"
+provider_namespace = "paddlex:model"
+max_response_bytes = 8388608
+max_rows = 10000
+
+# PaddleX's first-party model list pairs models with direct Inference Model,
+# Training Model, and occasional Pre-trained Model links. The adapter reads
+# only explicit links in the matching model row; it does not construct URLs.
+# Example source rows include the Cascade-FasterRCNN-ResNet50-FPN artifact pair
+# and the korean_PP-OCRv5_mobile_rec pre-trained pdparams link.

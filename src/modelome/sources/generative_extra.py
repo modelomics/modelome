@@ -18,7 +18,8 @@ from modelome.sources.static_json_checkpoint_registry import (
     _text,
 )
 
-_DOWNLOAD = re.compile(r"^models/ldm/(?P<handle>[A-Za-z0-9_.+-]+)/(?P<file>[^/]+)$")
+_HANDLE_SEGMENT = r"(?P<handle>[A-Za-z0-9_.+-]+)"
+_FILE_SEGMENT = r"(?P<file>[^/]+)"
 _FILE_SUFFIXES = (".zip", ".ckpt", ".safetensors", ".pt", ".pth")
 _URL = re.compile(r"^https://ommer-lab\.com/files/latent-diffusion/.+$")
 
@@ -51,6 +52,7 @@ class CompVisLatentDiffusionDownloadsSourceAdapter(
         provider_namespace: str = "compvis:latent-diffusion",
         max_response_bytes: int = 4 * 1024 * 1024,
         max_entries: int = 10_000,
+        target_prefix: str = "models/ldm",
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -72,9 +74,13 @@ class CompVisLatentDiffusionDownloadsSourceAdapter(
                 "provider_namespace": provider_namespace,
                 "max_response_bytes": max_response_bytes,
                 "max_entries": max_entries,
+                "target_prefix": target_prefix,
                 "admission": "literal wget target path and first-party archive/checkpoint URL",
             }
         )
+        if target_prefix not in {"models/ldm", "models/first_stage_models"}:
+            raise ValueError("target_prefix must name a supported CompVis model directory")
+        self.target_prefix = target_prefix
 
     def fetch_page(self, state: Mapping[str, Any]) -> SourcePage:
         revision, commit_response = self._revision()
@@ -100,7 +106,7 @@ class CompVisLatentDiffusionDownloadsSourceAdapter(
             raise ValueError(f"{self.name}: download script exceeds byte limit")
         checkpoints = _parse_download_script(
             response.text(), source=self.name, path=self.source_path,
-            maximum=self.max_entries,
+            maximum=self.max_entries, target_prefix=self.target_prefix,
         )
         records = tuple(
             self._record(checkpoint, revision, response.body)
@@ -122,12 +128,43 @@ class CompVisLatentDiffusionDownloadsSourceAdapter(
         )
 
 
+class CompVisStableDiffusionFirstStagesSourceAdapter(
+    CompVisLatentDiffusionDownloadsSourceAdapter
+):
+    """Enumerate CompVis Stable Diffusion's first-stage vision-model bundles."""
+
+    coverage_limitation = (
+        "Covers first-stage autoencoder bundle URLs declared by CompVis "
+        "stable-diffusion's download_first_stages.sh at a pinned commit. "
+        "Zip rows identify upstream bundles; internal files are not enumerated."
+    )
+
+    def __init__(
+        self,
+        *,
+        name: str = "compvis-stable-diffusion-first-stages",
+        repository: str = "CompVis/stable-diffusion",
+        branch: str = "main",
+        source_path: str = "scripts/download_first_stages.sh",
+        provider_namespace: str = "compvis:stable-diffusion-first-stage",
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            name=name,
+            repository=repository,
+            branch=branch,
+            source_path=source_path,
+            provider_namespace=provider_namespace,
+            target_prefix="models/first_stage_models",
+            **kwargs,
+        )
 def _parse_download_script(
     document: str,
     *,
     source: str,
     path: str,
     maximum: int,
+    target_prefix: str = "models/ldm",
 ) -> tuple[_Checkpoint, ...]:
     entries: list[_Checkpoint] = []
     seen: set[str] = set()
@@ -146,7 +183,10 @@ def _parse_download_script(
         if len(fields) != 4 or fields[1] != "-O":
             raise ValueError(f"{source}: unsupported wget row on line {line_number}")
         target, url = fields[2], fields[3]
-        match = _DOWNLOAD.fullmatch(target)
+        download_pattern = re.compile(
+            rf"^{re.escape(target_prefix)}/{_HANDLE_SEGMENT}/{_FILE_SEGMENT}$"
+        )
+        match = download_pattern.fullmatch(target)
         if match is None:
             raise ValueError(f"{source}: invalid model output path on line {line_number}")
         handle = match.group("handle")
@@ -174,4 +214,7 @@ def _parse_download_script(
     return tuple(entries)
 
 
-__all__ = ["CompVisLatentDiffusionDownloadsSourceAdapter"]
+__all__ = [
+    "CompVisLatentDiffusionDownloadsSourceAdapter",
+    "CompVisStableDiffusionFirstStagesSourceAdapter",
+]

@@ -246,3 +246,32 @@ def test_zenodo_model_catalog_quarantines_a_non_model_result() -> None:
     assert page.records == ()
     assert len(page.issues) == 1
     assert "not typed as a Zenodo Model" in page.issues[0].error
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected_relation"),
+    [
+        ("oceannet_checkpoint.safetensors", "checkpoint"),
+        ("oceannet_weights.pth", "checkpoint"),
+        ("oceannet.pt", None),
+        ("weights.csv", None),
+    ],
+)
+def test_zenodo_marks_only_explicit_model_weight_files_as_candidate_checkpoints(
+    filename: str, expected_relation: str | None
+) -> None:
+    result = item(101, title="OceanNet")
+    result["files"][0]["key"] = filename
+    result["files"][0]["links"]["self"] = (
+        f"https://zenodo.org/api/records/101/files/{filename}/content"
+    )
+    client = QueuedClient(response([result], total=1))
+    adapter = ZenodoModelRecordsSourceAdapter(url=URL, page_size=1, client=client)
+
+    page = adapter.fetch_page({})
+
+    file_links = [link for link in page.records[0].links if link.locator == "$.files[0].key"]
+    assert [link.relation for link in file_links] == (
+        [expected_relation] if expected_relation else []
+    )
+    assert page.records[0].models == ()

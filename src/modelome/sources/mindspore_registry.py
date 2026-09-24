@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from html.parser import HTMLParser
 from typing import Any
-from urllib.parse import unquote, urljoin, urlsplit
+from urllib.parse import parse_qsl, unquote, urljoin, urlsplit, urlunsplit
 
 from modelome.http import HttpClient, HttpResponse
 from modelome.models import (
@@ -29,7 +29,7 @@ Clock = Callable[[], datetime]
 _ROOT_URL = "https://download.mindspore.cn/model_zoo/official/"
 _ROOT_PATH = "/model_zoo/official/"
 _HOST = "download.mindspore.cn"
-_CHECKPOINT_SUFFIXES = (".ckpt", ".mindir", ".air")
+_CHECKPOINT_SUFFIXES = (".ckpt", ".mindir", ".air", ".ms")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -91,6 +91,11 @@ def _safe_index_url(base_url: str, href: str) -> str | None:
         or any(part in {".", ".."} for part in path.split("/"))
     ):
         return None
+    # Apache sortable-column links are alternate views of the same directory.
+    if path.endswith("/") and parsed.query:
+        query = parse_qsl(parsed.query, keep_blank_values=True)
+        if query and all(key in {"C", "O"} for key, _ in query):
+            candidate = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
     return candidate
 
 
@@ -117,7 +122,7 @@ class MindSporeModelZooSourceAdapter:
     """Read direct checkpoint file links from the official MindSpore index.
 
     It follows only same-host directories under ``/model_zoo/official/`` and
-    records only explicit ``.ckpt``, ``.mindir``, or ``.air`` links. It does not
+    records only explicit ``.ckpt``, ``.mindir``, ``.air``, or ``.ms`` links. It does not
     infer artifact URLs from model names or admit source-code links and archives.
     """
 
@@ -183,7 +188,7 @@ class MindSporeModelZooSourceAdapter:
                 "max_links_per_page": self.max_links_per_page,
                 "max_artifacts": self.max_artifacts,
                 "max_depth": self.max_depth,
-                "admission": "explicit same-host .ckpt, .mindir, or .air links",
+                "admission": "explicit same-host .ckpt, .mindir, .air, or .ms links",
             }
         )
 

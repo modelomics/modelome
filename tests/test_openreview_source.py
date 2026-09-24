@@ -543,3 +543,34 @@ def test_v2_recovers_arxiv_ids_from_html_urls_in_unrecognized_fields() -> None:
     assert Identifier("arxiv", "2603.01234") in record.identifiers
     assert Identifier("doi", "10.7777/model.4") in record.identifiers
     assert any("arxiv.org/html/2603.01234v2" in link.url for link in record.links)
+
+
+@pytest.mark.parametrize(
+    ("stage", "make_note", "checkpoint_field"),
+    [
+        ("v1", v1_note, "model_checkpoint"),
+        ("v2", v2_note, "checkpoint_file"),
+    ],
+)
+def test_file_attachments_in_checkpoint_fields_are_preserved_as_weight_links(
+    stage: str, make_note: Any, checkpoint_field: str
+) -> None:
+    note = make_note(
+        content={
+            "title": "A released model",
+            "abstract": "The paper publishes a checkpoint.",
+            "authors": ["Model Author"],
+            checkpoint_field: "/attachment?id=model-paper&name=checkpoint",
+        }
+    )
+    state = {} if stage == "v1" else v2_state()
+    page = adapter(QueueClient(response([note], count=1))).fetch_page(state)
+
+    checkpoint_links = [
+        link
+        for link in page.records[0].links
+        if link.url == "https://openreview.net/attachment?id=model-paper&name=checkpoint"
+    ]
+    assert len(checkpoint_links) == 1
+    assert checkpoint_links[0].relation == "weights"
+    assert checkpoint_links[0].crawl is True

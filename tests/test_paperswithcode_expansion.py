@@ -121,6 +121,52 @@ def test_arxiv_identifiers_are_preserved_across_candidate_admissions() -> None:
     assert paper_only[0]["arxiv_id"] == arxiv_linked[0]["arxiv_id"] == "2401.12345"
 
 
+def test_method_candidates_deduplicate_exact_rows_and_separate_linked_papers() -> None:
+    from modelome.sources.paperswithcode import _method_candidates
+
+    base = {
+        "url": "https://paperswithcode.com/method/example-method",
+        "name": "Example Method",
+        "full_name": "Example Method",
+        "description": "A method used by multiple papers.",
+        "paper": {
+            "title": "First paper",
+            "url": "https://paperswithcode.com/paper/first-paper",
+        },
+        "source_url": "https://arxiv.org/abs/2401.12345",
+        "source_title": "First paper",
+    }
+    second_paper = {
+        **base,
+        "paper": {
+            "title": "Second paper",
+            "url": "https://paperswithcode.com/paper/second-paper",
+        },
+    }
+    candidates, _ = _method_candidates(
+        [base, base, second_paper],
+        require_title_overlap=False,
+        require_arxiv_source=False,
+    )
+    assert len(candidates) == 2
+    source = PapersWithCodeValidatedMethodsSourceAdapter(
+        admission="paper_linked_candidate"
+    )
+
+    records = [source._record(candidate, "a" * 40, None) for candidate in candidates]
+
+    duplicate_candidate, _ = _method_candidates(
+        [base], require_title_overlap=False, require_arxiv_source=False
+    )
+    duplicate_record = source._record(duplicate_candidate[0], "a" * 40, None)
+    assert records[0].source_record_id == duplicate_record.source_record_id
+    assert records[0].source_record_id != records[1].source_record_id
+    assert [record.raw["paper_url"] for record in records] == [
+        "https://paperswithcode.com/paper/first-paper",
+        "https://paperswithcode.com/paper/second-paper",
+    ]
+
+
 def test_evaluation_candidates_keep_distinct_dataset_identity() -> None:
     from modelome.sources.paperswithcode import _evaluation_records
 

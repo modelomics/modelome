@@ -100,6 +100,7 @@ class HuggingFaceSourceAdapter:
         max_response_bytes: int = 16 * 1024 * 1024,
         token: str | None = None,
         include_private: bool = False,
+        include_revisions: bool = False,
         client: HttpClient | Any | None = None,
         clock: Clock = _utcnow,
     ) -> None:
@@ -111,17 +112,19 @@ class HuggingFaceSourceAdapter:
         self.max_response_bytes = _positive_int(max_response_bytes, "max_response_bytes")
         self.token = token
         self.include_private = bool(include_private)
+        self.include_revisions = bool(include_revisions)
         self.client = client or HttpClient(max_response_bytes=self.max_response_bytes)
         self.clock = clock
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "huggingface-v1",
+                "adapter": "huggingface-v2",
                 "url": self.url,
                 "artifact_kind": self.artifact_kind.value,
                 "page_size": self.page_size,
                 "overlap_days": self.overlap_days,
                 "max_response_bytes": self.max_response_bytes,
                 "include_private": self.include_private,
+                "include_revisions": self.include_revisions,
             }
         )
 
@@ -129,6 +132,9 @@ class HuggingFaceSourceAdapter:
         headers = {"Accept": "application/json"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
+
+        if self.include_revisions and isinstance(state.get("revision_queue"), Sequence):
+            return self._fetch_revision_page(state, headers)
 
         next_url = _text(state.get("next_url"))
         resuming_scan = bool(next_url)
@@ -264,6 +270,22 @@ class HuggingFaceSourceAdapter:
             if scan_high is not None:
                 next_state["scan_high_watermark"] = _isoformat(scan_high)
 
+        if self.include_revisions:
+            # The Hub's refs and commits endpoints expose exact immutable commit
+            # IDs as JSON. Walk them separately so catalog enumeration remains
+            # bounded to one HTTP request per checkpoint/page.
+            queue = [
+                {"model_id": record.source_record_id, "phase": "refs"}
+                for record in records
+            ]
+            if queue:
+                next_state = {
+                    "base_state": next_state,
+                    "revision_queue": queue,
+                    "revision_listing_complete": complete,
+                }
+                complete = False
+
         return SourcePage(
             records=tuple(records),
             next_state=next_state,
@@ -271,6 +293,145 @@ class HuggingFaceSourceAdapter:
             upstream_count=response_total if response_total is not None else scan_total,
             issues=tuple(issues),
         )
+
+    def _fetch_revision_page(
+        self, state: Mapping[str, Any], headers: Mapping[str, str]
+    ) -> SourcePage:
+        queue = [
+            dict(value)
+            for value in _sequence(state.get("revision_queue"))
+            if isinstance(value, Mapping)
+        ]
+        if not queue:
+            return self._finish_revision_scan(state)
+        item = queue[0]
+        repo_id = _text(item.get("model_id"))
+        if not repo_id:
+            raise ValueError(f"{self.name}: revision checkpoint is missing model_id")
+        encoded_id = quote(repo_id, safe="/")
+        phase = _text(item.get("phase"))
+        if phase == "refs":
+            url = f"https://huggingface.co/api/models/{encoded_id}/refs"
+            response = self.client.get(url, headers=headers)
+            payload = self._revision_json(response)
+            refs: list[str] = []
+            if isinstance(payload, Mapping):
+                for group in ("branches", "tags", "converts"):
+                    for ref in _sequence(payload.get(group)):
+                        if isinstance(ref, Mapping):
+                            value = _text(ref.get("ref")) or _text(ref.get("name"))
+                            if value and value not in refs:
+                                refs.append(value)
+            item["refs"] = refs
+            item["ref_index"] = 0
+            item["phase"] = "commits"
+            if not refs:
+                queue.pop(0)
+        elif phase == "commits":
+            refs = [str(value) for value in _sequence(item.get("refs")) if _text(value)]
+            index = _state_count(item, "ref_index") or 0
+            if index >= len(refs):
+                queue.pop(0)
+                return self._revision_page_result(state, queue, ())
+            ref = refs[index]
+            next_url = _text(item.get("next_url"))
+            url = self._safe_next_url(next_url, self.url) if next_url else (
+                f"https://huggingface.co/api/models/{encoded_id}/commits/{quote(ref, safe='')}"
+            )
+            response = self.client.get(url, headers=headers)
+            payload = self._revision_json(response)
+            commits = (
+                payload
+                if isinstance(payload, Sequence)
+                and not isinstance(payload, (str, bytes, bytearray))
+                else []
+            )
+            records = tuple(
+                self._revision_record(repo_id, commit)
+                for commit in commits
+                if isinstance(commit, Mapping)
+                and _text(commit.get("id") or commit.get("commit_id"))
+            )
+            following = _link_relation(_header(response.headers, "link"), "next")
+            if following:
+                item["next_url"] = self._safe_next_url(following, response.url or url)
+            else:
+                item.pop("next_url", None)
+                item["ref_index"] = index + 1
+                if index + 1 >= len(refs):
+                    queue.pop(0)
+            return self._revision_page_result(state, queue, records)
+        else:
+            raise ValueError(f"{self.name}: invalid revision checkpoint phase {phase!r}")
+        return self._revision_page_result(state, queue, ())
+
+    def _revision_json(self, response: HttpResponse) -> Any:
+        if response.status != 200:
+            raise ValueError(f"{self.name}: revision endpoint returned HTTP {response.status}")
+        if len(response.body) > self.max_response_bytes:
+            raise ValueError(
+                f"{self.name}: revision response exceeds {self.max_response_bytes} bytes"
+            )
+        return response.json()
+
+    def _revision_record(self, repo_id: str, commit: Mapping[str, Any]) -> SourceRecord:
+        sha = _text(commit.get("id") or commit.get("commit_id"))
+        model = ModelHint(
+            local_id=f"{repo_id}#model",
+            name=repo_id,
+            identifiers=(Identifier("huggingface:model", repo_id),),
+            status=ModelStatus.RELEASED,
+            locator="$.repo_id",
+        )
+        released_at = _text(commit.get("date") or commit.get("created_at")) or None
+        revision_id = Identifier("huggingface:revision", f"{repo_id}@{sha}")
+        release = ReleaseHint(
+            local_id=f"{repo_id}#release:{sha}",
+            model_local_id=model.local_id,
+            revision=sha,
+            identifiers=(revision_id,),
+            released_at=released_at,
+            metadata={
+                "title": _text(commit.get("title")) or None,
+                "message": _text(commit.get("message")) or None,
+                "authors": [
+                    _text(author.get("username") or author.get("name"))
+                    for author in _sequence(commit.get("authors"))
+                    if isinstance(author, Mapping)
+                    and _text(author.get("username") or author.get("name"))
+                ],
+            },
+            locator="$.id",
+        )
+        model_url = canonicalize_url(f"https://huggingface.co/{quote(repo_id, safe='/')}")
+        return SourceRecord(
+            source_record_id=f"{repo_id}@{sha}",
+            kind=self.artifact_kind,
+            canonical_url=model_url,
+            title=f"{repo_id} {sha[:12]}",
+            raw=dict(commit),
+            published_at=released_at,
+            identifiers=(Identifier("huggingface:model", repo_id), revision_id),
+            links=(Link(model_url, relation="model_page", locator="$.repo_id"),),
+            models=(model,),
+            releases=(release,),
+        )
+
+    def _revision_page_result(
+        self, state: Mapping[str, Any], queue: list[dict[str, Any]], records: Sequence[SourceRecord]
+    ) -> SourcePage:
+        next_state = dict(state)
+        next_state["revision_queue"] = queue
+        if not queue:
+            return self._finish_revision_scan(next_state, records)
+        return SourcePage(records=tuple(records), next_state=next_state, complete=False)
+
+    def _finish_revision_scan(
+        self, state: Mapping[str, Any], records: Sequence[SourceRecord] = ()
+    ) -> SourcePage:
+        next_state = dict(state.get("base_state") or {})
+        was_complete = state.get("revision_listing_complete") is True
+        return SourcePage(records=tuple(records), next_state=next_state, complete=was_complete)
 
     def _safe_next_url(self, value: str, base_url: str) -> str:
         candidate = canonicalize_url(urljoin(base_url, value))

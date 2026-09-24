@@ -4,14 +4,21 @@ from typing import Any
 
 import pytest
 
-from modelome.models import ArtifactKind, SourceRecord
+from modelome.models import ArtifactKind, ModelStatus, SourceRecord
 from modelome.sources.github_release_assets import project_github_release_assets
 
 
-def release_event_record(assets: list[dict[str, Any]]) -> SourceRecord:
+def release_event_record(
+    assets: list[dict[str, Any]],
+    *,
+    release_name: str = "v1.2.0",
+    release_body: str = "",
+) -> SourceRecord:
     release = {
         "id": 77,
         "tag_name": "v1.2.0",
+        "name": release_name,
+        "body": release_body,
         "html_url": "https://github.com/lab/model/releases/tag/v1.2.0",
         "published_at": "2026-09-20T12:00:00Z",
         "assets": assets,
@@ -74,6 +81,104 @@ def test_projects_only_the_bounded_prefix_of_embedded_assets() -> None:
     candidates = project_github_release_assets(event, max_assets=2)
 
     assert [item.title for item in candidates] == ["1.pt", "2.pt"]
+
+
+def test_adds_a_low_confidence_model_hint_for_descriptive_model_asset_evidence() -> None:
+    event = release_event_record(
+        [asset(1, "resnet50.bin")],
+        release_body="Pretrained neural model weights for ResNet50 image classification.",
+    )
+
+    [candidate] = project_github_release_assets(event)
+
+    assert len(candidate.models) == 1
+    hint = candidate.models[0]
+    assert hint.name == "resnet50"
+    assert hint.status is ModelStatus.CANDIDATE
+    assert hint.confidence == 0.2
+    assert hint.identifiers == ()
+
+
+def test_recovers_model_identity_from_release_title_for_generic_checkpoint_filename() -> None:
+    event = release_event_record(
+        [asset(1, "model.safetensors")],
+        release_name="Qwen2.5 7B Instruct",
+    )
+
+    [candidate] = project_github_release_assets(event)
+
+    assert len(candidate.models) == 1
+    assert candidate.models[0].name == "Qwen2.5 7B Instruct"
+    assert candidate.models[0].locator == "$.payload.release.name"
+    assert candidate.models[0].status is ModelStatus.CANDIDATE
+    assert candidate.models[0].confidence == 0.2
+
+
+def test_generic_checkpoint_filename_and_generic_release_title_do_not_create_hint() -> None:
+    event = release_event_record(
+        [asset(1, "model.safetensors")],
+        release_name="v1.2.0",
+        release_body="Published model weights for the server update.",
+    )
+
+    [candidate] = project_github_release_assets(event)
+
+    assert candidate.models == ()
+
+
+def test_size_only_release_title_is_not_treated_as_a_model_identity() -> None:
+    event = release_event_record(
+        [asset(1, "model.safetensors")],
+        release_name="7B",
+    )
+
+    [candidate] = project_github_release_assets(event)
+
+    assert candidate.models == ()
+
+
+def test_recovers_model_identity_from_a_descriptive_release_tag() -> None:
+    event = release_event_record([asset(1, "model.safetensors")])
+    raw = dict(event.raw)
+    event_payload = dict(raw["event"])
+    payload = dict(event_payload["payload"])
+    release = dict(payload["release"])
+    release["tag_name"] = "llama-3.1-8b-instruct"
+    payload["release"] = release
+    event_payload["payload"] = payload
+    raw["event"] = event_payload
+    event = SourceRecord(
+        source_record_id=event.source_record_id,
+        kind=event.kind,
+        canonical_url=event.canonical_url,
+        title=event.title,
+        raw=raw,
+    )
+
+    [candidate] = project_github_release_assets(event)
+
+    assert candidate.models[0].name == "llama 3.1 8b instruct"
+    assert candidate.models[0].locator == "$.payload.release.tag_name"
+
+
+@pytest.mark.parametrize(
+    ("filename", "body"),
+    [
+        ("download.bin", "Pretrained model weights are available."),
+        ("model.pt", "Published updated neural model weights."),
+        ("firmware.bin", "Pretrained model weights for ResNet50 release."),
+        ("tokenizer.bin", "Pretrained model weights for Llama 3 release."),
+    ],
+)
+def test_does_not_create_model_hints_from_generic_or_non_model_asset_names(
+    filename: str,
+    body: str,
+) -> None:
+    event = release_event_record([asset(1, filename)], release_body=body)
+
+    [candidate] = project_github_release_assets(event)
+
+    assert candidate.models == ()
 
 
 def test_ignores_non_release_events_and_rejects_invalid_asset_limit() -> None:

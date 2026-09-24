@@ -15,7 +15,7 @@ from modelome.gharchive_projection import (
     run_gharchive_repository_projection,
 )
 from modelome.lake import ParquetLandingZone
-from modelome.models import ArtifactKind, SourceRecord
+from modelome.models import ArtifactKind, ModelStatus, SourceRecord
 from modelome.sources.gharchive import GhArchiveSourceAdapter
 from modelome.storage import Database
 
@@ -72,18 +72,20 @@ def _release_event(event_id: str, repo_id: int, name: str, minute: int) -> dict[
         "release": {
             "id": 700 + repo_id,
             "tag_name": "v1.0.0",
+            "name": "ResNet50 model release",
+            "body": "Pretrained neural model checkpoint for image classification.",
             "html_url": f"https://github.com/{name}/releases/tag/v1.0.0",
             "published_at": f"2026-09-04T10:{minute:02}:30Z",
             "assets": [
                 {
                     "id": 800 + repo_id,
-                    "name": "model.safetensors",
+                    "name": "resnet50.safetensors",
                     "content_type": "application/octet-stream",
                     "size": 4096,
                     "digest": "sha256:" + "a" * 64,
                     "browser_download_url": (
                         f"https://github.com/{name}/releases/download/"
-                        "v1.0.0/model.safetensors"
+                        "v1.0.0/resnet50.safetensors"
                     ),
                 },
                 {
@@ -212,11 +214,15 @@ def test_projector_materializes_release_asset_candidates_without_frontier_expans
     assert candidate.kind is ArtifactKind.WEIGHTS
     assert candidate.canonical_url == (
         "https://github.com/lab/release-model/releases/download/"
-        "v1.0.0/model.safetensors"
+        "v1.0.0/resnet50.safetensors"
     )
     assert candidate.raw["candidate_confidence"] == 0.2
     assert candidate.raw["candidate_scope"] == "gharchive-event-release-asset"
-    assert candidate.models == ()
+    assert len(candidate.models) == 1
+    assert candidate.models[0].name == "resnet50"
+    assert candidate.models[0].status is ModelStatus.CANDIDATE
+    assert candidate.models[0].confidence == 0.2
+    assert candidate.models[0].identifiers == ()
     assert candidate.links[0].crawl is False
     assert len(page.records) == 2
 
@@ -232,6 +238,8 @@ def test_projector_materializes_release_asset_candidates_without_frontier_expans
     assert [row["url"] for row in database.list_frontier()] == [
         "https://github.com/lab/release-model"
     ]
+    [model] = database.search_models("resnet50")
+    assert model["canonical_name"] == "resnet50"
 
 
 def test_runtime_enqueues_exact_urls_and_is_idempotent(tmp_path: Path) -> None:

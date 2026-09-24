@@ -68,6 +68,61 @@ def test_supports_legacy_singular_pid_and_instance_url_fields() -> None:
     assert [item.url for item in record.links] == ["https://code.example.org/tool"]
 
 
+def test_projects_openAIRE_software_repository_and_documentation_fields() -> None:
+    record = project_openaire_software(
+        {
+            "id": "openaire-software-567",
+            "type": "software",
+            "mainTitle": "Explicit repository fields",
+            "pid": [{"scheme": "doi", "value": "10.5281/zenodo.567"}],
+            "codeRepositoryUrl": "https://github.com/example/project",
+            "documentationUrl": ["https://docs.example.org/project"],
+        }
+    )
+
+    assert record is not None
+    assert record.title == "Explicit repository fields"
+    assert [(item.relation, item.url) for item in record.links] == [
+        ("code_repository", "https://github.com/example/project"),
+        ("documentation", "https://docs.example.org/project"),
+    ]
+    assert record.raw["code_repository_urls"] == ["https://github.com/example/project"]
+    assert record.raw["documentation_urls"] == ["https://docs.example.org/project"]
+
+
+def test_preserves_instance_identifiers_as_version_links_not_product_identity() -> None:
+    record = project_openaire_software(
+        {
+            "id": "openaire-software-instance-pids",
+            "type": "software",
+            "mainTitle": "Versioned software",
+            "pid": [{"scheme": "openaire", "value": "software-product-pid"}],
+            "instance": [
+                {
+                    "pid": [{"scheme": "doi", "value": "10.5281/zenodo.111"}],
+                    "alternateIdentifier": [
+                        {"scheme": "url", "value": "https://archive.example.org/v1"}
+                    ],
+                }
+            ],
+        }
+    )
+
+    assert record is not None
+    assert [(item.namespace, item.value) for item in record.identifiers] == [
+        ("openaire:graph-product", "openaire-software-instance-pids"),
+        ("openaire-pid:openaire", "software-product-pid"),
+    ]
+    assert [(item.relation, item.url, item.crawl) for item in record.links] == [
+        ("instance_identifier", "https://doi.org/10.5281/zenodo.111", False),
+        ("instance_identifier", "https://archive.example.org/v1", False),
+    ]
+    assert record.raw["instance_pids"] == [
+        {"scheme": "doi", "value": "10.5281/zenodo.111"},
+        {"scheme": "url", "value": "https://archive.example.org/v1"},
+    ]
+
+
 def test_keeps_pid_only_software_identity_when_doi_provides_canonical_url() -> None:
     record = project_openaire_software(
         {

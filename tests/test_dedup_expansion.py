@@ -84,7 +84,7 @@ def test_same_direct_checkpoint_url_joins_cross_source_records_and_keeps_provena
     second["source"] = "catalog-b"
     second["models"][0]["name"] = "Second catalog name"
     second["links"] = [
-        {"url": "https://weights.example/model.bin?utm_source=mirror", "relation": "weights"}
+        {"url": "https://weights.example/model.bin?utm_source=mirror", "relation": "checkpoint"}
     ]
 
     result = build_entries([first, second])
@@ -93,6 +93,23 @@ def test_same_direct_checkpoint_url_joins_cross_source_records_and_keeps_provena
     entry = result.entries[0]
     assert {member.source for member in entry.members} == {"catalog-a", "catalog-b"}
     assert {resource.source for resource in entry.resources} == {"catalog-a", "catalog-b"}
+
+
+def test_generic_weights_link_does_not_join_checkpoint_identity() -> None:
+    first = _seed("source-a", [])
+    first["source"] = "catalog-a"
+    first["links"] = [
+        {"url": "https://weights.example/shared.bin", "relation": "checkpoint"}
+    ]
+    second = _seed("source-b", [])
+    second["source"] = "catalog-b"
+    second["links"] = [
+        {"url": "https://weights.example/shared.bin", "relation": "weights"}
+    ]
+
+    result = build_entries([first, second])
+
+    assert len(result.entries) == 2
 
 
 def test_checkpoint_url_does_not_join_ambiguous_multi_model_catalog_link() -> None:

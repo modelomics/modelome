@@ -1,0 +1,15 @@
+# Enumerates the literal OpenFold3 checkpoint registry at a pinned upstream commit.
+[[source]]
+name = "openfold3-parameter-registry"
+adapter = "openfold3_parameter_registry"
+enabled = false
+repository = "aqlaboratory/openfold-3"
+branch = "main"
+max_source_bytes = 524288
+max_entries = 100
+schedule = "monthly"
+
+# First-party registry: https://github.com/aqlaboratory/openfold-3/blob/main/openfold3/entry_points/parameters.py
+# Model parameter reference: https://openfold-3.readthedocs.io/en/latest/parameters_reference.html
+# Records exact S3 object identities and compatibility metadata without downloading weights.
+# Legacy entries are retained as documented identities; current upstream marks them unsupported.

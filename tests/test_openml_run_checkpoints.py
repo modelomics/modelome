@@ -7,14 +7,19 @@ import pytest
 
 from modelome.http import HttpResponse
 from modelome.models import ArtifactKind, Identifier
-from modelome.sources.openml_run_checkpoints import OpenMLRunOnnxCheckpointSourceAdapter
+from modelome.sources.openml_run_checkpoints import (
+    OpenMLRunOnnxCensusSourceAdapter,
+    OpenMLRunOnnxCheckpointSourceAdapter,
+)
 
 
 class _Client:
-    def __init__(self, *payloads: Any) -> None:
+    def __init__(self, *payloads: Any, statuses: list[int] | None = None) -> None:
+        response_statuses = statuses or [200] * len(payloads)
+        assert len(response_statuses) == len(payloads)
         self.responses = [
-            HttpResponse(200, {}, json.dumps(payload).encode(), "https://www.openml.org")
-            for payload in payloads
+            HttpResponse(status, {}, json.dumps(payload).encode(), "https://www.openml.org")
+            for status, payload in zip(response_statuses, payloads, strict=True)
         ]
         self.calls: list[str] = []
 
@@ -99,3 +104,77 @@ def test_openml_run_onnx_source_rejects_malformed_detail_response(payload: Any) 
 def test_openml_run_onnx_source_requires_unique_positive_run_ids(run_ids: list[Any]) -> None:
     with pytest.raises(ValueError):
         OpenMLRunOnnxCheckpointSourceAdapter(run_ids=run_ids, client=_Client())
+
+
+def test_openml_run_onnx_census_pages_ids_then_checks_each_detail_with_resume_state() -> None:
+    client = _Client(
+        {"runs": {"run": [{"run_id": 10}, {"run_id": 11}]}},
+        {"run": {"run_id": 10, "output_files": {"onnx_model": 101}}},
+        {"run": {"run_id": 11, "output_files": {"predictions": 111}}},
+        {"runs": {"run": [{"run_id": 12}]}},
+        {"run": {"run_id": 12, "output_files": {"model.onnx": 102}}},
+    )
+    adapter = OpenMLRunOnnxCensusSourceAdapter(page_size=2, client=client)
+
+    first = adapter.fetch_page({})
+    assert client.calls[-1] == "https://www.openml.org/api/v1/json/run/list/limit/2/offset/0"
+    assert first.records == ()
+    assert first.next_state == {
+        "offset": 2,
+        "run_ids": ["10", "11"],
+        "detail_index": 0,
+        "listing_complete": False,
+    }
+
+    second = adapter.fetch_page(first.next_state)
+    assert second.records[0].identifiers == (
+        Identifier("openml:run", "10"), Identifier("openml:file", "101")
+    )
+    assert client.calls[-1] == "https://www.openml.org/api/v1/json/run/10"
+
+    # A new adapter instance accepts persisted state and resumes at run 11.
+    resumed = OpenMLRunOnnxCensusSourceAdapter(page_size=2, client=client)
+    third = resumed.fetch_page(second.next_state)
+    assert third.records == ()
+    assert client.calls[-1] == "https://www.openml.org/api/v1/json/run/11"
+
+    fourth = resumed.fetch_page(third.next_state)
+    assert fourth.records == ()
+    assert client.calls[-1] == "https://www.openml.org/api/v1/json/run/list/limit/2/offset/2"
+
+    fifth = resumed.fetch_page(fourth.next_state)
+    assert fifth.records[0].identifiers == (
+        Identifier("openml:run", "12"), Identifier("openml:file", "102")
+    )
+    assert fifth.complete
+
+
+def test_openml_run_onnx_census_marks_short_listing_page_complete_after_details() -> None:
+    client = _Client(
+        {"runs": {"run": {"run_id": "9"}}},
+        {"run": {"run_id": "9", "output_files": {"onnx_model": "99"}}},
+    )
+    adapter = OpenMLRunOnnxCensusSourceAdapter(page_size=2, client=client)
+
+    listed = adapter.fetch_page({})
+    assert listed.complete is False
+    found = adapter.fetch_page(listed.next_state)
+    assert found.complete is True
+    assert found.records[0].canonical_url.endswith("/99/model.onnx")
+
+
+def test_openml_run_onnx_census_accepts_documented_no_results_terminal_error() -> None:
+    client = _Client({"error": {"code": "512", "message": "No runs found"}}, statuses=[412])
+    adapter = OpenMLRunOnnxCensusSourceAdapter(client=client)
+
+    page = adapter.fetch_page({})
+
+    assert page.complete
+    assert page.records == ()
+
+
+@pytest.mark.parametrize("payload", [[], {"runs": {"run": [{"run_id": "bad"}]}}])
+def test_openml_run_onnx_census_rejects_invalid_listing_payloads(payload: Any) -> None:
+    adapter = OpenMLRunOnnxCensusSourceAdapter(client=_Client(payload))
+    with pytest.raises(ValueError, match="run-list|run ID"):
+        adapter.fetch_page({})

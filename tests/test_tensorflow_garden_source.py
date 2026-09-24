@@ -108,6 +108,7 @@ def test_garden_pins_revision_until_all_docs_are_scanned_and_identity_survives_i
         "https://storage.googleapis.com/tf_model_garden/nlp/bert.tar.gz",
         "https://tfhub.dev/tf/bert/1",
     ]
+    assert second.records[0].releases[0].version == "1"
     assert client.calls == [
         adapter.commit_url,
         adapter.raw_url(REVISION, "official/vision/MODEL_GARDEN.md"),
@@ -184,6 +185,24 @@ def test_garden_checkpoint_change_adds_release_to_same_model() -> None:
 
     assert before.models[0].identifiers == after.models[0].identifiers
     assert before.releases[0].identifiers != after.releases[0].identifiers
+
+
+def test_garden_only_sets_tfhub_version_when_checkpoint_declarations_agree() -> None:
+    adapter = TensorFlowGardenSourceAdapter(client=Client())
+
+    def release(checkpoints: str):
+        return adapter._records(
+            "docs.md",
+            REVISION,
+            f"| Model | Checkpoint |\n|---|---|\n| Stable | {checkpoints} |",
+        )[0].releases[0]
+
+    assert release("[Hub](https://tfhub.dev/tf/bert/1)").version == "1"
+    assert release("[Hub](https://tfhub.dev/tf/bert)").version is None
+    assert release(
+        "[Hub A](https://tfhub.dev/tf/bert/1) [Hub B](https://tfhub.dev/tf/bert/2)"
+    ).version is None
+    assert release("[ckpt](https://storage.googleapis.com/model/v1/model.tar.gz)").version is None
 
 
 def test_garden_rejects_bad_cursor_and_invalid_commit_sha() -> None:

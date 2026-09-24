@@ -29,6 +29,11 @@ _MAX_PAGE_SIZE = 1_000
 # adapter does not authenticate, so larger configured values are only a desired
 # upper bound and must be clamped to the public API's documented limit.
 _ANONYMOUS_MAX_PAGE_SIZE = 25
+_CHECKPOINT_FILENAME = re.compile(
+    r"(?:^|[._-])(?:checkpoint|ckpt|model_weights|weights)(?:[._-]|$)",
+    re.IGNORECASE,
+)
+_MODEL_WEIGHT_SUFFIX = re.compile(r"\.(?:ckpt|h5|hdf5|onnx|pt|pth|safetensors)$", re.IGNORECASE)
 
 
 def _utcnow() -> datetime:
@@ -329,6 +334,20 @@ class ZenodoModelRecordsSourceAdapter:
             if not isinstance(file_links, Mapping):
                 continue
             if url := _optional_web_url(file_links.get("self")):
+                # A filename can provide candidate-level checkpoint evidence,
+                # but it never changes the Zenodo resource type or declares the
+                # containing record to be a neural model. Require both an
+                # explicit checkpoint/weights token and a model-weight format.
+                key = _text(file.get("key"))
+                if _CHECKPOINT_FILENAME.search(key) and _MODEL_WEIGHT_SUFFIX.search(key):
+                    links_out.append(
+                        Link(
+                            url,
+                            relation="checkpoint",
+                            locator=f"$.files[{file_index}].key",
+                            crawl=False,
+                        )
+                    )
                 links_out.append(
                     Link(
                         url,

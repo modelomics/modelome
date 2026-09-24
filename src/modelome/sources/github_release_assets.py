@@ -8,11 +8,19 @@ release or asset on GitHub.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 from urllib.parse import urlsplit
 
-from modelome.models import ArtifactKind, Identifier, Link, SourceRecord
+from modelome.models import (
+    ArtifactKind,
+    Identifier,
+    Link,
+    ModelHint,
+    ModelStatus,
+    SourceRecord,
+)
 
 _CHECKPOINT_SUFFIXES = frozenset(
     {
@@ -31,7 +39,53 @@ _CHECKPOINT_SUFFIXES = frozenset(
         ".pb",
         ".mlmodel",
         ".msgpack",
+        ".pdparams",
+        ".ptl",
+        ".params",
+        ".pkl",
+        ".weights",
     }
+)
+_GENERIC_MODEL_NAME_TOKENS = frozenset(
+    {
+        "ai",
+        "asset",
+        "artifact",
+        "best",
+        "binary",
+        "checkpoint",
+        "data",
+        "download",
+        "export",
+        "file",
+        "final",
+        "latest",
+        "llm",
+        "ml",
+        "model",
+        "network",
+        "new",
+        "output",
+        "payload",
+        "params",
+        "release",
+        "update",
+        "version",
+        "weights",
+    }
+)
+_MODEL_CONTEXT_RE = re.compile(
+    r"\b(?:model|checkpoint|weights?|pretrained|neural|llm|transformer|embedding|"
+    r"fine[ -]?tuned)\b",
+    re.IGNORECASE,
+)
+_NON_MODEL_FILE_RE = re.compile(
+    r"\b(?:checksum|client|config|dataset|firmware|installer|license|manifest|"
+    r"metadata|optimizer|readme|scheduler|server|source|test|tokenizer|vocab)\b",
+    re.IGNORECASE,
+)
+_STRONG_MODEL_SUFFIXES = frozenset(
+    {".safetensors", ".gguf", ".ggml", ".keras", ".tflite", ".mlmodel"}
 )
 
 
@@ -79,6 +133,9 @@ def project_github_release_assets(
         return ()
 
     result: list[SourceRecord] = []
+    release_context = " ".join(
+        _text(release.get(field)) for field in ("name", "body", "tag_name")
+    )
     for asset in assets[:max_assets]:
         if not isinstance(asset, Mapping):
             continue
@@ -89,6 +146,26 @@ def project_github_release_assets(
         download_url = _asset_url(asset.get("browser_download_url"), repository_name)
         if not download_url:
             continue
+        model_name, model_locator = _model_candidate(
+            name,
+            asset_label=_text(asset.get("label")),
+            release_name=_text(release.get("name")),
+            release_tag=tag_name,
+            context=" ".join((release_context, _text(asset.get("label")))),
+        )
+        models = (
+            (
+                ModelHint(
+                    local_id="release-asset-model",
+                    name=model_name,
+                    status=ModelStatus.CANDIDATE,
+                    confidence=0.2,
+                    locator=model_locator,
+                ),
+            )
+            if model_name
+            else ()
+        )
         result.append(
             SourceRecord(
                 source_record_id=(
@@ -122,7 +199,13 @@ def project_github_release_assets(
                     "event_created_at": _text(event.get("created_at")),
                     "discovery_basis": "github_release_event_payload",
                     "is_verified_model_checkpoint": False,
+                    "model_hint_basis": (
+                        "descriptive_checkpoint_filename_and_release_context"
+                        if model_name
+                        else None
+                    ),
                 },
+                models=models,
             )
         )
     return tuple(result)
@@ -131,6 +214,81 @@ def project_github_release_assets(
 def _is_checkpoint_name(value: str) -> bool:
     lowered = value.casefold()
     return any(lowered.endswith(suffix) for suffix in _CHECKPOINT_SUFFIXES)
+
+
+def _model_candidate(
+    filename: str,
+    *,
+    asset_label: str,
+    release_name: str,
+    release_tag: str,
+    context: str,
+) -> tuple[str, str]:
+    lowered = filename.casefold()
+    suffix = next(
+        (
+            item
+            for item in sorted(_CHECKPOINT_SUFFIXES, key=len, reverse=True)
+            if lowered.endswith(item)
+        ),
+        "",
+    )
+    if not suffix:
+        return "", ""
+    stem = filename[: -len(suffix)]
+    if _NON_MODEL_FILE_RE.search(stem):
+        return "", ""
+    if suffix not in _STRONG_MODEL_SUFFIXES and not _MODEL_CONTEXT_RE.search(context):
+        return "", ""
+    for candidate_text, locator in (
+        (stem, "$.payload.release.assets[id].name"),
+        (asset_label, "$.payload.release.assets[id].label"),
+        (release_name, "$.payload.release.name"),
+        (release_tag, "$.payload.release.tag_name"),
+    ):
+        name = _descriptive_name(candidate_text)
+        if name and (
+            suffix in _STRONG_MODEL_SUFFIXES
+            or _context_identifies_candidate(name, context)
+        ):
+            return name, locator
+    return "", ""
+
+
+def _descriptive_name(value: str) -> str:
+    parts = re.split(r"[\s_-]+", value.strip())
+    meaningful: list[str] = []
+    for part in parts:
+        clean = re.sub(r"[^a-zA-Z0-9.+]", "", part)
+        folded = clean.casefold()
+        if not clean or folded in _GENERIC_MODEL_NAME_TOKENS:
+            continue
+        if re.fullmatch(r"v\d+(?:\.\d+)*", folded):
+            continue
+        if meaningful and re.fullmatch(r"\d+(?:\.\d+)*", folded):
+            meaningful.append(clean)
+            continue
+        if meaningful and re.fullmatch(r"\d+(?:\.\d+)?[bmk]", folded):
+            meaningful.append(clean)
+            continue
+        tokens = re.findall(r"[a-z0-9]+", folded)
+        if any(
+            token not in _GENERIC_MODEL_NAME_TOKENS
+            and sum(character.isalpha() for character in token) >= 2
+            for token in tokens
+        ):
+            meaningful.append(clean)
+    return " ".join(meaningful)
+
+
+def _context_identifies_candidate(name: str, context: str) -> bool:
+    candidate_tokens = {
+        token
+        for token in re.findall(r"[a-z0-9]+", name.casefold())
+        if token not in _GENERIC_MODEL_NAME_TOKENS and len(token) >= 2
+    }
+    context_tokens = set(re.findall(r"[a-z0-9]+", context.casefold()))
+    return bool(candidate_tokens & context_tokens)
 
 
 def _release_url(value: Any, repository_name: str) -> str:

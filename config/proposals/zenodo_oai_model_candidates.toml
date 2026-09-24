@@ -1,0 +1,13 @@
+# Proposal only: keep disabled until the adapter is reviewed and wired into the
+# source factory. Zenodo OAI-PMH supports a full repository harvest; this source
+# emits catalog evidence only where metadata describes a neural model and a
+# distribution explicitly names a checkpoint/weights file.
+[[source]]
+name = "zenodo-oai-model-candidates"
+adapter = "zenodo_oai_model_candidates"
+enabled = false
+entry_tags = ["ecosystem:zenodo", "kind:checkpoint-candidate-evidence"]
+url = "https://zenodo.org/oai2d"
+metadata_prefix = "dcat"
+schedule = "monthly"
+max_response_bytes = 16777216

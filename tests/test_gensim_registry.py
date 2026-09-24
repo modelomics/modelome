@@ -50,7 +50,10 @@ def test_enumerates_source_native_model_handles_and_exact_downloader_archives() 
         "models": {
             "glove-twitter-25": model_row("glove-twitter-25"),
             "word2vec-google-news-300": model_row("word2vec-google-news-300"),
-            "multipart-model": model_row("multipart-model", parts=2),
+            "multipart-model": model_row(
+                "multipart-model", parts=2,
+                **{"checksum-0": "b" * 32, "checksum-1": "c" * 32},
+            ),
         },
     }).encode()
     client = QueuedClient(response(json.dumps({"sha": REVISION}).encode()), response(manifest))
@@ -61,17 +64,29 @@ def test_enumerates_source_native_model_handles_and_exact_downloader_archives() 
     page = adapter.fetch_page({})
 
     assert page.complete and page.authoritative_snapshot
-    assert page.upstream_count == 2
+    assert page.upstream_count == 3
     records = {record.source_record_id: record for record in page.records}
     assert set(records) == {
         "model:glove-twitter-25",
         "model:word2vec-google-news-300",
+        "model:multipart-model",
     }
     glove = records["model:glove-twitter-25"]
     assert glove.models[0].identifiers[0].value == "glove-twitter-25"
     assert glove.releases[0].version == "glove-twitter-25"
-    assert glove.raw["weight_url"] == f"{BASE}/glove-twitter-25/glove-twitter-25.gz"
-    assert glove.raw["md5"] == "a" * 32
+    assert glove.raw["weight_urls"] == (
+        f"{BASE}/glove-twitter-25/glove-twitter-25.gz",
+    )
+    assert glove.raw["md5_parts"] == ("a" * 32,)
+    multipart = records["model:multipart-model"]
+    assert multipart.raw["weight_urls"] == (
+        f"{BASE}/multipart-model/multipart-model.gz_00",
+        f"{BASE}/multipart-model/multipart-model.gz_01",
+    )
+    assert multipart.raw["md5_parts"] == ("b" * 32, "c" * 32)
+    assert [link.url for link in multipart.links if link.relation == "weights"] == list(
+        multipart.raw["weight_urls"]
+    )
     assert len(client.calls) == 2
 
 
@@ -94,6 +109,10 @@ def test_rejects_invalid_checksum_and_nonpositive_size_rows() -> None:
         "models": {
             "bad-checksum": model_row("bad-checksum", checksum="not-md5"),
             "no-size": model_row("no-size", file_size=0),
+            "multipart-no-part-checksum": model_row(
+                "multipart-no-part-checksum", parts=2,
+                **{"checksum-0": "d" * 32},
+            ),
         }
     }).encode()
     client = QueuedClient(response(json.dumps({"sha": REVISION}).encode()), response(manifest))

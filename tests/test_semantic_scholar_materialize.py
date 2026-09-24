@@ -225,7 +225,15 @@ def test_snapshot_materializer_joins_bounded_hash_buckets_and_is_idempotent(
             "externalids": {
                 "arbitrary-provider-id": f"provider:{corpus_id}",
                 "DOI": f"10.1000/{corpus_id}",
-                **({"ArXiv": "2401.01234v2"} if corpus_id == 1 else {}),
+                **(
+                    {
+                        "ArXiv": "2401.01234v2",
+                        "ACL": "2024.acl-long.123",
+                        "PubMed": "12345678",
+                    }
+                    if corpus_id == 1
+                    else {"PubMed": "not-a-pmid"} if corpus_id == 2 else {}
+                ),
             },
             "authors": [{"authorId": f"a-{corpus_id}", "name": "Researcher"}],
             "venue": "A venue",
@@ -291,6 +299,8 @@ def test_snapshot_materializer_joins_bounded_hash_buckets_and_is_idempotent(
         "https://fulltext.example/1",
         "https://arxiv.org/abs/2401.01234v2",
         "https://doi.org/10.1000/1",
+        "https://aclanthology.org/2024.acl-long.123/",
+        "https://pubmed.ncbi.nlm.nih.gov/12345678/",
     }
     assert {
         item["locator"]: item["url"]
@@ -299,7 +309,14 @@ def test_snapshot_materializer_joins_bounded_hash_buckets_and_is_idempotent(
     } == {
         "$.paper.externalids.ArXiv": "https://arxiv.org/abs/2401.01234v2",
         "$.paper.externalids.DOI": "https://doi.org/10.1000/1",
+        "$.paper.externalids.ACL": "https://aclanthology.org/2024.acl-long.123/",
+        "$.paper.externalids.PubMed": "https://pubmed.ncbi.nlm.nih.gov/12345678/",
     }
+    second_row = next(row for row in rows if row["corpus_id"] == "2")
+    assert all(
+        "pubmed.ncbi.nlm.nih.gov" not in item["url"]
+        for item in json.loads(second_row["urls_json"])
+    )
     raw = json.loads(first_row["raw_payload_json"])
     assert raw["paper"]["corpusid"] == 1
     assert len(raw["paper_ids"]) == 2
@@ -823,7 +840,7 @@ def test_unexpected_projection_path_entry_is_rejected(tmp_path: Path) -> None:
         materializer.materialize(RELEASE)
 
 
-def test_v3_projection_rematerializes_release_with_sealed_v2_artifact(
+def test_v4_projection_rematerializes_release_with_sealed_v3_artifact(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -847,13 +864,13 @@ def test_v3_projection_rematerializes_release_with_sealed_v2_artifact(
     monkeypatch.setattr(
         semantic_scholar_materialize,
         "_ALGORITHM",
-        "sha256-corpus-bucket-stateful-join-v2",
+        "sha256-corpus-bucket-stateful-join-v3",
     )
     old = materializer.materialize(RELEASE)
     monkeypatch.setattr(
         semantic_scholar_materialize,
         "_ALGORITHM",
-        "sha256-corpus-bucket-stateful-join-v3",
+        "sha256-corpus-bucket-stateful-join-v4",
     )
 
     assert materializer.list_projections(RELEASE) == ()

@@ -22,6 +22,24 @@ class _Client:
         )
 
 
+class _RouteClient:
+    def __init__(self, routes: dict[str, tuple[object, dict[str, str]]]) -> None:
+        self.routes = routes
+        self.calls: list[str] = []
+
+    def get(self, url: str, *, params=None, headers=None) -> HttpResponse:
+        if params:
+            url = f"{url}?catalog=1"
+        self.calls.append(url)
+        payload, response_headers = self.routes[url]
+        return HttpResponse(
+            status=200,
+            headers=response_headers,
+            body=json.dumps(payload).encode(),
+            url=url,
+        )
+
+
 def test_huggingface_records_additional_checkpoint_formats_and_shard_indexes() -> None:
     filenames = [
         "model.safetensors.index.json",
@@ -70,3 +88,88 @@ def test_huggingface_records_additional_checkpoint_formats_and_shard_indexes() -
         "$.config",
     ) in {(link.url, link.relation, link.locator) for link in record.links}
     assert client.calls[0]["config"] == "true"
+
+
+def test_huggingface_revision_enrichment_is_checkpointed_and_does_not_fetch_blobs() -> None:
+    catalog_url = "https://huggingface.co/api/models?catalog=1"
+    repo = "lab/historical-model"
+    refs_url = f"https://huggingface.co/api/models/{repo}/refs"
+    branch_url = f"https://huggingface.co/api/models/{repo}/commits/refs%2Fheads%2Fmain"
+    branch_next = f"{branch_url}?cursor=more"
+    tag_url = f"https://huggingface.co/api/models/{repo}/commits/refs%2Ftags%2Fv1"
+    routes = {
+        catalog_url: ([{"id": repo, "sha": "head-sha"}], {}),
+        refs_url: (
+            {
+                "branches": [{"name": "main", "ref": "refs/heads/main"}],
+                "tags": [{"name": "v1", "ref": "refs/tags/v1"}],
+                "converts": [],
+            },
+            {},
+        ),
+        branch_url: (
+            [{"id": "commit-1", "date": "2025-01-01T00:00:00Z", "title": "first"}],
+            {"Link": f'<{branch_next}>; rel="next"'},
+        ),
+        branch_next: ([{"id": "commit-2", "date": "2025-01-02T00:00:00Z"}], {}),
+        tag_url: ([{"id": "commit-1", "date": "2025-01-01T00:00:00Z"}], {}),
+    }
+    client = _RouteClient(routes)
+    adapter = HuggingFaceSourceAdapter(client=client, include_revisions=True)
+
+    catalog_page = adapter.fetch_page({})
+    assert [record.source_record_id for record in catalog_page.records] == [repo]
+    assert catalog_page.complete is False
+    assert len(client.calls) == 1
+
+    state = catalog_page.next_state
+    refs_page = adapter.fetch_page(state)
+    assert refs_page.records == ()
+    assert len(client.calls) == 2
+
+    first_commit_page = adapter.fetch_page(refs_page.next_state)
+    assert [record.source_record_id for record in first_commit_page.records] == [f"{repo}@commit-1"]
+    assert len(client.calls) == 3
+    continuation_page = adapter.fetch_page(first_commit_page.next_state)
+    assert [record.source_record_id for record in continuation_page.records] == [f"{repo}@commit-2"]
+    assert len(client.calls) == 4
+    tag_commit_page = adapter.fetch_page(continuation_page.next_state)
+    assert [record.source_record_id for record in tag_commit_page.records] == [f"{repo}@commit-1"]
+    assert tag_commit_page.complete is True
+    assert len(client.calls) == 5
+
+    historical = tag_commit_page.records[0]
+    assert historical.releases[0].revision == "commit-1"
+    assert historical.releases[0].identifiers[0].value == f"{repo}@commit-1"
+    assert "resolve" not in " ".join(link.url for link in historical.links)
+
+
+def test_huggingface_revision_queue_returns_to_unfinished_model_listing() -> None:
+    repo = "lab/one-model"
+    catalog_url = "https://huggingface.co/api/models?catalog=1"
+    catalog_next = "https://huggingface.co/api/models?cursor=page-2"
+    refs_url = f"https://huggingface.co/api/models/{repo}/refs"
+    client = _RouteClient(
+        {
+            catalog_url: (
+                [{"id": repo}],
+                {"Link": f'<{catalog_next}>; rel="next"'},
+            ),
+            refs_url: ({"branches": [], "tags": [], "converts": []}, {}),
+            catalog_next: ([{"id": "lab/second-model"}], {}),
+        }
+    )
+    adapter = HuggingFaceSourceAdapter(client=client, include_revisions=True)
+
+    first_catalog_page = adapter.fetch_page({})
+    revisions_finished = adapter.fetch_page(first_catalog_page.next_state)
+    assert revisions_finished.records == ()
+    assert revisions_finished.complete is False
+    assert revisions_finished.next_state["next_url"] == catalog_next
+    assert "revision_queue" not in revisions_finished.next_state
+
+    second_catalog_page = adapter.fetch_page(revisions_finished.next_state)
+    assert [record.source_record_id for record in second_catalog_page.records] == [
+        "lab/second-model"
+    ]
+    assert second_catalog_page.complete is False

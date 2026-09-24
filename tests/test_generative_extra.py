@@ -13,6 +13,7 @@ from modelome.http import HttpResponse
 from modelome.models import ArtifactKind, Identifier
 from modelome.sources.generative_extra import (
     CompVisLatentDiffusionDownloadsSourceAdapter,
+    CompVisStableDiffusionFirstStagesSourceAdapter,
     _parse_download_script,
 )
 
@@ -93,6 +94,40 @@ def test_disabled_compvis_proposal_matches_adapter_constructor() -> None:
     )
     assert adapter.name == proposal["name"]
 
+    first_stages = tomllib.loads(proposal_path.read_text())["source"][1]
+    assert first_stages["enabled"] is False
+    assert first_stages["adapter"] == "compvis_stable_diffusion_first_stages"
+    first_stage_adapter = CompVisStableDiffusionFirstStagesSourceAdapter(
+        name=first_stages["name"],
+        repository=first_stages["repository"],
+        branch=first_stages["branch"],
+        source_path=first_stages["source_path"],
+        provider_namespace=first_stages["provider_namespace"],
+        max_response_bytes=first_stages["max_response_bytes"],
+        max_entries=first_stages["max_entries"],
+    )
+    assert first_stage_adapter.name == first_stages["name"]
+    assert first_stage_adapter.target_prefix == "models/first_stage_models"
+
+
+def test_stable_diffusion_first_stage_script_uses_separate_exact_handles() -> None:
+    script = (
+        "wget -O models/first_stage_models/kl-f4/model.zip "
+        "https://ommer-lab.com/files/latent-diffusion/kl-f4.zip\n"
+        "wget -O models/first_stage_models/vq-f8/model.zip "
+        "https://ommer-lab.com/files/latent-diffusion/vq-f8.zip\n"
+    )
+    client = _QueuedClient(_response({"sha": _REVISION}), _response(script))
+    adapter = CompVisStableDiffusionFirstStagesSourceAdapter(client=client)
+
+    page = adapter.fetch_page({})
+
+    assert [record.models[0].identifiers[0].value for record in page.records] == [
+        "kl-f4",
+        "vq-f8",
+    ]
+    assert page.records[0].releases[0].metadata["weight_url"].endswith("/kl-f4.zip")
+
 
 @pytest.mark.parametrize(
     ("row", "message"),
@@ -108,6 +143,10 @@ def test_disabled_compvis_proposal_matches_adapter_constructor() -> None:
         (
             "wget -O models/ldm/model/model.txt https://ommer-lab.com/files/latent-diffusion/model.txt",
             "non-first-party",
+        ),
+        (
+            "wget -O models/first_stage_models/kl-f4/model.zip https://ommer-lab.com/files/latent-diffusion/kl-f4.zip",
+            "invalid model output path",
         ),
         (
             "wget --post-data=x -O models/ldm/model/model.zip https://ommer-lab.com/files/latent-diffusion/model.zip",

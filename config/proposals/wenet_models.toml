@@ -1,0 +1,25 @@
+# WeNet's first-party pretrained model table distinguishes checkpoint (.pt)
+# model archives from runtime (.zip) exports. Its links use a source-declared
+# download route that names each archive in the `version` query parameter.
+# This proposal remains disabled until its dedicated reader is wired into the
+# catalog factory.
+[[source]]
+name = "wenet-pretrained-models"
+adapter = "wenet_pretrained_models"
+enabled = false
+entry_tags = [
+  "field:speech",
+  "task:automatic-speech-recognition",
+  "ecosystem:wenet",
+  "kind:checkpoint",
+]
+repository = "wenet-e2e/wenet"
+branch = "main"
+document_path = "docs/pretrained_models.md"
+schedule = "weekly"
+max_response_bytes = 2097152
+max_rows = 2000
+
+[evidence]
+model_index = "https://github.com/wenet-e2e/wenet/blob/main/docs/pretrained_models.md"
+download_endpoint = "https://wenet.org.cn/downloads"

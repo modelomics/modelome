@@ -1,0 +1,24 @@
+# Amazon Bedrock documents provider-qualified hosted model IDs together with
+# provider names, regions, and lifecycle dates. This public page contains only
+# entries its text classifies as Legacy or pending EOL, rather than an active
+# model census; retain its dates and rows as lifecycle evidence, and do not
+# infer that a past EOL entry remains callable.
+[[source]]
+name = "aws-bedrock-legacy-model-lifecycle"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:aws-bedrock", "kind:hosted-model", "evidence:provider-lifecycle-history"]
+url = "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html"
+provider_namespace = "aws-bedrock:model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 1000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model provider \| Model name \| Model ID \| Regions \| Legacy date \| EOL date \| Public extended access start date$'
+name_column = 1
+identity_column = 2
+identity_source = "id"

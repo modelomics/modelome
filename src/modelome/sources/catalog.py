@@ -12,6 +12,7 @@ from modelome.config import default_source_catalog
 from modelome.http import HttpClient
 from modelome.sources.acl_anthology import AclAnthologySourceAdapter
 from modelome.sources.aggregator_registry import OpenMLFlowRegistrySourceAdapter
+from modelome.sources.allennlp_model_archives import AllenNLPModelArchiveSourceAdapter
 from modelome.sources.alphafold_registry import AlphaFoldParameterArchiveSourceAdapter
 from modelome.sources.arxiv import ArxivSourceAdapter
 from modelome.sources.arxiv_snapshot import ArxivCompleteSnapshotSourceAdapter
@@ -33,10 +34,15 @@ from modelome.sources.crossref import CrossrefSourceAdapter
 from modelome.sources.csv_source import CsvSourceAdapter
 from modelome.sources.datacite import DataCiteSourceAdapter
 from modelome.sources.detectron2_model_zoo import Detectron2ModelZooSourceAdapter
+from modelome.sources.dgl_lifesci_registry import DglLifeSciCheckpointRegistrySourceAdapter
 from modelome.sources.eartharxiv import EarthArxivSourceAdapter
 from modelome.sources.espnet_model_zoo import EspnetModelZooSourceAdapter
 from modelome.sources.europe_pmc import EuropePmcSourceAdapter
-from modelome.sources.generative_extra import CompVisLatentDiffusionDownloadsSourceAdapter
+from modelome.sources.fairseq_language_models import FairseqPretrainedLanguageModelSourceAdapter
+from modelome.sources.generative_extra import (
+    CompVisLatentDiffusionDownloadsSourceAdapter,
+    CompVisStableDiffusionFirstStagesSourceAdapter,
+)
 from modelome.sources.gensim_registry import GensimDownloaderModelRegistrySourceAdapter
 from modelome.sources.geospatial_registry import GeospatialRegistrySourceAdapter
 from modelome.sources.gharchive import GhArchiveSourceAdapter
@@ -54,6 +60,7 @@ from modelome.sources.keras_hub_preset_registry import KerasHubPresetRegistrySou
 from modelome.sources.line_checkpoint_card_catalog import (
     LineCheckpointCardCatalogSourceAdapter,
 )
+from modelome.sources.mace_registry import MaceOff23CheckpointRegistrySourceAdapter
 from modelome.sources.markdown_checkpoint_list import MarkdownCheckpointListSourceAdapter
 from modelome.sources.markdown_model_card_list import MarkdownModelCardListSourceAdapter
 from modelome.sources.markdown_model_table import MarkdownModelTableSourceAdapter
@@ -63,14 +70,19 @@ from modelome.sources.modelscope import ModelScopeModelsSourceAdapter
 from modelome.sources.molecular_registry import OpenFoldCheckpointRegistrySourceAdapter
 from modelome.sources.monai_model_zoo import MonaiModelZooSourceAdapter
 from modelome.sources.nemo_checkpoints import NemoCheckpointCatalogSourceAdapter
+from modelome.sources.neuralgcm_checkpoint_registry import (
+    NeuralGCMCheckpointRegistrySourceAdapter,
+)
 from modelome.sources.ngc import NgcModelsSourceAdapter
 from modelome.sources.nnunet_registry import NnUNetV1PretrainedRegistryAdapter
+from modelome.sources.ollama_library_tags import OllamaLibraryTagCatalogAdapter
 from modelome.sources.onnx_model_zoo import OnnxModelZooSourceAdapter
 from modelome.sources.openai_models import OpenAIModelsSourceAdapter
 from modelome.sources.openaire import OpenAireGraphSourceAdapter
 from modelome.sources.openalex import OpenAlexSourceAdapter
 from modelome.sources.opencsg import OpenCsgModelsSourceAdapter
 from modelome.sources.opencv_dnn_model_index import OpenCVDnnModelIndexSourceAdapter
+from modelome.sources.openfold3_registry import OpenFold3ParameterRegistryAdapter
 from modelome.sources.openmmlab import OpenMMLabModelIndexSourceAdapter
 from modelome.sources.openreview import OpenReviewSourceAdapter
 from modelome.sources.openrouter import OpenRouterModelsSourceAdapter
@@ -86,6 +98,7 @@ from modelome.sources.paddleocr_current_model_list import (
     PaddleOcrCurrentModelListSourceAdapter,
 )
 from modelome.sources.paddlerec_catalog import PaddleRecCatalogSourceAdapter
+from modelome.sources.paddlex_model_list import PaddleXModelListSourceAdapter
 from modelome.sources.paperswithcode import (
     PapersWithCodeEvaluationMethodsSourceAdapter,
     PapersWithCodeLinksSourceAdapter,
@@ -97,6 +110,7 @@ from modelome.sources.proteinmpnn import ProteinMpnSourceAdapter
 from modelome.sources.pubmed import PubMedBulkSourceAdapter
 from modelome.sources.pyg_gpse_registry import PyGGPSECheckpointRegistrySourceAdapter
 from modelome.sources.replicate import ReplicateModelsSourceAdapter
+from modelome.sources.rl_checkpoint_indexes import RlClarityCheckpointIndexAdapter
 from modelome.sources.rl_checkpoints_extra import DiffusionPolicyCheckpointIndexAdapter
 from modelome.sources.robotics_extra import ArgusCheckpointInventorySourceAdapter
 from modelome.sources.robotics_registry_v3 import RoboticsTransformerCheckpointSourceAdapter
@@ -116,10 +130,13 @@ from modelome.sources.torch_hub_extra import TorchHubListingSourceAdapter
 from modelome.sources.torchaudio_pipeline_registry import (
     TorchaudioPipelineRegistrySourceAdapter,
 )
+from modelome.sources.torchgeo_weight_registry import TorchGeoWeightRegistrySourceAdapter
 from modelome.sources.torchvision_weight_registry import (
     TorchvisionWeightRegistrySourceAdapter,
 )
+from modelome.sources.wenet_model_zoo import WenetPretrainedModelSourceAdapter
 from modelome.sources.zenodo import ZenodoModelRecordsSourceAdapter
+from modelome.sources.zenodo_oai_candidates import ZenodoOaiModelCandidatesSourceAdapter
 
 Clock = Callable[[], datetime]
 _ENV_REFERENCE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)}")
@@ -349,6 +366,18 @@ def create_source(
                 expanded.get("max_module_bytes"),
                 2 * 1024 * 1024,
             ),
+            max_modules=_integer(expanded.get("max_modules"), 1_000),
+            **injected,
+        )
+
+    if adapter == "torchgeo_weight_registry":
+        return TorchGeoWeightRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            package_path=_required_text(expanded, "package_path"),
+            max_archive_bytes=_integer(expanded.get("max_archive_bytes"), 64 * 1024 * 1024),
+            max_module_bytes=_integer(expanded.get("max_module_bytes"), 2 * 1024 * 1024),
             max_modules=_integer(expanded.get("max_modules"), 1_000),
             **injected,
         )
@@ -631,6 +660,18 @@ def create_source(
             **injected,
         )
 
+    if adapter in {"allennlp_model_archives", "allennlp-model-archives"}:
+        return AllenNLPModelArchiveSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            modelcards_path=_required_text(expanded, "modelcards_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
     if adapter in {"markdown_model_table", "markdown-model-table"}:
         excluded_headings = expanded.get("excluded_headings", ())
         if not isinstance(excluded_headings, list | tuple):
@@ -857,13 +898,16 @@ def create_source(
             "jax_extra_registry",
             "coqui_tts_registry",
             "graph_ml_registry",
+            "dgl_lifesci_checkpoint_registry",
             "unimof_checkpoint_registry",
             "openfold_checkpoints",
+            "openfold3_parameter_registry",
             "argus_checkpoint_inventory",
             "cellpose_registry",
             "pyg_gpse_registry",
             "nnunet_v1_pretrained_registry",
             "compvis_latent_diffusion_downloads",
+            "compvis_stable_diffusion_first_stages",
             "mindspore_modelzoo",
             "google_robotics_transformer_checkpoints",
             "diffusion_policy_checkpoints",
@@ -874,6 +918,13 @@ def create_source(
             "graphgps_release_asset",
             "google_mediapipe_model_catalog",
             "gensim_downloader_model_registry",
+            "allennlp_model_archives",
+            "fairseq_pretrained_language_models",
+            "mace_off23_checkpoint_registry",
+            "neuralgcm_checkpoint_registry",
+            "paddlex_model_list",
+            "wenet_pretrained_models",
+            "rl_clarity_checkpoint_index",
         }
         else _required_text(expanded, "url")
     )
@@ -930,6 +981,16 @@ def create_source(
             **injected,
         )
 
+    if adapter == "zenodo_oai_model_candidates":
+        if _required_text(expanded, "metadata_prefix") != "dcat":
+            raise ValueError(f"{name}: Zenodo OAI source requires dcat metadata")
+        return ZenodoOaiModelCandidatesSourceAdapter(
+            name=name,
+            url=_required_text(expanded, "url"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 16 * 1024 * 1024),
+            **injected,
+        )
+
     if adapter == "csv":
         mapping = expanded.get("mapping")
         if not isinstance(mapping, Mapping):
@@ -963,6 +1024,7 @@ def create_source(
             ),
             token=token or None,
             include_private=_boolean(expanded.get("include_private"), default=False),
+            include_revisions=_boolean(expanded.get("include_revisions"), default=False),
             **injected,
         )
 
@@ -1352,6 +1414,20 @@ def create_source(
             **injected,
         )
 
+    if adapter == "dgl_lifesci_checkpoint_registry":
+        return DglLifeSciCheckpointRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            source_path=_required_text(expanded, "source_path"),
+            mapping_variable=_required_text(expanded, "mapping_variable"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            checkpoint_base_url=_required_text(expanded, "checkpoint_base_url"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 10_000),
+            **injected,
+        )
+
     if adapter == "oci_generative_ai_model_catalog":
         return OciGenerativeAIModelCatalog(
             name=name,
@@ -1367,6 +1443,16 @@ def create_source(
             repository=_required_text(expanded, "repository"),
             branch=_text(expanded.get("branch")) or "main",
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "openfold3_parameter_registry":
+        return OpenFold3ParameterRegistryAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            max_source_bytes=_integer(expanded.get("max_source_bytes"), 512 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
             **injected,
         )
 
@@ -1441,6 +1527,75 @@ def create_source(
             provider_namespace=_required_text(expanded, "provider_namespace"),
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
             max_entries=_integer(expanded.get("max_entries"), 10_000),
+            **injected,
+        )
+
+    if adapter == "compvis_stable_diffusion_first_stages":
+        return CompVisStableDiffusionFirstStagesSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 10_000),
+            **injected,
+        )
+
+    if adapter == "mace_off23_checkpoint_registry":
+        return MaceOff23CheckpointRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_required_text(expanded, "source_path"),
+            mapping_variable=_required_text(expanded, "mapping_variable"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "neuralgcm_checkpoint_registry":
+        return NeuralGCMCheckpointRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "paddlex_model_list":
+        if _required_text(expanded, "provider_namespace") != "paddlex:model":
+            raise ValueError(f"{name}: unexpected PaddleX namespace")
+        return PaddleXModelListSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_required_text(expanded, "branch"),
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            max_rows=_integer(expanded.get("max_rows"), 10_000),
+            **injected,
+        )
+
+    if adapter == "wenet_pretrained_models":
+        return WenetPretrainedModelSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            document_path=_required_text(expanded, "document_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_rows=_integer(expanded.get("max_rows"), 2_000),
+            **injected,
+        )
+
+    if adapter == "rl_clarity_checkpoint_index":
+        return RlClarityCheckpointIndexAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
             **injected,
         )
 
@@ -1547,6 +1702,39 @@ def create_source(
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
             max_entries=_integer(expanded.get("max_entries"), 1_000),
             **injected,
+        )
+
+    if adapter == "allennlp_model_archives":
+        return AllenNLPModelArchiveSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_required_text(expanded, "branch"),
+            modelcards_path=_required_text(expanded, "modelcards_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "fairseq_pretrained_language_models":
+        return FairseqPretrainedLanguageModelSourceAdapter(
+            name=name,
+            document_path=_required_text(expanded, "document_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            max_rows=_integer(expanded.get("max_rows"), 10_000),
+            **injected,
+        )
+
+    if adapter == "ollama_library_tags":
+        return OllamaLibraryTagCatalogAdapter(
+            name=name,
+            url=_required_text(expanded, "url"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
+            max_families=_integer(expanded.get("max_families"), 5_000),
+            max_tags_per_family=_integer(expanded.get("max_tags_per_family"), 10_000),
+            max_pages_per_family=_integer(expanded.get("max_pages_per_family"), 100),
+            max_anchors_per_page=_integer(expanded.get("max_anchors_per_page"), 100_000),
+            client=injected["client"],
         )
 
     raise ValueError(f"{name}: unknown source adapter {adapter!r}")

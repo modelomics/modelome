@@ -36,7 +36,7 @@ class AclAnthologySourceAdapter:
         manifest_url: str | None = None,
         max_response_bytes: int = 32 * 1024 * 1024,
         max_papers: int = 10_000,
-        max_collections: int = 5_000,
+        max_collections: int = 20_000,
         max_abstract_chars: int = 100_000,
         client: HttpClient | Any | None = None,
         clock: Callable[[], datetime] = _utcnow,
@@ -58,6 +58,8 @@ class AclAnthologySourceAdapter:
         self.max_response_bytes = _positive_int(max_response_bytes, "max_response_bytes")
         self.max_papers = _positive_int(max_papers, "max_papers")
         self.max_collections = _positive_int(max_collections, "max_collections")
+        if self.max_collections > 20_000:
+            raise ValueError(f"{self.name}: max_collections must not exceed 20000")
         self.max_abstract_chars = _positive_int(max_abstract_chars, "max_abstract_chars")
         self.client = client or HttpClient(max_response_bytes=self.max_response_bytes)
         self.clock = clock
@@ -113,8 +115,12 @@ class AclAnthologySourceAdapter:
 
     def _fetch_manifest_collection(self, state: Mapping[str, Any]) -> SourcePage:
         completed_tree_sha = _optional_text(state.get("completed_tree_sha"))
-        digests = _state_string_map(state.get("collection_digests", {}), self.name)
-        counts = _state_count_map(state.get("collection_counts", {}), self.name)
+        digests = _state_string_map(
+            state.get("collection_digests", {}), self.name, self.max_collections
+        )
+        counts = _state_count_map(
+            state.get("collection_counts", {}), self.name, self.max_collections
+        )
         pending_paths = state.get("collection_paths")
         if pending_paths is None:
             response = self.client.get(
@@ -160,19 +166,32 @@ class AclAnthologySourceAdapter:
                 raise ValueError(
                     f"{self.name}: returned tree SHA did not match requested commit tree"
                 )
-            if payload.get("truncated") is True:
-                raise ValueError(f"{self.name}: Git tree manifest was truncated")
+            if payload.get("truncated") is not False:
+                raise ValueError(
+                    f"{self.name}: Git tree manifest is missing or has truncated status"
+                )
             tree = payload.get("tree")
             if not isinstance(tree, list):
                 raise ValueError(f"{self.name}: manifest tree must be an array")
-            paths = sorted(
-                item["path"]
-                for item in tree
-                if isinstance(item, Mapping)
-                and item.get("type") == "blob"
-                and isinstance(item.get("path"), str)
-                and re.fullmatch(r"data/xml/[A-Za-z0-9._-]+\.xml", item["path"])
-            )
+            paths: list[str] = []
+            for item in tree:
+                if not isinstance(item, Mapping):
+                    continue
+                path = item.get("path")
+                if (
+                    not isinstance(path, str)
+                    or not path.startswith("data/xml/")
+                    or not path.endswith(".xml")
+                ):
+                    continue
+                if item.get("type") != "blob" or not re.fullmatch(
+                    r"data/xml/[A-Za-z0-9._-]+\.xml", path
+                ):
+                    raise ValueError(f"{self.name}: unsupported XML collection path {path!r}")
+                paths.append(path)
+            if len(paths) != len(set(paths)):
+                raise ValueError(f"{self.name}: manifest repeats a collection path")
+            paths.sort()
             active_paths = set(paths)
             digests = {path: value for path, value in digests.items() if path in active_paths}
             counts = {path: value for path, value in counts.items() if path in active_paths}
@@ -192,13 +211,20 @@ class AclAnthologySourceAdapter:
                 raise ValueError(f"{self.name}: invalid frozen commit SHA")
             if not re.fullmatch(r"[0-9a-f]{40}", frozen_tree_sha):
                 raise ValueError(f"{self.name}: invalid frozen tree SHA")
-            if not isinstance(pending_paths, list) or len(pending_paths) > self.max_collections:
+            if (
+                not isinstance(pending_paths, list)
+                or not pending_paths
+                or len(pending_paths) > self.max_collections
+            ):
                 raise ValueError(f"{self.name}: invalid frozen collection path list")
+            pending_paths = [_manifest_path(path, self.name) for path in pending_paths]
+            if len(pending_paths) != len(set(pending_paths)):
+                raise ValueError(f"{self.name}: frozen collection paths contain duplicates")
             index = _nonnegative_int(
                 state.get("collection_index", 0), "collection_index", self.name
             )
-            if index > len(pending_paths):
-                raise ValueError(f"{self.name}: collection_index exceeds frozen path list")
+            if index >= len(pending_paths):
+                raise ValueError(f"{self.name}: collection_index is outside frozen path list")
         if not pending_paths:
             next_state = {
                 "completed_tree_sha": frozen_tree_sha,
@@ -458,8 +484,8 @@ def _manifest_path(value: Any, source: str) -> str:
     return value
 
 
-def _state_string_map(value: Any, source: str) -> dict[str, str]:
-    if not isinstance(value, Mapping) or len(value) > 5_000:
+def _state_string_map(value: Any, source: str, max_entries: int) -> dict[str, str]:
+    if not isinstance(value, Mapping) or len(value) > max_entries:
         raise ValueError(f"{source}: invalid collection_digests checkpoint")
     result: dict[str, str] = {}
     for key, digest in value.items():
@@ -470,8 +496,8 @@ def _state_string_map(value: Any, source: str) -> dict[str, str]:
     return result
 
 
-def _state_count_map(value: Any, source: str) -> dict[str, int]:
-    if not isinstance(value, Mapping) or len(value) > 5_000:
+def _state_count_map(value: Any, source: str, max_entries: int) -> dict[str, int]:
+    if not isinstance(value, Mapping) or len(value) > max_entries:
         raise ValueError(f"{source}: invalid collection_counts checkpoint")
     result: dict[str, int] = {}
     for key, count in value.items():

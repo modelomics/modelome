@@ -199,5 +199,45 @@ def test_rejects_truncated_manifest_instead_of_claiming_full_collection_coverage
         {"sha": "c" * 40, "truncated": True, "tree": []},
     )
     source = AclAnthologySourceAdapter(client=client, clock=lambda: NOW)
-    with pytest.raises(ValueError, match="manifest was truncated"):
+    with pytest.raises(ValueError, match="truncated status"):
         source.fetch_page({})
+
+    missing_status = ManifestQueueClient(
+        _commit("c" * 40, "f" * 40),
+        {"sha": "c" * 40, "tree": []},
+    )
+    with pytest.raises(ValueError, match="truncated status"):
+        AclAnthologySourceAdapter(client=missing_status, clock=lambda: NOW).fetch_page({})
+
+
+def test_checkpoint_index_at_path_list_end_is_rejected_before_indexing() -> None:
+    paths = ["data/xml/2025.acl.xml"]
+    source = AclAnthologySourceAdapter(client=ManifestQueueClient(), clock=lambda: NOW)
+    state = {
+        "tree_sha": "a" * 40,
+        "commit_sha": "b" * 40,
+        "collection_paths": paths,
+        "collection_index": len(paths),
+    }
+    with pytest.raises(ValueError, match="outside frozen path list"):
+        source.fetch_page(state)
+
+
+def test_xml_manifest_path_filter_fails_closed_on_nested_collection_paths() -> None:
+    client = ManifestQueueClient(
+        _commit("c" * 40, "f" * 40),
+        {
+            "sha": "c" * 40,
+            "truncated": False,
+            "tree": [{"path": "data/xml/archive/papers.xml", "type": "blob"}],
+        },
+    )
+    with pytest.raises(ValueError, match="unsupported XML collection path"):
+        AclAnthologySourceAdapter(client=client, clock=lambda: NOW).fetch_page({})
+
+
+def test_twenty_thousand_collection_state_bound_is_supported() -> None:
+    source = AclAnthologySourceAdapter(
+        max_collections=20_000, client=ManifestQueueClient(), clock=lambda: NOW
+    )
+    assert source.max_collections == 20_000
