@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from modelome.http import HttpClient, HttpResponse
 from modelome.models import (
@@ -118,6 +118,37 @@ class OpenMLFlowRegistrySourceAdapter:
             identifiers=(Identifier("openml:flow-release", flow_id),),
             metadata={"flow_id": flow_id, "uploader": _first_text(flow, "uploader")},
         )
+        links = [
+            Link(flow_url, relation="model_card", crawl=False, model_local_ids=(model_id,)),
+            Link(
+                "https://www.openml.org/",
+                relation="registry",
+                crawl=False,
+                model_local_ids=(model_id,),
+            ),
+        ]
+        source_url = _optional_http_url(flow.get("source_url"))
+        if source_url:
+            links.append(
+                Link(
+                    source_url,
+                    relation="official_implementation",
+                    locator="$.source_url",
+                    crawl=False,
+                    model_local_ids=(model_id,),
+                )
+            )
+        binary_url = _optional_http_url(flow.get("binary_url"))
+        if binary_url:
+            links.append(
+                Link(
+                    binary_url,
+                    relation="serialized_implementation",
+                    locator="$.binary_url",
+                    crawl=False,
+                    model_local_ids=(model_id,),
+                )
+            )
         return SourceRecord(
             source_record_id=f"openml-flow:{flow_id}",
             kind=ArtifactKind.MODEL_CARD,
@@ -125,15 +156,7 @@ class OpenMLFlowRegistrySourceAdapter:
             title=name,
             raw=dict(flow),
             identifiers=(Identifier("openml:flow", flow_id),),
-            links=(
-                Link(flow_url, relation="model_card", crawl=False, model_local_ids=(model_id,)),
-                Link(
-                    "https://www.openml.org/",
-                    relation="registry",
-                    crawl=False,
-                    model_local_ids=(model_id,),
-                ),
-            ),
+            links=tuple(links),
             models=(model,),
             releases=(release,),
         )
@@ -307,6 +330,17 @@ def _text(value: Any) -> str:
 
 def _first_text(value: Mapping[str, Any], *keys: str) -> str:
     return next((text for key in keys if (text := _text(value.get(key)))), "")
+
+
+def _optional_http_url(value: Any) -> str | None:
+    candidate = _text(value)
+    parts = urlsplit(candidate)
+    if parts.scheme not in {"http", "https"} or not parts.hostname:
+        return None
+    try:
+        return canonicalize_url(candidate)
+    except ValueError:
+        return None
 
 
 __all__ = ["OpenMLFlowRegistrySourceAdapter"]

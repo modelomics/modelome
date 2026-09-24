@@ -1,0 +1,27 @@
+# NVIDIA's public NeMo Retriever NIM reference has a bounded retrieval-model
+# table. It includes NVIDIA model IDs alongside separately branded BAAI and
+# Snowflake entries; this rule selects only NVIDIA rows. The documented table
+# labels model IDs with spaces around the slash, so the text template restores
+# the exact `nvidia/<slug>` identifier confirmed by each model's API reference.
+# This is public documentation, not an anonymous live NIM API. Inference access
+# remains API-key gated.
+# Primary source: https://docs.api.nvidia.com/nim/re/reference/retrieval-apis
+[[source]]
+name = "nvidia-nim-retrieval-model-documentation"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:nvidia-nim", "kind:hosted-model", "evidence:provider-model-documentation", "modality:embedding", "modality:reranking"]
+url = "https://docs.api.nvidia.com/nim/re/reference/retrieval-apis"
+provider_namespace = "nvidia:nim-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 1000
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '(?is)<a\b[^>]*>\s*(?P<name>nvidia\s*/\s*(?P<slug>[a-z0-9][a-z0-9.-]*))\s*</a>'
+name_template = "nvidia/{slug}"
+identity_source = "name"
+require_url = false

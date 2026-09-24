@@ -23,6 +23,9 @@ from modelome.sources.astronn_gaia_release import AstroNNGaiaReleaseSourceAdapte
 from modelome.sources.atari_pb_checkpoints import AtariPbCheckpointAdapter
 from modelome.sources.audio_extra import CoquiTtsRegistrySourceAdapter
 from modelome.sources.aws_bedrock_region_matrix import AwsBedrockRegionMatrixAdapter
+from modelome.sources.aws_sagemaker_jumpstart_versions import (
+    AwsSageMakerJumpStartVersionsSourceAdapter,
+)
 from modelome.sources.base import SourceAdapter
 from modelome.sources.bfl_api_models import BFLAPIModelsSourceAdapter
 from modelome.sources.bioimageio import BioImageIoSourceAdapter
@@ -71,12 +74,15 @@ from modelome.sources.github_historical_release_assets import (
 )
 from modelome.sources.github_repositories import GitHubPublicRepositoriesSourceAdapter
 from modelome.sources.gitlab_release_assets import GitLabPublicReleaseAssetsSourceAdapter
+from modelome.sources.google_bert_checkpoints import GoogleResearchBertCheckpointSourceAdapter
+from modelome.sources.google_football_checkpoints import GoogleFootballCheckpointAdapter
 from modelome.sources.gpt4all_model_catalog import Gpt4AllModelCatalogSourceAdapter
 from modelome.sources.graph_ml_registry import GraphMLRegistrySourceAdapter
 from modelome.sources.graphgps_release_asset import GraphGPSReleaseAssetSourceAdapter
 from modelome.sources.graphormer_checkpoint_registry import (
     GraphormerCheckpointRegistrySourceAdapter,
 )
+from modelome.sources.groundingdino_checkpoints import GroundingDINOCheckpointSourceAdapter
 from modelome.sources.grover_registry import GroverCheckpointRegistrySourceAdapter
 from modelome.sources.hal import HalSourceAdapter
 from modelome.sources.html_catalog import HtmlCatalogSourceAdapter
@@ -87,6 +93,9 @@ from modelome.sources.json_catalog import JsonCatalogSourceAdapter
 from modelome.sources.kaggle import KaggleModelsSourceAdapter
 from modelome.sources.kaldi_model_index import KaldiModelIndexSourceAdapter
 from modelome.sources.keras_hub_preset_registry import KerasHubPresetRegistrySourceAdapter
+from modelome.sources.lerobot_molmoact2_relation import (
+    LeRobotMolmoAct2RelationSourceAdapter,
+)
 from modelome.sources.line_checkpoint_card_catalog import (
     LineCheckpointCardCatalogSourceAdapter,
 )
@@ -113,6 +122,7 @@ from modelome.sources.ngc import NgcModelsSourceAdapter
 from modelome.sources.ngc_cli_versions import NgcCliModelVersionsSourceAdapter
 from modelome.sources.nltk_data_models import NltkDataModelIndexSourceAdapter
 from modelome.sources.nnunet_registry import NnUNetV1PretrainedRegistryAdapter
+from modelome.sources.nvidia_earth2 import NvidiaEarth2SourceAdapter
 from modelome.sources.nvidia_groot_n17_checkpoints import NvidiaGR00TN17CheckpointSourceAdapter
 from modelome.sources.ocp_model_registry import OCPModelRegistrySourceAdapter
 from modelome.sources.octo_checkpoints import OctoCheckpointSourceAdapter
@@ -122,6 +132,7 @@ from modelome.sources.open_x_rt1x_checkpoint import OpenXRT1XCheckpointSourceAda
 from modelome.sources.openai_models import OpenAIModelsSourceAdapter
 from modelome.sources.openaire import OpenAireGraphSourceAdapter
 from modelome.sources.openalex import OpenAlexSourceAdapter
+from modelome.sources.openclip_pretrained_registry import OpenCLIPPretrainedRegistrySourceAdapter
 from modelome.sources.opencsg import OpenCsgModelsSourceAdapter
 from modelome.sources.opencv_dnn_model_index import OpenCVDnnModelIndexSourceAdapter
 from modelome.sources.openfold3_registry import OpenFold3ParameterRegistryAdapter
@@ -137,6 +148,7 @@ from modelome.sources.paddleclas_model_registry import PaddleClasModelRegistrySo
 from modelome.sources.paddlegan_tutorial_model_zoo import (
     PaddleGanTutorialModelZooSourceAdapter,
 )
+from modelome.sources.paddlehelix_gem_checkpoint import PaddleHelixGemCheckpointSourceAdapter
 from modelome.sources.paddlenlp_taskflow_knowledge_mining import (
     PaddleNlpTaskflowKnowledgeMiningSourceAdapter,
 )
@@ -169,6 +181,7 @@ from modelome.sources.plos import PlosSourceAdapter
 from modelome.sources.pmc import PmcSourceAdapter
 from modelome.sources.proteinmpnn import ProteinMpnSourceAdapter
 from modelome.sources.pubmed import PubMedBulkSourceAdapter
+from modelome.sources.pyg_dimenet_checkpoints import PyGDimeNetCheckpointSourceAdapter
 from modelome.sources.pyg_gpse_registry import PyGGPSECheckpointRegistrySourceAdapter
 from modelome.sources.pytorch_hub_load_calls import PyTorchHubLoadCallSourceAdapter
 from modelome.sources.qualcomm_ai_hub_models import QualcommAIHubModelsSourceAdapter
@@ -178,6 +191,8 @@ from modelome.sources.rl_checkpoint_indexes import RlClarityCheckpointIndexAdapt
 from modelome.sources.rl_checkpoints_extra import DiffusionPolicyCheckpointIndexAdapter
 from modelome.sources.robotics_extra import ArgusCheckpointInventorySourceAdapter
 from modelome.sources.robotics_registry_v3 import RoboticsTransformerCheckpointSourceAdapter
+from modelome.sources.satmae_checkpoint_registry import SatMAECheckpointRegistrySourceAdapter
+from modelome.sources.sdss_ssl_checkpoints import SdssSslCheckpointsSourceAdapter
 from modelome.sources.semantic_scholar import SemanticScholarDatasetSourceAdapter
 from modelome.sources.sherpa_audio_tagging import SherpaAudioTaggingSourceAdapter
 from modelome.sources.sherpa_source_separation import SherpaSourceSeparationSourceAdapter
@@ -204,9 +219,11 @@ from modelome.sources.torchgeo_weight_registry import TorchGeoWeightRegistrySour
 from modelome.sources.torchvision_weight_registry import (
     TorchvisionWeightRegistrySourceAdapter,
 )
+from modelome.sources.torchxrayvision_registry import TorchXRayVisionRegistrySourceAdapter
 from modelome.sources.unimol_checkpoint import UniMolCheckpointSourceAdapter
 from modelome.sources.vq_diffusion import MicrosoftVqDiffusionCheckpointManifestSourceAdapter
 from modelome.sources.wenet_model_zoo import WenetPretrainedModelSourceAdapter
+from modelome.sources.yolox_model_zoo import YOLOXModelZooSourceAdapter
 from modelome.sources.zenodo import ZenodoModelRecordsSourceAdapter
 from modelome.sources.zenodo_oai_candidates import ZenodoOaiModelCandidatesSourceAdapter
 
@@ -1058,12 +1075,141 @@ def create_source(
             **injected,
         )
 
+    if adapter == "aws_sagemaker_jumpstart_versions":
+        if client is None:
+            raise ValueError(f"{name}: an injected signed SageMaker client is required")
+        return AwsSageMakerJumpStartVersionsSourceAdapter(
+            name=name,
+            client=client,
+            page_size=_integer(expanded.get("page_size"), 50),
+            max_versions_per_model=_integer(expanded.get("max_versions_per_model"), 10_000),
+            max_records_per_page=_integer(expanded.get("max_records_per_page"), 20_000),
+        )
+
     if adapter == "open_x_rt1x_checkpoint":
         return OpenXRT1XCheckpointSourceAdapter(
             name=name,
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 8 * 1024 * 1024),
             max_files=_integer(expanded.get("max_files"), 5_000),
             max_pages=_integer(expanded.get("max_pages"), 50),
+            **injected,
+        )
+
+    if adapter == "torchxrayvision_registry":
+        return TorchXRayVisionRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100_000),
+            **injected,
+        )
+
+    if adapter == "google_research_bert_checkpoints":
+        return GoogleResearchBertCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "satmae_checkpoint_registry":
+        return SatMAECheckpointRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 8),
+            **injected,
+        )
+
+    if adapter == "pyg_dimenet_checkpoints":
+        return PyGDimeNetCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "google_football_checkpoints":
+        return GoogleFootballCheckpointAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "lerobot_molmoact2_relation":
+        return LeRobotMolmoAct2RelationSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "paddlehelix_gem_checkpoint":
+        return PaddleHelixGemCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "dev",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 1 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "sdss_ssl_checkpoints":
+        return SdssSslCheckpointsSourceAdapter(
+            name=name,
+            url=_required_text(expanded, "url"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_links=_integer(expanded.get("max_links"), 2_000),
+            **injected,
+        )
+
+    if adapter == "openclip_pretrained_registry":
+        return OpenCLIPPretrainedRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            max_source_bytes=_integer(expanded.get("max_source_bytes"), 2 * 1024 * 1024),
+            max_models=_integer(expanded.get("max_models"), 2_000),
+            client=injected["client"],
+        )
+
+    if adapter == "groundingdino_checkpoints":
+        return GroundingDINOCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            max_readme_bytes=_integer(expanded.get("max_readme_bytes"), 2 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            client=injected["client"],
+        )
+
+    if adapter == "yolox_model_zoo":
+        return YOLOXModelZooSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            max_readme_bytes=_integer(expanded.get("max_readme_bytes"), 2 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 1_000),
+            client=injected["client"],
+        )
+
+    if adapter == "nvidia_earth2":
+        return NvidiaEarth2SourceAdapter(
+            page_size=_integer(expanded.get("page_size"), 20),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 16 * 1024 * 1024),
             **injected,
         )
 

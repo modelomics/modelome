@@ -1,0 +1,12 @@
+# Optional SageMakerPublicHub version enumeration. The caller must inject an
+# AWS-signed SageMaker client for the region and principal being inspected.
+# This is account-visible public-hub metadata, not an anonymous global census.
+[[source]]
+name = "aws-sagemaker-jumpstart-versions"
+adapter = "aws_sagemaker_jumpstart_versions"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:aws-sagemaker-jumpstart", "kind:hosted-model-version"]
+schedule = "weekly"
+page_size = 50
+max_versions_per_model = 10000
+max_records_per_page = 20000

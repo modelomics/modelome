@@ -139,3 +139,49 @@ def test_openmmlab_model_index_skips_fetching_a_completed_unchanged_revision() -
             {"Accept": "application/vnd.github+json"},
         )
     ]
+
+
+def test_openmmlab_model_index_retains_pretrain_and_finetuned_weight_entries() -> None:
+    index = "Import:\n- configs/resnet/metafile.yml\n"
+    manifest = """Models:
+  - Name: resnet50_8xb8_cub
+    Config: configs/resnet/resnet50_8xb8_cub.py
+    Pretrain: https://download.openmmlab.com/mmclassification/resnet50_imagenet.pth
+    Weights: https://download.openmmlab.com/mmclassification/resnet50_cub.pth
+"""
+    client = QueuedClient(
+        response({"sha": REVISION}), response(index), response(manifest)
+    )
+    adapter = OpenMMLabModelIndexSourceAdapter(
+        name="openmmlab-example", repository=REPOSITORY, client=client, clock=lambda: NOW
+    )
+
+    record = adapter.fetch_page({}).records[0]
+
+    assert record.models[0].status is ModelStatus.RELEASED
+    assert len(record.releases) == 2
+    pretrain_release = next(
+        release for release in record.releases if release.metadata.get("weights_role") == "pretrain"
+    )
+    model_release = next(
+        release
+        for release in record.releases
+        if release.metadata["weights_url"].endswith("resnet50_cub.pth")
+    )
+    assert pretrain_release.identifiers == (
+        Identifier(
+            "openmmlab:weights",
+            "https://download.openmmlab.com/mmclassification/resnet50_imagenet.pth",
+        ),
+    )
+    assert pretrain_release.metadata["weights_url"].endswith("resnet50_imagenet.pth")
+    assert model_release.identifiers == (
+        Identifier(
+            "openmmlab:weights",
+            "https://download.openmmlab.com/mmclassification/resnet50_cub.pth",
+        ),
+    )
+    assert (
+        "https://download.openmmlab.com/mmclassification/resnet50_imagenet.pth",
+        "pretrained_weights",
+    ) in {(link.url, link.relation) for link in record.links}

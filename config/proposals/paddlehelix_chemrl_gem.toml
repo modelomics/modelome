@@ -1,0 +1,11 @@
+# PaddleHelix's first-party ChemRL GEM README declares this exact pretrained-model URL.
+[[source]]
+name = "paddlehelix-chemrl-gem-checkpoint"
+adapter = "paddlehelix_gem_checkpoint"
+enabled = false
+repository = "PaddlePaddle/PaddleHelix"
+branch = "dev"
+source_path = "apps/pretrained_compound/ChemRL/GEM/README.md"
+max_response_bytes = 1048576
+
+# Tracks the model package, not the separate downstream dataset archive.

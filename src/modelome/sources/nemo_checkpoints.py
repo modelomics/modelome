@@ -42,6 +42,11 @@ _NGC_TEAM = re.compile(
     r"(?P<name>[A-Za-z0-9_.-]+)$"
 )
 _SAFE_MODEL_NAME = re.compile(r"^[^\x00-\x1f]{1,512}$")
+_NGC_WEIGHT_URL = re.compile(
+    r"https://api\.ngc\.nvidia\.com/v2/models/nvidia/nemo/"
+    r"[A-Za-z0-9_.-]+/versions/[A-Za-z0-9_.-]+/files/[A-Za-z0-9_.-]+"
+    r"(?=$|[\s)`>])"
+)
 
 
 def _utcnow() -> datetime:
@@ -53,6 +58,7 @@ class _Checkpoint:
     name: str
     card_url: str
     identifiers: tuple[Identifier, ...]
+    weight_urls: tuple[str, ...]
     headers: tuple[str, ...]
     cells: tuple[str, ...]
     locator: str
@@ -73,7 +79,8 @@ class NemoCheckpointCatalogSourceAdapter:
         "Covers only first-party NeMo documentation table rows that directly declare "
         "a Hugging Face or NVIDIA NGC model-card URL. It does not invoke "
         "list_available_models(), infer checkpoint URLs, fetch provider cards, or "
-        "treat citations and prose mentions as releases."
+        "treat citations and prose mentions as releases. Literal versioned NeMo NGC "
+        "file URLs in an admitted row are preserved as weight links."
     )
 
     def __init__(
@@ -107,6 +114,7 @@ class NemoCheckpointCatalogSourceAdapter:
                 "max_response_bytes": self.max_response_bytes,
                 "max_entries": self.max_entries,
                 "admission": "model table row with direct Hugging Face or NGC card",
+                "weights": "literal versioned NeMo NGC file URLs in admitted rows",
             }
         )
 
@@ -191,6 +199,7 @@ class NemoCheckpointCatalogSourceAdapter:
             metadata={
                 "model_name": checkpoint.name,
                 "model_card_url": checkpoint.card_url,
+                "weight_urls": list(checkpoint.weight_urls),
                 "headers": list(checkpoint.headers),
                 "row_cells": list(checkpoint.cells),
             },
@@ -207,6 +216,7 @@ class NemoCheckpointCatalogSourceAdapter:
                 "catalog_sha256": document_hash,
                 "model_name": checkpoint.name,
                 "model_card_url": checkpoint.card_url,
+                "weight_urls": list(checkpoint.weight_urls),
                 "headers": list(checkpoint.headers),
                 "row_cells": list(checkpoint.cells),
                 "locator": checkpoint.locator,
@@ -228,6 +238,16 @@ class NemoCheckpointCatalogSourceAdapter:
                     crawl=False,
                     model_local_ids=(model.local_id,),
                 ),
+                *(
+                    Link(
+                        weight_url,
+                        relation="weights",
+                        locator=checkpoint.locator,
+                        crawl=False,
+                        model_local_ids=(model.local_id,),
+                    )
+                    for weight_url in checkpoint.weight_urls
+                ),
             ),
             models=(model,),
             releases=(release,),
@@ -238,18 +258,28 @@ def _checkpoints(parser: _CatalogHtmlParser, base_url: str, source: str) -> tupl
     result: list[_Checkpoint] = []
     seen: set[tuple[str, str]] = set()
     for table in parser.tables:
-        header_index = _model_header_index(table.rows)
-        if header_index is None:
+        model_header = _model_header_index(table.rows)
+        if model_header is None:
             continue
+        header_index, model_column = model_header
         headers = tuple(cell.text for cell in table.rows[header_index].cells)
         for row in table.rows[header_index + 1 :]:
-            if not row.cells or any(cell.is_header for cell in row.cells):
+            if (
+                not row.cells
+                or model_column >= len(row.cells)
+                or any(cell.is_header for cell in row.cells)
+            ):
                 continue
-            name = _model_name(row.cells[0].text)
+            name = _model_name(row.cells[model_column].text)
             if not name:
                 continue
             cards = []
+            weight_urls = []
             for cell in row.cells:
+                weight_urls.extend(
+                    canonicalize_url(match.group(0))
+                    for match in _NGC_WEIGHT_URL.finditer(cell.text)
+                )
                 for anchor in cell.anchors:
                     card_url = canonicalize_url(urljoin(base_url, anchor.href))
                     if _provider_identifiers(card_url, name) is not None:
@@ -269,6 +299,7 @@ def _checkpoints(parser: _CatalogHtmlParser, base_url: str, source: str) -> tupl
                             Identifier("nemo:checkpoint", f"{name}\n{card_url}"),
                             *provider_identifiers,
                         ),
+                        weight_urls=tuple(dict.fromkeys(weight_urls)),
                         headers=headers,
                         cells=tuple(cell.text for cell in row.cells),
                         locator=row.locator,
@@ -277,13 +308,13 @@ def _checkpoints(parser: _CatalogHtmlParser, base_url: str, source: str) -> tupl
     return tuple(result)
 
 
-def _model_header_index(rows: tuple[Any, ...]) -> int | None:
+def _model_header_index(rows: tuple[Any, ...]) -> tuple[int, int] | None:
     for index, row in enumerate(rows):
         if not row.cells or not any(cell.is_header for cell in row.cells):
             continue
-        first = _text(row.cells[0].text).casefold()
-        if first in _MODEL_HEADER:
-            return index
+        for column, cell in enumerate(row.cells):
+            if _text(cell.text).casefold() in _MODEL_HEADER:
+                return index, column
     return None
 
 

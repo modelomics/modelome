@@ -1,0 +1,16 @@
+# The official Google Research Football README links its two trained PPO
+# checkpoints to exact objects in a Google Storage public bucket. The adapter
+# reads only these two links and does not fetch checkpoint bytes.
+[[source]]
+name = "google-football-ppo-checkpoints"
+adapter = "google_football_checkpoints"
+enabled = false
+entry_tags = ["field:reinforcement-learning", "ecosystem:google-football", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+[evidence]
+official_readme = "https://github.com/google-research/football/blob/master/README.md"
+official_repository = "https://github.com/google-research/football"
+checkpoint_11_vs_11_easy_stochastic = "https://storage.googleapis.com/gfootball-public-bucket/trained_model_11_vs_11_easy_stochastic"
+checkpoint_academy_run_to_score_with_keeper = "https://storage.googleapis.com/gfootball-public-bucket/trained_model_academy_run_to_score_with_keeper_v2"

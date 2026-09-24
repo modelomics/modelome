@@ -209,6 +209,31 @@ def test_numeric_cursor_allows_id_gaps_but_rejects_rows_below_lower_cursor() -> 
         invalid.fetch_page({})
 
 
+def test_public_repository_since_link_is_checkpointed_as_text_cursor() -> None:
+    first_url = "https://api.github.com/repositories?per_page=1&since=100"
+    next_url = "https://api.github.com/repositories?per_page=1&since=107"
+    adapter = GitHubHistoricalReleaseAssetsSourceAdapter(
+        initial_since=100,
+        max_repository_id=200,
+        max_repositories=2,
+        page_size=1,
+        client=RouteClient(
+            {
+                first_url: (
+                    [{"id": 107, "full_name": "lab/after-gap", "private": False}],
+                    {"Link": f'<{next_url}>; rel="next"'},
+                )
+            }
+        ),
+    )
+
+    page = adapter.fetch_page({})
+
+    assert page.complete is False
+    assert page.next_state["last_repository_id"] == 107
+    assert page.next_state["repo_next_url"] == next_url
+
+
 def test_empty_repository_page_cannot_claim_completion_with_next_cursor() -> None:
     url = "https://api.github.com/repositories?per_page=2&since=100"
     next_url = "https://api.github.com/repositories?per_page=2&since=100"

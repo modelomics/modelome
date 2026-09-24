@@ -328,10 +328,9 @@ class GitHubHistoricalReleaseAssetsSourceAdapter:
             next_link = None
         elif next_link:
             next_link = self._safe_url(next_link, f"{_API}/repositories")
-            cursor = _integer(
+            cursor = _query_positive_integer(
                 dict(parse_qsl(urlsplit(next_link).query)).get("since"),
                 "repository next cursor",
-                minimum=1,
             )
             if cursor != last_id:
                 raise ValueError("GitHub repository cursor does not match last observed ID")
@@ -766,6 +765,15 @@ def _validate_page_cursor(url: str, current_page: int, label: str) -> None:
         raise ValueError(f"{label} next page must be a positive decimal integer")
     if next_page != current_page + 1:
         raise ValueError(f"GitHub {label} cursor did not advance by one page")
+
+
+def _query_positive_integer(value: Any, label: str) -> int:
+    if not isinstance(value, str) or not value.isascii() or not value.isdecimal():
+        raise ValueError(f"{label} must be a positive decimal integer")
+    result = int(value)
+    if result < 1:
+        raise ValueError(f"{label} must be a positive decimal integer")
+    return result
 
 
 __all__ = ["GitHubHistoricalReleaseAssetsSourceAdapter"]

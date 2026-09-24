@@ -6566,3 +6566,262 @@ relation = "source_implementation"
 href_pattern = '^https://creativecommons\.org/licenses/by-sa/3\.0/?$'
 relation = "license"
 crawl = false
+
+# TorchXRayVision's literal source registry declares exact pretrained weights.
+[[source]]
+name = "torchxrayvision-pretrained-registry"
+adapter = "torchxrayvision_registry"
+enabled = true
+entry_tags = ["field:medical-imaging", "ecosystem:torchxrayvision", "kind:pretrained-weights"]
+repository = "mlmed/torchxrayvision"
+branch = "main"
+source_path = "torchxrayvision/models.py"
+provider_namespace = "torchxrayvision:weight"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100000
+
+# SatMAE's first-party README maps eight variants to exact Zenodo files.
+[[source]]
+name = "sustainlab-satmae-checkpoint-registry"
+adapter = "satmae_checkpoint_registry"
+enabled = true
+entry_tags = ["field:earth-observation", "ecosystem:sustainlab-satmae", "kind:pretrained-checkpoint"]
+repository = "sustainlab-group/SatMAE"
+branch = "main"
+source_path = "README.md"
+provider_namespace = "satmae:checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 8
+
+# PyTorch Geometric declares DimeNet and DimeNet++ checkpoint components.
+[[source]]
+name = "pytorch-geometric-dimenet-qm9-checkpoints"
+adapter = "pyg_dimenet_checkpoints"
+enabled = true
+entry_tags = ["field:graph-machine-learning", "field:computational-chemistry", "ecosystem:pytorch-geometric", "task:qm9-property-prediction", "kind:checkpoint"]
+repository = "pyg-team/pytorch_geometric"
+branch = "master"
+source_path = "torch_geometric/nn/models/dimenet.py"
+provider_namespace = "pytorch-geometric:dimenet-checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100
+
+# Google Research Football's README links two trained PPO policy objects.
+[[source]]
+name = "google-football-ppo-checkpoints"
+adapter = "google_football_checkpoints"
+enabled = true
+entry_tags = ["field:reinforcement-learning", "ecosystem:google-football", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# LeRobot documents this exact LIBERO policy-to-training-dataset relationship.
+[[source]]
+name = "lerobot-molmoact2-libero-relation"
+adapter = "lerobot_molmoact2_relation"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:lerobot", "kind:checkpoint-lineage"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# PaddleHelix ChemRL GEM publishes a direct pretrained-model archive.
+[[source]]
+name = "paddlehelix-chemrl-gem-checkpoint"
+adapter = "paddlehelix_gem_checkpoint"
+enabled = true
+entry_tags = ["field:computational-chemistry", "ecosystem:paddlehelix", "kind:checkpoint"]
+repository = "PaddlePaddle/PaddleHelix"
+branch = "dev"
+source_path = "apps/pretrained_compound/ChemRL/GEM/README.md"
+schedule = "weekly"
+max_response_bytes = 1048576
+
+# OpenCLIP's literal registry lists direct public checkpoint URLs.
+[[source]]
+name = "openclip-direct-pretrained-checkpoints"
+adapter = "openclip_pretrained_registry"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:openclip", "kind:pretrained-checkpoint"]
+repository = "mlfoundations/open_clip"
+branch = "main"
+source_path = "src/open_clip/pretrained.py"
+schedule = "weekly"
+max_source_bytes = 2097152
+max_models = 2000
+
+# GroundingDINO's README maps T and B variants to release files and HF mirrors.
+[[source]]
+name = "groundingdino-checkpoints"
+adapter = "groundingdino_checkpoints"
+enabled = true
+entry_tags = ["field:computer-vision", "task:open-vocabulary-object-detection", "ecosystem:idea-research", "kind:checkpoint"]
+repository = "IDEA-Research/GroundingDINO"
+branch = "main"
+schedule = "weekly"
+max_readme_bytes = 2097152
+max_entries = 100
+
+# NVIDIA's public Earth-2 collection gives curated exact HF models and weights.
+[[source]]
+name = "nvidia-earth2"
+adapter = "nvidia_earth2"
+enabled = true
+entry_tags = ["field:weather-machine-learning", "ecosystem:nvidia-earth2", "kind:pretrained-checkpoint"]
+schedule = "weekly"
+page_size = 20
+max_response_bytes = 16777216
+
+# Stanford's GloVe page lists its current and historical vector archives.
+[[source]]
+name = "stanford-glove-vectors"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:natural-language-processing", "ecosystem:glove", "kind:pretrained-vectors"]
+url = "https://nlp.stanford.edu/projects/glove/"
+provider_namespace = "stanford-glove:vector-archive"
+artifact_kind = "catalog_record"
+model_status = "released"
+allowed_origins = ["https://nlp.stanford.edu", "https://opendatacommons.org", "https://arxiv.org", "https://github.com", "https://www.stanford.edu"]
+schedule = "monthly"
+max_response_bytes = 2097152
+max_entries = 32
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '(?s)<li>(?:<(?:strong|b)>[^<]*</(?:strong|b)>\s*)?(?P<name>[^<:]+):\s*<a(?=[^>]*href="(?P<url>https://nlp\.stanford\.edu/data/(?:wordvecs/)?glove\.(?:2024\.(?:dolma\.300d|wikigiga\.(?:50|100|200|300)d)|6B|42B\.300d|840B\.300d|twitter\.27B)\.zip)")[^>]*>[^<]+</a>'
+name_template = "GloVe {name}"
+identity_source = "url"
+identity_pattern = '(?P<id>glove\.[^/]+\.zip)$'
+relation = "weights"
+crawl = false
+
+[[source.shared_links]]
+href_pattern = '^https://opendatacommons\.org/licenses/pddl/1\.0/?$'
+relation = "license"
+crawl = false
+
+[[source.shared_links]]
+href_pattern = '^https://arxiv\.org/abs/(?:1405\.4053|2507\.18103)$'
+relation = "paper_reference"
+
+# DeepInfra's paged embedding cards expose exact hosted serving IDs.
+[[source]]
+name = "deepinfra-embedding-models-page-1"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:deepinfra", "kind:hosted-model", "modality:embedding"]
+url = "https://deepinfra.com/models/embeddings"
+provider_namespace = "deepinfra:model"
+artifact_kind = "model_card"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 100
+
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://deepinfra\.com/(?!models/)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+identity_source = "url"
+identity_pattern = '^https://deepinfra\.com/(?P<id>(?!models/)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$'
+name_source = "identity"
+relation = "model_documentation"
+crawl = false
+require_url = true
+
+[[source]]
+name = "deepinfra-embedding-models-page-2"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:deepinfra", "kind:hosted-model", "modality:embedding"]
+url = "https://deepinfra.com/models/embeddings/2"
+provider_namespace = "deepinfra:model"
+artifact_kind = "model_card"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 100
+
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://deepinfra\.com/(?!models/)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+identity_source = "url"
+identity_pattern = '^https://deepinfra\.com/(?P<id>(?!models/)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$'
+name_source = "identity"
+relation = "model_documentation"
+crawl = false
+require_url = true
+
+# NVIDIA's retrieval docs provide exact public NIM serving IDs.
+[[source]]
+name = "nvidia-nim-retrieval-model-documentation"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:nvidia-nim", "kind:hosted-model", "modality:embedding", "modality:reranking"]
+url = "https://docs.api.nvidia.com/nim/re/reference/retrieval-apis"
+provider_namespace = "nvidia:nim-model"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "weekly"
+max_response_bytes = 8388608
+max_entries = 1000
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '(?is)<a\b[^>]*>\s*(?P<name>nvidia\s*/\s*(?P<slug>[a-z0-9][a-z0-9.-]*))\s*</a>'
+name_template = "nvidia/{slug}"
+identity_source = "name"
+require_url = false
+
+# TensorFlow's official tutorial declares six versioned BigGAN Hub modules.
+[[source]]
+name = "tensorflow-hub-biggan-modules"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:generative-image-modeling", "ecosystem:tensorflow-hub", "model-family:biggan", "kind:model-module"]
+url = "https://www.tensorflow.org/hub/tutorials/biggan_generation_with_tf_hub"
+provider_namespace = "tensorflow-hub:biggan-module"
+artifact_kind = "catalog_record"
+model_status = "released"
+allowed_origins = ["https://www.tensorflow.org", "https://tfhub.dev"]
+schedule = "monthly"
+max_response_bytes = 4194304
+max_entries = 16
+
+[[source.rules]]
+kind = "text"
+entry_pattern = "https://tfhub\\.dev/deepmind/(?P<name>biggan(?:-deep)?-(?:128|256|512))/(?P<version>[12])(?![A-Za-z0-9._~/?#%-])"
+name_template = "DeepMind {name}"
+url_template = "https://tfhub.dev/deepmind/{name}/{version}"
+identity_source = "url"
+identity_pattern = "/deepmind/(?P<id>biggan(?:-deep)?-(?:128|256|512)/[12])$"
+relation = "model_page"
+crawl = false
+
+# Google's original BERT README preserves dated historical checkpoint archives.
+[[source]]
+name = "google-research-bert-checkpoints"
+adapter = "google_research_bert_checkpoints"
+enabled = true
+entry_tags = ["field:natural-language-processing", "model-family:bert", "era:historical", "kind:checkpoint"]
+repository = "google-research/bert"
+branch = "master"
+source_path = "README.md"
+provider_namespace = "google-bert:model"
+schedule = "monthly"
+max_response_bytes = 4194304
+max_entries = 100
+
+# Megvii's YOLOX model zoo maps standard, light, and legacy variants to weights.
+[[source]]
+name = "yolox-model-zoo"
+adapter = "yolox_model_zoo"
+enabled = true
+entry_tags = ["field:computer-vision", "task:object-detection", "ecosystem:megvii", "model-family:yolox", "kind:checkpoint"]
+repository = "Megvii-BaseDetection/YOLOX"
+branch = "main"
+schedule = "weekly"
+max_readme_bytes = 2097152
+max_entries = 1000

@@ -206,3 +206,53 @@ def test_checkpoint_catalog_parses_official_speech_classification_rows() -> None
     assert record.models[0].identifiers[-1] == Identifier(
         "ngc:model", "nvidia/nemo/langid_ambernet"
     )
+
+
+def test_checkpoint_catalog_preserves_exact_tts_ngc_weight_files() -> None:
+    weight_url = (
+        "https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastpitch/"
+        "versions/1.8.1/files/tts_en_fastpitch_align.nemo"
+    )
+    body = f"""
+    <table>
+      <tr><th>Locale</th><th>Model Name</th><th>Overview</th><th>Checkpoint</th></tr>
+      <tr><td>en-US</td><td>tts_en_fastpitch</td>
+      <td><a href="https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_fastpitch">card</a></td>
+      <td><code>{weight_url}</code></td></tr>
+    </table>
+    """
+    adapter = NemoCheckpointCatalogSourceAdapter(
+        name="nemo-tts-checkpoints",
+        url="https://docs.nvidia.com/nemo-framework/user-guide/latest/tts/checkpoints.html",
+        client=_QueuedClient(_response(body)),
+    )
+
+    page = adapter.fetch_page({})
+
+    record = page.records[0]
+    assert record.releases[0].metadata["weight_urls"] == [weight_url]
+    assert record.raw["weight_urls"] == [weight_url]
+    assert [link.url for link in record.links if link.relation == "weights"] == [weight_url]
+
+
+def test_checkpoint_catalog_rejects_near_match_ngc_weight_suffixes() -> None:
+    weight_url = (
+        "https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastpitch/"
+        "versions/1.8.1/files/tts_en_fastpitch_align.nemo?mirror=1"
+    )
+    body = f"""
+    <table>
+      <tr><th>Model Name</th><th>Model Card</th><th>Checkpoint</th></tr>
+      <tr><td>tts_en_fastpitch</td>
+      <td><a href="https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_fastpitch">card</a></td>
+      <td><code>{weight_url}</code></td></tr>
+    </table>
+    """
+    adapter = NemoCheckpointCatalogSourceAdapter(
+        url="https://docs.nvidia.com/nemo-framework/user-guide/latest/tts/checkpoints.html",
+        client=_QueuedClient(_response(body)),
+    )
+
+    page = adapter.fetch_page({})
+
+    assert page.records[0].releases[0].metadata["weight_urls"] == []

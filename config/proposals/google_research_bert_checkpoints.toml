@@ -1,0 +1,15 @@
+# The original Google Research BERT README provides direct dated GCS ZIP links
+# for the paper checkpoints and compact model family. Disabled pending catalog
+# review; the adapter never downloads checkpoint archives.
+[[source]]
+name = "google-research-bert-checkpoints"
+adapter = "google_research_bert_checkpoints"
+enabled = false
+entry_tags = ["field:natural-language-processing", "model-family:bert", "era:historical", "kind:checkpoint"]
+repository = "google-research/bert"
+branch = "master"
+source_path = "README.md"
+provider_namespace = "google-bert:model"
+schedule = "monthly"
+max_response_bytes = 4194304
+max_entries = 100

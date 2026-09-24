@@ -1,0 +1,31 @@
+# TensorFlow's official TensorFlow Hub tutorial lists six versioned DeepMind
+# BigGAN modules (three resolutions each for BigGAN-deep and original BigGAN).
+# Capture the module handles as exact releases; do not infer downloadable files.
+[[source]]
+name = "tensorflow-hub-biggan-modules"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:generative-image-modeling", "ecosystem:tensorflow-hub", "model-family:biggan", "kind:model-module"]
+url = "https://www.tensorflow.org/hub/tutorials/biggan_generation_with_tf_hub"
+provider_namespace = "tensorflow-hub:biggan-module"
+artifact_kind = "catalog_record"
+model_status = "released"
+allowed_origins = ["https://www.tensorflow.org", "https://tfhub.dev"]
+schedule = "monthly"
+max_response_bytes = 4194304
+max_entries = 16
+
+[[source.rules]]
+kind = "text"
+entry_pattern = "https://tfhub\\.dev/deepmind/(?P<name>biggan(?:-deep)?-(?:128|256|512))/(?P<version>[12])(?![A-Za-z0-9._~/?#%-])"
+name_template = "DeepMind {name}"
+url_template = "https://tfhub.dev/deepmind/{name}/{version}"
+identity_source = "url"
+identity_pattern = "/deepmind/(?P<id>biggan(?:-deep)?-(?:128|256|512)/[12])$"
+relation = "model_page"
+crawl = false
+
+[evidence]
+official_tutorial = "https://www.tensorflow.org/hub/tutorials/biggan_generation_with_tf_hub"
+official_module_docs = "https://github.com/tensorflow/tfhub.dev/tree/master/assets/docs/deepmind/models"
+scope = "Six source-declared TF Hub module handles only: biggan-deep-128/256/512 version 1 and biggan-128/256/512 version 2."

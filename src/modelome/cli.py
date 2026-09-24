@@ -52,6 +52,10 @@ from modelome.paper_ingestion import ingest_paper, prepare_paper_ingestion
 from modelome.pipeline import SyncEngine
 from modelome.pmc_bootstrap import run_pmc_bootstrap
 from modelome.projection_runtime import run_semantic_scholar_projection
+from modelome.semantic_scholar_citation_materialize import (
+    CitationProjectionLimits,
+    SemanticScholarCitationMaterializer,
+)
 from modelome.sources.arxiv import ArxivSourceAdapter
 from modelome.sources.biorxiv import BioRxivPublicationSourceAdapter, BioRxivSourceAdapter
 from modelome.sources.catalog import (
@@ -145,6 +149,40 @@ def build_parser() -> argparse.ArgumentParser:
     project.add_argument(
         "--target-artifact-id",
         help="reopen one exact already-materialized target artifact",
+    )
+    project_citations = commands.add_parser(
+        "project-citations",
+        help="project one sealed Semantic Scholar citations release to an edge event ledger",
+    )
+    project_citations.add_argument(
+        "--input-lake", type=Path, required=True, help="sealed lake root containing citations"
+    )
+    project_citations.add_argument(
+        "--output", type=Path, required=True, help="separate output root for the edge projection"
+    )
+    project_citations.add_argument(
+        "--release", required=True, help="exact sealed citations release to project"
+    )
+    project_citations.add_argument("--source", default="semantic-scholar")
+    project_citations.add_argument(
+        "--scan-batch-rows", type=_positive_int, default=4096,
+        help="maximum lake rows read per batch (default: 4096)",
+    )
+    project_citations.add_argument(
+        "--max-scan-batch-mb", type=_positive_int, default=128,
+        help="maximum input batch size in MiB (default: 128)",
+    )
+    project_citations.add_argument(
+        "--output-part-rows", type=_positive_int, default=10000,
+        help="maximum citation events per output Parquet part (default: 10000)",
+    )
+    project_citations.add_argument(
+        "--max-output-buffer-mb", type=_positive_int, default=64,
+        help="maximum buffered output size in MiB (default: 64)",
+    )
+    project_citations.add_argument(
+        "--max-output-row-mb", type=_positive_int, default=16,
+        help="maximum serialized citation event size in MiB (default: 16)",
     )
 
     sync = commands.add_parser("sync", help="run resumable source discovery")
@@ -601,6 +639,31 @@ def _dispatch(args: argparse.Namespace) -> int:
             target_artifact_id=args.target_artifact_id,
         )
         _emit(asdict(outcome), as_json=args.json)
+        return 0
+
+    if args.command == "project-citations":
+        input_root = args.input_lake.expanduser().resolve()
+        output_root = args.output.expanduser().resolve()
+        if (
+            input_root == output_root
+            or input_root.is_relative_to(output_root)
+            or output_root.is_relative_to(input_root)
+        ):
+            raise ValueError("citation projection input and output roots must not overlap")
+        limits = CitationProjectionLimits(
+            scan_batch_rows=args.scan_batch_rows,
+            max_scan_batch_bytes=args.max_scan_batch_mb * 1024 * 1024,
+            output_part_rows=args.output_part_rows,
+            max_output_buffer_bytes=args.max_output_buffer_mb * 1024 * 1024,
+            max_output_row_bytes=args.max_output_row_mb * 1024 * 1024,
+        )
+        receipt = SemanticScholarCitationMaterializer(
+            ParquetLandingZone(input_root),
+            output_root=output_root,
+            source=args.source,
+            limits=limits,
+        ).materialize(args.release)
+        _emit(asdict(receipt), as_json=args.json)
         return 0
 
     # Entry planning/building deliberately stays outside the registry store.  It

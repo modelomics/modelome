@@ -146,6 +146,10 @@ def test_fixture_model_names_are_not_runtime_seed_constants() -> None:
             "src/modelome/sources/catalog.py",
             "src/modelome/sources/rfdiffusion_registry.py",
         },
+        "DimeNet": {
+            "src/modelome/sources/catalog.py",
+            "src/modelome/sources/pyg_dimenet_checkpoints.py",
+        },
     }
     violations: dict[str, list[str]] = {}
 

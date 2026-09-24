@@ -1,0 +1,14 @@
+# PyG's first-party DimeNet module declares a literal QM9 target map, two direct
+# DimeNet/DimeNet++ checkpoint roots, and four TensorFlow checkpoint components.
+[[source]]
+name = "pytorch-geometric-dimenet-qm9-checkpoints"
+adapter = "pyg_dimenet_checkpoints"
+enabled = false
+entry_tags = ["field:graph-machine-learning", "field:computational-chemistry", "ecosystem:pytorch-geometric", "task:qm9-property-prediction", "kind:checkpoint"]
+repository = "pyg-team/pytorch_geometric"
+branch = "master"
+source_path = "torch_geometric/nn/models/dimenet.py"
+provider_namespace = "pytorch-geometric:dimenet-checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100

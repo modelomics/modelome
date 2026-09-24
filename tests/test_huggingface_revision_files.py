@@ -63,7 +63,12 @@ def test_revision_weight_files_follow_tree_pagination_and_resume() -> None:
     routes[tree] = (
         200,
         [
-            {"type": "file", "path": "model.safetensors"},
+            {
+                "type": "file",
+                "path": "model.safetensors",
+                "size": 1234,
+                "lfs": {"size": 1234, "sha256": "A" * 64, "pointer_size": 128},
+            },
             {"type": "file", "path": "docs/README.md"},
         ],
         {"Link": f'<{following}>; rel="next"'},
@@ -104,6 +109,9 @@ def test_revision_weight_files_follow_tree_pagination_and_resume() -> None:
         "shards/part-00001.safetensors",
     ]
     assert record.releases[0].metadata["weight_files_complete"] is True
+    assert record.releases[0].metadata["weight_file_metadata"] == {
+        "model.safetensors": {"size_bytes": 1234, "lfs_sha256": "a" * 64}
+    }
     assert {
         (link.url, link.relation, link.crawl)
         for link in record.links
@@ -243,3 +251,36 @@ def test_escaped_unicode_filename_is_percent_encoded_and_surrogates_are_rejected
     assert [link.url for link in record.links if link.relation == "weights"] == [
         f"https://huggingface.co/{repo}/resolve/commit-a/folder/model%20%231.safetensors"
     ]
+
+
+def test_lfs_metadata_checkpoint_is_byte_bounded_and_truncation_is_explicit() -> None:
+    repo = "lab/revision-model"
+    tree = f"https://huggingface.co/api/models/{repo}/tree/commit-a?recursive=true&expand=false"
+    routes = _revision_routes(repo)
+    routes[tree] = (
+        200,
+        [
+            {
+                "type": "file",
+                "path": "model.safetensors",
+                "size": 1234,
+                "lfs": {"size": 1234, "sha256": "b" * 64},
+            }
+        ],
+        {},
+    )
+    client = _RouteClient(routes)
+    adapter = HuggingFaceSourceAdapter(
+        client=client,
+        include_revisions=True,
+        include_revision_files=True,
+        max_revision_weight_file_state_bytes=32,
+    )
+
+    state = _drain_to_tree(adapter, {})
+    result = adapter.fetch_page(state)
+    metadata = result.records[0].releases[0].metadata
+
+    assert metadata["weight_files"] == ["model.safetensors"]
+    assert metadata.get("weight_file_metadata", {}) == {}
+    assert metadata["weight_file_metadata_truncated"] is True

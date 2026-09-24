@@ -1,0 +1,49 @@
+# DeepInfra's public model browser declares exact model API IDs in model-card
+# paths and says its catalog entries are directly usable on the platform. The
+# embeddings category currently has two linked pages, so keep each page as an
+# explicit shard; page 1 links page 2 and page 2 links back to page 1.
+[[source]]
+name = "deepinfra-embedding-models-page-1"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:deepinfra", "kind:hosted-model", "modality:embedding"]
+url = "https://deepinfra.com/models/embeddings"
+provider_namespace = "deepinfra:model"
+artifact_kind = "model_card"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 100
+
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://deepinfra\.com/(?!models/)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+identity_source = "url"
+identity_pattern = '^https://deepinfra\.com/(?P<id>(?!models/)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$'
+name_source = "identity"
+relation = "model_documentation"
+crawl = false
+require_url = true
+
+[[source]]
+name = "deepinfra-embedding-models-page-2"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:deepinfra", "kind:hosted-model", "modality:embedding"]
+url = "https://deepinfra.com/models/embeddings/2"
+provider_namespace = "deepinfra:model"
+artifact_kind = "model_card"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 100
+
+[[source.rules]]
+kind = "link"
+href_pattern = '^https://deepinfra\.com/(?!models/)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+identity_source = "url"
+identity_pattern = '^https://deepinfra\.com/(?P<id>(?!models/)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$'
+name_source = "identity"
+relation = "model_documentation"
+crawl = false
+require_url = true

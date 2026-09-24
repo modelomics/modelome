@@ -1,0 +1,19 @@
+# TorchXRayVision's first-party models.py declares exact model_urls weights_url
+# values and direct aliases. The adapter parses the pinned Python source without
+# importing the package or downloading checkpoint bytes.
+[[source]]
+name = "torchxrayvision-pretrained-registry"
+adapter = "torchxrayvision_registry"
+enabled = false
+entry_tags = ["field:medical-imaging", "ecosystem:torchxrayvision", "kind:pretrained-weights"]
+repository = "mlmed/torchxrayvision"
+branch = "main"
+source_path = "torchxrayvision/models.py"
+provider_namespace = "torchxrayvision:weight"
+max_response_bytes = 4194304
+max_entries = 100000
+
+[evidence]
+weight_map = "https://github.com/mlmed/torchxrayvision/blob/main/torchxrayvision/models.py"
+model_usage = "https://github.com/mlmed/torchxrayvision/blob/main/README.md"
+scope = "Core model_urls weights_url entries and direct aliases; no baseline helper or binary downloads"

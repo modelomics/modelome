@@ -102,6 +102,57 @@ def _safe_weight_file_candidates(values: Sequence[Any]) -> set[str]:
     }
 
 
+def _weight_file_metadata(entry: Mapping[str, Any]) -> dict[str, int | str]:
+    """Keep only bounded, stable file identity fields from a tree entry."""
+
+    result: dict[str, int | str] = {}
+    lfs = entry.get("lfs")
+    raw_lfs = lfs if isinstance(lfs, Mapping) else {}
+    size = entry.get("size")
+    if isinstance(size, bool) or not isinstance(size, int) or size < 0:
+        size = raw_lfs.get("size")
+    if isinstance(size, int) and not isinstance(size, bool) and size >= 0:
+        result["size_bytes"] = size
+    sha256 = raw_lfs.get("sha256")
+    if isinstance(sha256, str) and re.fullmatch(r"[0-9a-fA-F]{64}", sha256):
+        result["lfs_sha256"] = sha256.casefold()
+    return result
+
+
+def _safe_weight_file_metadata(
+    value: Any, max_state_bytes: int
+) -> tuple[dict[str, dict[str, int | str]], bool]:
+    if not isinstance(value, Mapping):
+        return {}, False
+    result: dict[str, dict[str, int | str]] = {}
+    truncated = False
+    for filename, details in value.items():
+        if (
+            not isinstance(filename, str)
+            or not _safe_repo_filename(filename)
+            or not _potential_weight_file(filename)
+            or not isinstance(details, Mapping)
+        ):
+            continue
+        safe_details: dict[str, int | str] = {}
+        size = details.get("size_bytes")
+        if isinstance(size, int) and not isinstance(size, bool) and size >= 0:
+            safe_details["size_bytes"] = size
+        sha256 = details.get("lfs_sha256")
+        if isinstance(sha256, str) and re.fullmatch(r"[0-9a-fA-F]{64}", sha256):
+            safe_details["lfs_sha256"] = sha256.casefold()
+        if safe_details:
+            candidate = {**result, filename: safe_details}
+            encoded = json.dumps(candidate, sort_keys=True, separators=(",", ":")).encode(
+                "utf-8"
+            )
+            if len(encoded) <= max_state_bytes:
+                result[filename] = safe_details
+            else:
+                truncated = True
+    return result, truncated
+
+
 def _revision_commit_payload(commit: Mapping[str, Any]) -> dict[str, Any]:
     def bounded_text(value: Any, limit: int) -> str | None:
         text = _text(value)
@@ -451,6 +502,13 @@ class HuggingFaceSourceAdapter:
             }
             candidate_bytes = sum(len(filename.encode("utf-8")) for filename in filenames)
             candidates_truncated = task.get("weight_candidates_truncated") is True
+            file_metadata, metadata_state_truncated = _safe_weight_file_metadata(
+                task.get("weight_file_metadata"),
+                self.max_revision_weight_file_state_bytes,
+            )
+            metadata_truncated = (
+                task.get("weight_file_metadata_truncated") is True or metadata_state_truncated
+            )
             page_count = (_state_count(task, "page_count") or 0) + 1
             inaccessible = response.status in {401, 403, 404}
             if inaccessible:
@@ -468,17 +526,33 @@ class HuggingFaceSourceAdapter:
                     if (
                         _safe_repo_filename(path)
                         and _potential_weight_file(path)
-                        and path not in filenames
                     ):
-                        path_bytes = len(path.encode("utf-8"))
-                        if (
-                            candidate_bytes + path_bytes
-                            <= self.max_revision_weight_file_state_bytes
-                        ):
-                            filenames.add(path)
-                            candidate_bytes += path_bytes
-                        else:
-                            candidates_truncated = True
+                        if path not in filenames:
+                            path_bytes = len(path.encode("utf-8"))
+                            if (
+                                candidate_bytes + path_bytes
+                                <= self.max_revision_weight_file_state_bytes
+                            ):
+                                filenames.add(path)
+                                candidate_bytes += path_bytes
+                            else:
+                                candidates_truncated = True
+                        if path in filenames and path not in file_metadata:
+                            details = _weight_file_metadata(entry)
+                            if details:
+                                candidate_metadata = {**file_metadata, path: details}
+                                encoded_metadata = json.dumps(
+                                    candidate_metadata,
+                                    sort_keys=True,
+                                    separators=(",", ":"),
+                                ).encode("utf-8")
+                                if (
+                                    len(encoded_metadata)
+                                    <= self.max_revision_weight_file_state_bytes
+                                ):
+                                    file_metadata[path] = details
+                                else:
+                                    metadata_truncated = True
                 following = _link_relation(_header(response.headers, "link"), "next")
             complete = (
                 inaccessible
@@ -500,6 +574,8 @@ class HuggingFaceSourceAdapter:
                     weight_files_complete=(
                         following is None and not inaccessible and not candidates_truncated
                     ),
+                    weight_file_metadata=file_metadata,
+                    weight_file_metadata_truncated=metadata_truncated,
                 )
                 tree_queue.pop(0)
                 item["tree_queue"] = tree_queue
@@ -509,6 +585,10 @@ class HuggingFaceSourceAdapter:
             task["next_url"] = self._safe_next_url(following, response.url or url)
             task["page_count"] = page_count
             task["weight_candidates"] = sorted(filenames)
+            if file_metadata:
+                task["weight_file_metadata"] = file_metadata
+            if metadata_truncated:
+                task["weight_file_metadata_truncated"] = True
             if candidates_truncated:
                 task["weight_candidates_truncated"] = True
             item["tree_queue"] = [task, *tree_queue[1:]]
@@ -598,6 +678,8 @@ class HuggingFaceSourceAdapter:
         *,
         weight_files: Sequence[str] = (),
         weight_files_complete: bool | None = None,
+        weight_file_metadata: Mapping[str, Mapping[str, int | str]] | None = None,
+        weight_file_metadata_truncated: bool = False,
     ) -> SourceRecord:
         sha = _text(commit.get("id") or commit.get("commit_id"))
         model = ModelHint(
@@ -624,6 +706,14 @@ class HuggingFaceSourceAdapter:
         if weight_files_complete is not None:
             release_metadata["weight_files"] = sorted(set(weight_files))
             release_metadata["weight_files_complete"] = weight_files_complete
+            if weight_file_metadata:
+                release_metadata["weight_file_metadata"] = {
+                    filename: dict(weight_file_metadata[filename])
+                    for filename in sorted(weight_file_metadata)
+                    if filename in set(weight_files)
+                }
+            if weight_file_metadata_truncated:
+                release_metadata["weight_file_metadata_truncated"] = True
             links.extend(
                 Link(
                     canonicalize_url(
@@ -859,23 +949,60 @@ class HuggingFaceSourceAdapter:
         subject_local_id: str,
         repo_id: str,
     ) -> Iterable[ModelRelationHint]:
-        candidates: list[tuple[str, str]] = []
-        candidates.extend(_named_values(item.get("baseModels"), "$.baseModels"))
-        candidates.extend(_named_values(item.get("base_models"), "$.base_models"))
+        relation_kinds = {"adapter", "merge", "quantized", "finetune"}
+        relation = "base_model"
         if isinstance(card_data, Mapping):
-            candidates.extend(_named_values(card_data.get("base_model"), "$.cardData.base_model"))
-            candidates.extend(_named_values(card_data.get("base_models"), "$.cardData.base_models"))
+            declared_relation = _text(card_data.get("base_model_relation")).casefold()
+            if declared_relation in relation_kinds:
+                relation = declared_relation
+        candidates: list[tuple[str, str, str]] = []
+        candidates.extend(
+            (name, locator, relation)
+            for name, locator in _named_values(item.get("baseModels"), "$.baseModels")
+        )
+        candidates.extend(
+            (name, locator, relation)
+            for name, locator in _named_values(item.get("base_models"), "$.base_models")
+        )
+        if isinstance(card_data, Mapping):
+            candidates.extend(
+                (name, locator, relation)
+                for name, locator in _named_values(
+                    card_data.get("base_model"), "$.cardData.base_model"
+                )
+            )
+            candidates.extend(
+                (name, locator, relation)
+                for name, locator in _named_values(
+                    card_data.get("base_models"), "$.cardData.base_models"
+                )
+            )
+            # `new_version` is an explicit link to a distinct model repo.
+            # Require an exact Hub model identifier before creating the edge.
+            for candidate, _ in _named_values(
+                card_data.get("new_version"), "$.cardData.new_version"
+            ):
+                name, identifiers = _model_identity(candidate)
+                if name and identifiers:
+                    candidates.append((name, "$.cardData.new_version", "new_version"))
         for tag in _sequence(item.get("tags")):
             tag_text = _text(tag)
             if tag_text.casefold().startswith("base_model:"):
-                candidates.append((tag_text.rsplit(":", maxsplit=1)[-1].strip(), "$.tags"))
+                candidate = tag_text.split(":", maxsplit=1)[1].strip()
+                relation = "base_model"
+                possible_relation, separator, remainder = candidate.partition(":")
+                if separator and possible_relation.casefold() in relation_kinds:
+                    relation = possible_relation.casefold()
+                    candidate = remainder.strip()
+                candidates.append((candidate, "$.tags", relation))
 
-        seen: set[str] = set()
-        for index, (candidate, locator) in enumerate(candidates):
+        seen: set[tuple[str, str]] = set()
+        for index, (candidate, locator, relation) in enumerate(candidates):
             name, identifiers = _model_identity(candidate)
-            if not name or name == repo_id or name in seen:
+            key = (relation, name)
+            if not name or name == repo_id or key in seen:
                 continue
-            seen.add(name)
+            seen.add(key)
             target = ModelHint(
                 local_id=f"{repo_id}#base-model-{index}",
                 name=name,
@@ -885,7 +1012,7 @@ class HuggingFaceSourceAdapter:
             )
             yield ModelRelationHint(
                 subject_local_id=subject_local_id,
-                predicate="base_model",
+                predicate=relation,
                 target=target,
                 locator=locator,
             )

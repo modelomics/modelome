@@ -44,6 +44,7 @@ class _Model:
     collection: str | None = None
     config: str | None = None
     weights: str | None = None
+    pretrain: str | None = None
     aliases: list[str] = field(default_factory=list)
     paper_url: str | None = None
     code_url: str | None = None
@@ -238,7 +239,7 @@ class OpenMMLabModelIndexSourceAdapter:
         model_key = f"{self.repository}:{config_path or model.name}"
         model_identifier = Identifier("openmmlab:model", model_key)
         artifact_identifier = Identifier("openmmlab:model-artifact", artifact_key)
-        has_weights = bool(model.weights)
+        has_weights = bool(model.weights or model.pretrain)
         model_hint = ModelHint(
             local_id=f"{artifact_key}#model",
             name=model.name,
@@ -255,28 +256,48 @@ class OpenMMLabModelIndexSourceAdapter:
         ]
         if model.weights:
             links.append(Link(model.weights, relation="weights", locator=locator))
+        if model.pretrain:
+            links.append(Link(model.pretrain, relation="pretrained_weights", locator=locator))
         if collection is not None:
             self._collection_links(links, revision, collection, manifest_path, model.line)
         if model.paper_url:
             links.append(Link(model.paper_url, relation="paper_reference", locator=locator))
         if model.code_url:
             links.append(Link(model.code_url, relation="code_reference", locator=locator))
-        releases = ()
+        releases = []
         if model.weights:
-            release = ReleaseHint(
-                local_id=f"{artifact_key}#release",
-                model_local_id=model_hint.local_id,
-                identifiers=(Identifier("openmmlab:weights", model.weights),),
-                revision=revision,
-                metadata={
-                    "repository": self.repository,
-                    "config_path": config_path,
-                    "weights_url": model.weights,
-                    "manifest_path": manifest_path,
-                },
-                locator=f"{manifest_path}:line:{model.line}",
+            releases.append(
+                ReleaseHint(
+                    local_id=f"{artifact_key}#release",
+                    model_local_id=model_hint.local_id,
+                    identifiers=(Identifier("openmmlab:weights", model.weights),),
+                    revision=revision,
+                    metadata={
+                        "repository": self.repository,
+                        "config_path": config_path,
+                        "weights_url": model.weights,
+                        "manifest_path": manifest_path,
+                    },
+                    locator=f"{manifest_path}:line:{model.line}",
+                )
             )
-            releases = (release,)
+        if model.pretrain:
+            releases.append(
+                ReleaseHint(
+                    local_id=f"{artifact_key}#pretrain-release",
+                    model_local_id=model_hint.local_id,
+                    identifiers=(Identifier("openmmlab:weights", model.pretrain),),
+                    revision=revision,
+                    metadata={
+                        "repository": self.repository,
+                        "config_path": config_path,
+                        "weights_url": model.pretrain,
+                        "manifest_path": manifest_path,
+                        "weights_role": "pretrain",
+                    },
+                    locator=f"{manifest_path}:line:{model.line}",
+                )
+            )
         collection_name = collection.name if collection is not None else model.collection
         text_parts = [model.name]
         if collection_name:
@@ -298,6 +319,7 @@ class OpenMMLabModelIndexSourceAdapter:
                     "collection": model.collection,
                     "config": config_path,
                     "weights": model.weights,
+                    "pretrain": model.pretrain,
                     "paper_url": model.paper_url,
                     "code_url": model.code_url,
                 },
@@ -465,6 +487,8 @@ def _model_field(model: _Model, value: str) -> None:
         model.config = _maybe_path(raw)
     elif key == "Weights":
         model.weights = _maybe_url(raw)
+    elif key == "Pretrain":
+        model.pretrain = _maybe_url(raw)
     elif key == "Alias":
         if not raw:
             model.alias_list_active = True

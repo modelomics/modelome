@@ -1,0 +1,16 @@
+# Disabled proposal for direct checkpoint URLs declared in OpenCLIP's own
+# pretrained registry. OpenAI-hosted weights and HF-only entries are excluded.
+[[source]]
+name = "openclip-direct-pretrained-checkpoints"
+adapter = "openclip_pretrained_registry"
+enabled = false
+repository = "mlfoundations/open_clip"
+branch = "main"
+source_path = "src/open_clip/pretrained.py"
+max_source_bytes = 2097152
+max_models = 2000
+schedule = "weekly"
+
+[evidence]
+pretrained_registry = "https://github.com/mlfoundations/open_clip/blob/main/src/open_clip/pretrained.py"
+model_docs = "https://github.com/mlfoundations/open_clip/blob/main/docs/PRETRAINED.md"

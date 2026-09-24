@@ -1,0 +1,13 @@
+# Megvii's official YOLOX README model zoo maps each named architecture to
+# versioned direct GitHub `.pth` assets. Legacy rows retain their old release
+# versions as separate releases of the same model variant.
+[[source]]
+name = "yolox-model-zoo"
+adapter = "yolox_model_zoo"
+enabled = false
+entry_tags = ["field:computer-vision", "task:object-detection", "ecosystem:megvii", "model-family:yolox", "kind:checkpoint", "evidence:first-party-model-zoo"]
+repository = "Megvii-BaseDetection/YOLOX"
+branch = "main"
+schedule = "weekly"
+max_readme_bytes = 2097152
+max_entries = 1000

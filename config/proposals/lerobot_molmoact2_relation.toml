@@ -1,0 +1,14 @@
+# LeRobot's first-party MolmoAct2 page connects one exact converted policy to
+# the exact LIBERO dataset repo used for its reported additional fine-tuning.
+[[source]]
+name = "lerobot-molmoact2-libero-relation"
+adapter = "lerobot_molmoact2_relation"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:lerobot", "kind:checkpoint-lineage"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# Source: https://github.com/huggingface/lerobot/blob/main/docs/source/molmoact2.mdx
+# Checkpoint: https://huggingface.co/allenai/MolmoAct2-LIBERO-LeRobot
+# Training dataset: https://huggingface.co/datasets/allenai/MolmoAct2-LIBERO-Dataset
+# The adapter records this single explicitly documented model-to-dataset edge.

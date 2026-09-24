@@ -171,6 +171,58 @@ def test_huggingface_base_model_relation_ignores_non_model_hub_urls() -> None:
     assert record.model_relations == ()
 
 
+def test_huggingface_preserves_declared_base_model_relation_and_new_version() -> None:
+    client = _Client(
+        [
+            {
+                "id": "lab/quantized-model",
+                "baseModels": ["lab/base-model"],
+                "cardData": {
+                    "base_model": "lab/base-model",
+                    "base_model_relation": "quantized",
+                    "new_version": "lab/quantized-model-v2",
+                },
+            }
+        ]
+    )
+
+    record = HuggingFaceSourceAdapter(client=client).fetch_page({}).records[0]
+
+    assert [
+        (relation.predicate, relation.target.identifiers, relation.locator)
+        for relation in record.model_relations
+    ] == [
+        (
+            "quantized",
+            (Identifier("huggingface:model", "lab/base-model"),),
+            "$.baseModels",
+        ),
+        (
+            "new_version",
+            (Identifier("huggingface:model", "lab/quantized-model-v2"),),
+            "$.cardData.new_version",
+        ),
+    ]
+
+
+def test_huggingface_base_model_tag_preserves_declared_relation_type() -> None:
+    client = _Client(
+        [
+            {
+                "id": "lab/finetuned-model",
+                "tags": ["base_model:finetune:lab/base-model"],
+            }
+        ]
+    )
+
+    relation = HuggingFaceSourceAdapter(client=client).fetch_page({}).records[0].model_relations[0]
+
+    assert relation.predicate == "finetune"
+    assert relation.target.identifiers == (
+        Identifier("huggingface:model", "lab/base-model"),
+    )
+
+
 def test_huggingface_revision_enrichment_is_checkpointed_and_does_not_fetch_blobs() -> None:
     catalog_url = "https://huggingface.co/api/models?catalog=1"
     repo = "lab/historical-model"

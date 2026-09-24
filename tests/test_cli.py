@@ -14,6 +14,10 @@ from modelome.lake import LakeRecord, ParquetLandingZone, ReleaseReceipt
 from modelome.models import ArtifactKind, Identifier, ModelHint, SourceRecord
 from modelome.pmc_bootstrap import PmcBootstrapOutcome
 from modelome.projection_runtime import ProjectionOutcome
+from modelome.semantic_scholar_citation_materialize import (
+    CitationProjectionLimits,
+    CitationProjectionReceipt,
+)
 from modelome.semantic_scholar_materialize import ProjectionPlan, ProjectionReceipt
 from modelome.sources.arxiv import ArxivSourceAdapter
 from modelome.sources.biorxiv import BioRxivSourceAdapter
@@ -1212,6 +1216,106 @@ def test_project_command_is_restart_safe_and_serializes_the_projection_receipt(
         "base_artifact_id": "c" * 64,
         "target_artifact_id": None,
     }
+
+
+def test_project_citations_requires_explicit_paths_and_release(capsys) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(["project-citations"])
+    assert exit_info.value.code == 2
+    output = capsys.readouterr()
+    assert "--input-lake" in output.err
+    assert "--output" in output.err
+    assert "--release" in output.err
+
+
+def test_project_citations_command_passes_safe_limits_and_serializes_receipt(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    receipt = CitationProjectionReceipt(
+        source="semantic-scholar",
+        release="2026-09-17",
+        artifact_id="a" * 64,
+        event_count=123,
+        part_count=2,
+        path=tmp_path / "output" / "projection",
+    )
+    captured = {}
+
+    class FakeMaterializer:
+        def __init__(self, lake, **kwargs):
+            captured["lake"] = lake
+            captured.update(kwargs)
+
+        def materialize(self, release):
+            captured["release"] = release
+            return receipt
+
+    monkeypatch.setattr("modelome.cli.SemanticScholarCitationMaterializer", FakeMaterializer)
+    lake_path = tmp_path / "input-lake"
+    output_path = tmp_path / "output"
+    code, output = invoke(
+        [
+            "--json",
+            "project-citations",
+            "--input-lake",
+            str(lake_path),
+            "--output",
+            str(output_path),
+            "--release",
+            "2026-09-17",
+            "--scan-batch-rows",
+            "12",
+            "--max-scan-batch-mb",
+            "32",
+            "--output-part-rows",
+            "7",
+            "--max-output-buffer-mb",
+            "8",
+            "--max-output-row-mb",
+            "2",
+        ],
+        capsys,
+    )
+
+    assert code == 0
+    payload = json.loads(output.out)
+    assert payload["event_count"] == 123
+    assert payload["path"] == str(receipt.path)
+    assert captured["lake"].root == lake_path.resolve()
+    assert captured["output_root"] == output_path.resolve()
+    assert captured["source"] == "semantic-scholar"
+    assert captured["release"] == "2026-09-17"
+    assert captured["limits"] == CitationProjectionLimits(
+        scan_batch_rows=12,
+        max_scan_batch_bytes=32 * 1024 * 1024,
+        output_part_rows=7,
+        max_output_buffer_bytes=8 * 1024 * 1024,
+        max_output_row_bytes=2 * 1024 * 1024,
+    )
+
+
+def test_project_citations_rejects_overlapping_input_and_output_roots(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    def must_not_construct(*args, **kwargs):
+        raise AssertionError("materializer must not be constructed for overlapping roots")
+
+    monkeypatch.setattr("modelome.cli.SemanticScholarCitationMaterializer", must_not_construct)
+    code, output = invoke(
+        [
+            "--json",
+            "project-citations",
+            "--input-lake",
+            str(tmp_path / "lake"),
+            "--output",
+            str(tmp_path / "lake" / "citation-projections"),
+            "--release",
+            "2026-09-17",
+        ],
+        capsys,
+    )
+    assert code == 2
+    assert "must not overlap" in json.loads(output.out)["error"]
 
 
 def test_bulk_load_serializes_release_paths_and_reports_success(

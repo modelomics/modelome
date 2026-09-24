@@ -1,0 +1,16 @@
+# Authors' NERSC project page lists three named SDSS pretrained CNN checkpoints
+# with exact .pth.tar URLs and describes their roles. The adapter only retains
+# these direct URLs and their page provenance; it never fetches checkpoint bytes.
+[[source]]
+name = "sdss-ssl-checkpoints"
+adapter = "sdss_ssl_checkpoints"
+enabled = false
+entry_tags = ["field:astronomy", "ecosystem:sdss", "kind:pretrained-checkpoint"]
+url = "https://portal.nersc.gov/project/dasrepo/self-supervised-learning-sdss/models.html"
+max_response_bytes = 2097152
+max_links = 2000
+
+[evidence]
+project = "https://portal.nersc.gov/project/dasrepo/self-supervised-learning-sdss/"
+catalog = "https://portal.nersc.gov/project/dasrepo/self-supervised-learning-sdss/models.html"
+paper = "https://escholarship.org/uc/item/15x8s2kw"

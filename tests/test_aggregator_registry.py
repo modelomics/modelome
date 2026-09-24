@@ -39,6 +39,8 @@ def test_openml_registry_pages_flows_as_versioned_implementation_evidence() -> N
                         "name": "DecisionTreeClassifier",
                         "external_version": "1.5",
                         "uploader": "alice",
+                        "source_url": "https://github.com/openml/flow-source/archive.zip",
+                        "binary_url": "https://openml.org/data/download/flow-binary",
                     },
                     {"id": 43, "name": "sklearn.svm.SVC", "version": 2},
                 ]
@@ -66,7 +68,43 @@ def test_openml_registry_pages_flows_as_versioned_implementation_evidence() -> N
     assert record.models[0].identifiers == (Identifier("openml:flow", "42"),)
     assert record.releases[0].version == "1.5"
     assert record.releases[0].identifiers == (Identifier("openml:flow-release", "42"),)
+    assert {(link.relation, link.url) for link in record.links} >= {
+        (
+            "official_implementation",
+            "https://github.com/openml/flow-source/archive.zip",
+        ),
+        (
+            "serialized_implementation",
+            "https://openml.org/data/download/flow-binary",
+        ),
+    }
     assert all(link.crawl is False for link in record.links)
+
+
+def test_openml_flow_ignores_non_web_implementation_locations() -> None:
+    adapter = OpenMLFlowRegistrySourceAdapter(
+        client=_Client(
+            {
+                "flows": {
+                    "flow": [
+                        {
+                            "id": 42,
+                            "name": "example.Flow",
+                            "source_url": "file:///tmp/flow.xml",
+                            "binary_url": "javascript:alert(1)",
+                        }
+                    ]
+                }
+            }
+        )
+    )
+
+    page = adapter.fetch_page({})
+
+    assert {link.relation for link in page.records[0].links} == {
+        "model_card",
+        "registry",
+    }
 
 
 @pytest.mark.parametrize("payload", [[], {"flows": {"error": "bad"}}, {"flows": [None]}])
@@ -166,4 +204,3 @@ def test_openml_run_registry_rejects_rows_without_exact_run_id() -> None:
     adapter = OpenMLRunRegistrySourceAdapter(client=_Client({"runs": {"run": [{"flow_id": 42}]}}))
     with pytest.raises(ValueError, match="valid numeric ID"):
         adapter.fetch_page({})
-

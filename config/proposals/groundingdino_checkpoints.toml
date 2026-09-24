@@ -1,0 +1,13 @@
+# IDEA-Research's official checkpoint table pairs GroundingDINO-T/B with
+# exact GitHub release assets, matching HF mirrors, and model config files.
+# The adapter records these references only; it never fetches checkpoint bytes.
+[[source]]
+name = "groundingdino-checkpoints"
+adapter = "groundingdino_checkpoints"
+enabled = false
+entry_tags = ["field:computer-vision", "task:open-vocabulary-object-detection", "ecosystem:idea-research", "kind:checkpoint", "evidence:first-party-checkpoint-table"]
+repository = "IDEA-Research/GroundingDINO"
+branch = "main"
+schedule = "weekly"
+max_readme_bytes = 2097152
+max_entries = 100

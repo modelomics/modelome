@@ -1,0 +1,34 @@
+# Stanford's first-party GloVe page indexes exact current and historical
+# pretrained-vector ZIPs, with corpus, token count, vocabulary, casing, and
+# dimension labels. Disabled pending catalog-scale source review.
+[[source]]
+name = "stanford-glove-vectors"
+adapter = "html_catalog"
+enabled = false
+entry_tags = ["field:natural-language-processing", "ecosystem:glove", "kind:pretrained-vectors"]
+url = "https://nlp.stanford.edu/projects/glove/"
+provider_namespace = "stanford-glove:vector-archive"
+artifact_kind = "catalog_record"
+model_status = "released"
+allowed_origins = ["https://nlp.stanford.edu", "https://opendatacommons.org", "https://arxiv.org", "https://github.com", "https://www.stanford.edu"]
+schedule = "monthly"
+max_response_bytes = 2097152
+max_entries = 32
+
+[[source.rules]]
+kind = "text"
+entry_pattern = '(?s)<li>(?:<(?:strong|b)>[^<]*</(?:strong|b)>\s*)?(?P<name>[^<:]+):\s*<a(?=[^>]*href="(?P<url>https://nlp\.stanford\.edu/data/(?:wordvecs/)?glove\.(?:2024\.(?:dolma\.300d|wikigiga\.(?:50|100|200|300)d)|6B|42B\.300d|840B\.300d|twitter\.27B)\.zip)")[^>]*>[^<]+</a>'
+name_template = "GloVe {name}"
+identity_source = "url"
+identity_pattern = '(?P<id>glove\.[^/]+\.zip)$'
+relation = "weights"
+crawl = false
+
+[[source.shared_links]]
+href_pattern = '^https://opendatacommons\.org/licenses/pddl/1\.0/?$'
+relation = "license"
+crawl = false
+
+[[source.shared_links]]
+href_pattern = '^https://arxiv\.org/abs/(?:1405\.4053|2507\.18103)$'
+relation = "paper_reference"
