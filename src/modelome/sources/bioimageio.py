@@ -374,6 +374,7 @@ class BioImageIoSourceAdapter:
         index_timestamp = _optional_text(payload.get("timestamp"), _MAX_VERSION_CHARS)
         controls: list[_CatalogRecord] = []
         seen_record_ids: set[str] = set()
+        seen_model_ids: set[str] = set()
         for item_index, raw_item in enumerate(raw_items):
             if not isinstance(raw_item, Mapping):
                 raise ValueError(f"{self.name}: index item {item_index} is not an object")
@@ -382,6 +383,12 @@ class BioImageIoSourceAdapter:
             model_id = _required_text(
                 raw_item.get("id"), f"index.items[{item_index}].id", _MAX_ID_CHARS
             )
+            if model_id in seen_model_ids:
+                raise ValueError(
+                    f"{self.name}: duplicate model resource id {model_id!r} "
+                    "in collection index"
+                )
+            seen_model_ids.add(model_id)
             alias = self._model_alias(model_id)
             raw_versions = raw_item.get("versions")
             if not _is_sequence(raw_versions):

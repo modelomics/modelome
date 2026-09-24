@@ -323,6 +323,49 @@ def test_garden_resolves_first_party_config_initialization_checkpoint() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("rows", "config"),
+    [
+        (
+            "| Model A | [config](https://github.com/tensorflow/models/blob/master/"
+            "official/vision/configs/shared.py) | [ckpt](https://weights.test/a) |\n"
+            "| Model B | [config](https://github.com/tensorflow/models/blob/master/"
+            "official/vision/configs/shared.py) | [ckpt](https://weights.test/b) |",
+            "init_checkpoint='gs://bucket/a.ckpt'",
+        ),
+        (
+            "| Model A | [config](https://github.com/tensorflow/models/blob/master/"
+            "official/vision/configs/shared.py) | [ckpt](https://weights.test/a) |",
+            "init_checkpoint='gs://bucket/a.ckpt'\n"
+            "other.init_checkpoint='gs://bucket/b.ckpt'",
+        ),
+    ],
+)
+def test_garden_skips_ambiguous_linked_config_checkpoint_associations(
+    rows: str, config: str
+) -> None:
+    from modelome.sources.tensorflow_garden import _append_config_queue
+
+    markdown = "| Model | Config | Checkpoint |\n|---|---|---|\n" + rows
+    adapter = TensorFlowGardenSourceAdapter(
+        client=Client(response(markdown), response(config))
+    )
+    document_page = adapter.fetch_page({"revision": REVISION, "doc_index": 3})
+    queue = _append_config_queue([], document_page.records)
+    assert len(queue) == 1
+
+    config_page = adapter.fetch_page(
+        {
+            "revision": REVISION,
+            "doc_index": 4,
+            "config_queue": queue,
+            "config_index": 0,
+        }
+    )
+
+    assert config_page.records == ()
+
+
 def test_garden_reads_literal_yaml_init_checkpoint_without_fetching_artifact() -> None:
     from modelome.sources.tensorflow_garden import _declared_config_checkpoints
 

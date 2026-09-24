@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **311 enabled
-source entries** (296 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **320 enabled
+source entries** (304 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -39,6 +39,12 @@ Hugging Face's own public model listing preserves
 direct card/config paper and repository URLs as typed references when their canonical IDs prove
 the relation. Each section below states which mechanics exist
 and which remain roadmap work.
+
+Additional enabled inventories cover DeepChem Mol2Vec, Tencent GROVER, Microsoft
+VQ-Diffusion, AlphaChip, PaddleNLP sentiment, sherpa source separation, and OpenVLA.
+The GitLab adapter scans public project release metadata one request per page and emits
+low-confidence model-file candidates. The Cohere Models API source records models
+available to the configured API key, rather than a public historical census.
 
 When an adapter is eventually used for corpus enumeration, it must traverse its complete
 configured upstream scope without a model-name, method-keyword, subject, or journal

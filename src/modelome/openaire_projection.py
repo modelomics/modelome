@@ -201,7 +201,7 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
             url_text = _text(value)
             if isinstance(value, Mapping):
                 url_text = _text(value.get("url"))
-            url = _public_https(url_text) if url_text is not None else None
+            url = _public_web_url(url_text) if url_text is not None else None
             if url is not None:
                 links.append(
                     Link(
@@ -317,15 +317,14 @@ def _title(value: Any) -> str | None:
     return None
 
 
-def _public_https(value: str) -> str | None:
+def _public_web_url(value: str) -> str | None:
     try:
         parts = urlsplit(value)
         if (
-            parts.scheme.casefold() != "https"
+            parts.scheme.casefold() not in {"http", "https"}
             or not parts.hostname
             or parts.username is not None
             or parts.password is not None
-            or parts.port not in {None, 443}
         ):
             return None
         return (
@@ -349,7 +348,7 @@ def _safe_urls(value: Any) -> tuple[str, ...]:
     urls: list[str] = []
     for item in _sequence(value):
         text = _text(item)
-        url = _public_https(text) if text is not None else None
+        url = _public_web_url(text) if text is not None else None
         if url is not None and url not in urls:
             urls.append(url)
     return tuple(urls)
@@ -360,7 +359,7 @@ def _pid_url(scheme: str, value: str) -> str | None:
     if normalized == "doi":
         return f"https://doi.org/{quote(value, safe='/')}"
     if normalized in {"url", "uri"}:
-        return _public_https(value)
+        return _public_web_url(value)
     return None
 
 

@@ -124,6 +124,10 @@ def test_metadata_export_preserves_joins_without_raw_source_content(tmp_path) ->
     assert never_run["is_configured"] is True
     assert never_run["checkpoint_observed"] is False
     assert never_run["checkpoint"] is None
+    assert (
+        "it does not claim exhaustive historical or global coverage"
+        in " ".join((output / "README.md").read_text().split())
+    )
     assert b"SENSITIVE SOURCE BODY" not in b"".join(
         path.read_bytes() for path in output.iterdir() if path.is_file()
     )
@@ -201,6 +205,14 @@ def test_metadata_export_projects_only_huggingface_release_weight_filenames(tmp_
     assert release_files == {
         "abc123": ["model.safetensors", "shards/part-00001.safetensors"],
         "def456": ["model-v2.safetensors"],
+    }
+    revision_identifiers = {
+        (row["namespace"], row["value"])
+        for row in pq.read_table(output / "release_identifiers.parquet").to_pylist()
+    }
+    assert revision_identifiers == {
+        ("huggingface:revision", "lab/checkpoint@abc123"),
+        ("huggingface:revision", "lab/checkpoint@def456"),
     }
     bundle_bytes = b"".join(path.read_bytes() for path in output.iterdir() if path.is_file())
     assert b"PRIVATE OLD MODEL CARD BODY" not in bundle_bytes

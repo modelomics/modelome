@@ -77,7 +77,7 @@ class TensorFlowGardenSourceAdapter:
         self.client = client or HttpClient(max_response_bytes=max_bytes)
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "tensorflow-model-garden-v3",
+                "adapter": "tensorflow-model-garden-v4",
                 "repository": _REPOSITORY,
                 "docs": _DOCS,
                 "max_bytes": max_bytes,
@@ -353,7 +353,11 @@ class TensorFlowGardenSourceAdapter:
         associations: list[Any],
     ) -> tuple[SourceRecord, ...]:
         checkpoints = _declared_config_checkpoints(source)
-        if not checkpoints:
+        # A config may be shared by several table rows, or declare multiple
+        # initialization checkpoints for different components/tasks. Without
+        # an explicit per-model mapping, neither relationship is safe to
+        # infer. Keep the page-level literals out of the model graph.
+        if len(associations) != 1 or len(checkpoints) != 1:
             return ()
         source_url = self.blob_url(revision, path)
         records = []

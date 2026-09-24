@@ -78,6 +78,25 @@ def test_parser_rejects_conflicting_labels_after_url_canonicalization() -> None:
         _parse_entries(document, maximum=10, source="test")
 
 
+def test_same_filename_in_distinct_asset_paths_keeps_distinct_source_ids() -> None:
+    document = """### Family A
+* [Model](https://storage.googleapis.com/mediapipe-assets/family-a/model.tflite)
+### Family B
+* [Model](https://storage.googleapis.com/mediapipe-assets/family-b/model.tflite)
+"""
+    parsed = _parse_entries(document, maximum=10, source="test")
+    adapter = MediaPipeModelCatalogSourceAdapter(client=object())
+    records = tuple(
+        adapter._record(entry, _SHA, b"index", "https://example.test/catalog")
+        for entry in parsed
+    )
+
+    assert len(records) == 2
+    assert len({record.source_record_id for record in records}) == 2
+    assert len({record.models[0].local_id for record in records}) == 2
+    assert len({record.releases[0].local_id for record in records}) == 2
+
+
 def test_adapter_emits_exact_binary_links_with_revisioned_first_party_source() -> None:
     client = _Client()
     adapter = MediaPipeModelCatalogSourceAdapter(

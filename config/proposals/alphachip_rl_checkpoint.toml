@@ -1,0 +1,16 @@
+# AlphaChip's first-party README documents one pretrained RL policy checkpoint
+# archive and gives its exact Google Cloud Storage URL. The adapter verifies the
+# README reference and records that archive only; it does not inspect archive
+# members or fetch bytes. Keep disabled pending catalog-owner review.
+[[source]]
+name = "alphachip-rl-checkpoint"
+adapter = "alphachip_rl_checkpoint"
+enabled = false
+entry_tags = ["field:reinforcement-learning", "ecosystem:google-alphachip", "kind:checkpoint-archive"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+[evidence]
+official_readme = "https://github.com/google-research/circuit_training/blob/main/README.md"
+project_repository = "https://github.com/google-research/circuit_training"
+checkpoint_archive = "https://storage.googleapis.com/rl-infra-public/circuit-training/tpu_checkpoint_20240815.tar.gz"

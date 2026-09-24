@@ -161,7 +161,10 @@ class Gpt4AllModelCatalogSourceAdapter:
                 continue
             filename = _text(row.get("filename"))
             name = _text(row.get("name"))
-            download_url = _download_url(row.get("url"))
+            declared_url = row.get("url")
+            if _is_huggingface_url(declared_url):
+                continue
+            download_url = _download_url(declared_url)
             if not filename or not _FILENAME.fullmatch(filename) or not name or not download_url:
                 issues.append(
                     SourceIssue(
@@ -232,20 +235,35 @@ class Gpt4AllModelCatalogSourceAdapter:
         namespace = "gpt4all:model-file"
         local_id = f"model-file:{filename}"
         identifier = Identifier(namespace, filename)
+        checksum_identifiers = tuple(
+            Identifier(f"{namespace}:{algorithm}", str(row[key]).lower())
+            for key, algorithm in (("sha256sum", "sha256"), ("md5sum", "md5"))
+            if isinstance(row.get(key), str)
+        )
+        model_identifiers = (identifier, *checksum_identifiers)
+        removed_in = _text(row.get("removedIn"))
         model = ModelHint(
             local_id=local_id,
             name=name,
-            identifiers=(identifier,),
+            identifiers=model_identifiers,
             aliases=(filename,),
-            status=ModelStatus.RELEASED,
+            status=(ModelStatus.DOCUMENTED if removed_in else ModelStatus.RELEASED),
             locator="manifest:filename",
+        )
+        release_identifiers = (
+            Identifier(f"{namespace}:release", filename),
+            *(
+                Identifier(f"{namespace}:release:{algorithm}", str(row[key]).lower())
+                for key, algorithm in (("sha256sum", "sha256"), ("md5sum", "md5"))
+                if isinstance(row.get(key), str)
+            ),
         )
         release = ReleaseHint(
             local_id=f"{local_id}#release",
             model_local_id=local_id,
             version=filename,
             revision=revision,
-            identifiers=(Identifier(f"{namespace}:release", filename),),
+            identifiers=release_identifiers,
             metadata={
                 "filename": filename,
                 "download_url": download_url,
@@ -255,7 +273,10 @@ class Gpt4AllModelCatalogSourceAdapter:
                 "quantization": row.get("quant"),
                 "parameters": row.get("parameters"),
                 "minimum_gpt4all_version": row.get("requires"),
-                "removed_in_gpt4all_version": row.get("removedIn"),
+                "removed_in_gpt4all_version": removed_in,
+                "catalog_status": (
+                    "removed-from-client-in-version" if removed_in else "listed"
+                ),
                 "manifest_revision": revision,
             },
             locator="manifest:filename",
@@ -268,7 +289,7 @@ class Gpt4AllModelCatalogSourceAdapter:
             canonical_url=download_url,
             title=filename,
             raw=raw,
-            identifiers=(identifier,),
+            identifiers=model_identifiers,
             links=(
                 Link(
                     download_url,
@@ -307,6 +328,20 @@ def _download_url(value: Any) -> str | None:
     ):
         return None
     return url
+
+
+def _is_huggingface_url(value: Any) -> bool:
+    url = _text(value)
+    if not url:
+        return False
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").casefold()
+    return (
+        parsed.scheme == "https"
+        and parsed.username is None
+        and parsed.password is None
+        and (host == "huggingface.co" or host.endswith(".huggingface.co"))
+    )
 
 
 __all__ = ["Gpt4AllModelCatalogSourceAdapter"]

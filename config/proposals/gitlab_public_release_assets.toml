@@ -1,0 +1,17 @@
+# GitLab documents an anonymous public Projects API with keyset pagination and
+# a per-project Releases API that exposes release asset links. The adapter emits
+# low-confidence candidates only when a checkpoint filename and release context
+# agree; it does not download files. A complete scan requires a release request
+# for each public project, so normal ingestion must pace metadata requests.
+# https://docs.gitlab.com/api/projects/
+# https://docs.gitlab.com/api/releases/
+[[source]]
+name = "gitlab-public-release-assets"
+adapter = "gitlab_public_release_assets"
+enabled = false
+entry_tags = ["ecosystem:gitlab", "kind:release-asset-candidate"]
+schedule = "daily"
+page_size = 100
+max_projects_per_page = 100
+max_releases_per_page = 100
+max_assets_per_release = 1000

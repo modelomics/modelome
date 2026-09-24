@@ -34,7 +34,7 @@ _CHECKPOINT_FILENAME = re.compile(
     re.IGNORECASE,
 )
 _MODEL_WEIGHT_SUFFIX = re.compile(
-    r"\.(?:ckpt|h5|hdf5|model|onnx|pt|pth|safetensors)$", re.IGNORECASE
+    r"\.(?:bin|ckpt|h5|hdf5|model|onnx|pt|pth|safetensors)$", re.IGNORECASE
 )
 
 

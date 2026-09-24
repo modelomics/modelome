@@ -23,7 +23,7 @@ def _software() -> dict[str, Any]:
             {"scheme": "github", "value": "https://github.com/example/tool"},
         ],
         "instances": [
-            {"urls": ["https://github.com/example/tool", "http://example.org/insecure"]},
+            {"urls": ["https://github.com/example/tool", "http://example.org/provider"]},
             {"url": [{"url": "https://repository.example.org/download/tool.zip"}]},
         ],
     }
@@ -43,6 +43,7 @@ def test_projects_exact_software_type_pids_and_provider_urls() -> None:
     }
     assert [item.url for item in record.links] == [
         "https://github.com/example/tool",
+        "http://example.org/provider",
         "https://repository.example.org/download/tool.zip",
     ]
     assert all(item.relation == "provider_resource" for item in record.links)
@@ -93,6 +94,29 @@ def test_projects_openAIRE_software_repository_and_documentation_fields() -> Non
     ]
     assert record.raw["code_repository_urls"] == ["https://github.com/example/project"]
     assert record.raw["documentation_urls"] == ["https://docs.example.org/project"]
+
+
+def test_preserves_http_instance_artifact_urls_from_graph_schema() -> None:
+    record = project_openaire_software(
+        {
+            "id": "openaire-software-http-resource",
+            "type": "software",
+            "mainTitle": "Software with an HTTP artifact URL",
+            "instance": [{"url": ["http://repository.example.org/software/archive.zip"]}],
+        }
+    )
+
+    assert record is not None
+    assert record.canonical_url == (
+        "https://api.openaire.eu/graph/v3/research-products/openaire-software-http-resource"
+    )
+    assert [(item.url, item.relation, item.crawl) for item in record.links] == [
+        (
+            "http://repository.example.org/software/archive.zip",
+            "provider_resource",
+            True,
+        )
+    ]
 
 
 def test_exact_code_repository_url_enters_existing_crawl_frontier(tmp_path: Path) -> None:
@@ -172,7 +196,7 @@ def test_uses_graph_resolver_for_products_without_safe_external_urls() -> None:
             "id": "software-no-url",
             "type": "software",
             "pids": [{"scheme": "handle", "value": "123/456"}],
-            "instances": [{"urls": ["http://repository.example.org/software"]}],
+            "instances": [{"urls": ["ftp://repository.example.org/software"]}],
         }
     )
     assert record is not None

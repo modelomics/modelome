@@ -431,13 +431,30 @@ def _paper_id(paper: ElementTree.Element) -> str:
     paper_url = _element_text(paper.find("url"))
     if paper_url:
         return paper_url
+    # Current ACL data also writes fully resolved URLs into comments inside
+    # paper/frontmatter nodes. Those comments are useful identifiers for rows
+    # with no <url> element, but only an Anthology landing-page URL is an ID.
+    for node in paper.iter():
+        if node.tag is ElementTree.Comment and node.text and (
+            anthology_id := _comment_paper_id(node.text)
+        ):
+            return anthology_id
     return ""
 
 
 def _comment_paper_id(comment: str) -> str:
-    for candidate in re.findall(r"https://aclanthology\.org/([^\s/?#]+)/?", comment):
-        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.-]{0,127}", candidate):
-            return candidate
+    for candidate in re.findall(r"https://[^\s<>\"']+", comment):
+        parts = urlsplit(candidate.rstrip(",;"))
+        anthology_id = parts.path.strip("/")
+        if (
+            parts.scheme == "https"
+            and parts.netloc == "aclanthology.org"
+            and not parts.query
+            and not parts.fragment
+            and not anthology_id.endswith(".pdf")
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.-]{0,127}", anthology_id)
+        ):
+            return anthology_id
     return ""
 
 

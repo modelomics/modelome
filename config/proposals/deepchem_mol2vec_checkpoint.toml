@@ -1,0 +1,17 @@
+# DeepChem's first-party Mol2Vec default pretrained-model archive.
+[[source]]
+name = "deepchem-mol2vec-checkpoint"
+adapter = "deepchem_mol2vec_checkpoint"
+enabled = false
+repository = "deepchem/deepchem"
+branch = "master"
+source_path = "deepchem/feat/molecule_featurizers/mol2vec_fingerprint.py"
+entry_tags = ["field:computational-chemistry", "ecosystem:deepchem", "model-family:mol2vec", "kind:checkpoint-archive"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# The adapter reads the literal DEFAULT_PRETRAINED_MODEL_URL assignment at a
+# pinned revision and requires the exact archive URL:
+# https://deepchemdata.s3-us-west-1.amazonaws.com/trained_models/mol2vec_model_300dim.tar.gz
+# This is one explicit default archive, not a full checkpoint inventory. It
+# complements the already active DeepChem model-family documentation source.

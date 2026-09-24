@@ -80,7 +80,13 @@ def test_manifest_emits_exact_variant_file_and_artifact_reference_without_downlo
     assert llama.kind.value == "weights"
     assert llama.source_record_id == "Meta-Llama-3-8B-Instruct.Q4_0.gguf"
     assert llama.identifiers[0].value == "Meta-Llama-3-8B-Instruct.Q4_0.gguf"
+    assert {identifier.namespace: identifier.value for identifier in llama.identifiers} == {
+        "gpt4all:model-file": "Meta-Llama-3-8B-Instruct.Q4_0.gguf",
+        "gpt4all:model-file:md5": "c" * 32,
+        "gpt4all:model-file:sha256": "d" * 64,
+    }
     assert llama.models[0].name == "Llama 3 Instruct"
+    assert llama.models[0].status.value == "released"
     assert llama.releases[0].version == "Meta-Llama-3-8B-Instruct.Q4_0.gguf"
     assert llama.releases[0].revision == _SHA
     assert llama.releases[0].metadata["md5sum"] == "c" * 32
@@ -91,6 +97,10 @@ def test_manifest_emits_exact_variant_file_and_artifact_reference_without_downlo
     assert llama.links[0].crawl is False
     assert llama.raw["gpt4all_manifest_revision"] == _SHA
     assert page.records[1].releases[0].metadata["removed_in_gpt4all_version"] == "3.9.0"
+    assert page.records[1].releases[0].metadata["catalog_status"] == (
+        "removed-from-client-in-version"
+    )
+    assert page.records[1].models[0].status.value == "documented"
     assert len(client.calls) == 2
     assert not any("models/gguf/" in url or "/resolve/" in url for url in client.calls)
 
@@ -124,11 +134,7 @@ def test_manifest_quarantines_unsupported_or_incomplete_download_rows() -> None:
 
     assert [record.source_record_id for record in page.records] == ["good-model-q4.gguf"]
     assert page.advance_on_source_issues
-    assert [issue.source_record_id for issue in page.issues] == [
-        "bad-host",
-        "hub-host",
-        "missing-url",
-    ]
+    assert [issue.source_record_id for issue in page.issues] == ["bad-host", "missing-url"]
 
 
 def test_unchanged_manifest_revision_skips_catalog_refetch() -> None:

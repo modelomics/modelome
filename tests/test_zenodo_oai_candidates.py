@@ -169,6 +169,8 @@ def test_punctuation_distinct_checkpoint_stems_keep_distinct_candidate_ids() -> 
         ("OceanNet_checkpoint.keras", "download_resource"),
         ("OceanNet_checkpoint.msgpack", "download_resource"),
         ("OceanNet_checkpoint.pth.tar", "download_resource"),
+        ("OceanNet.tflite", "download_resource"),
+        ("OceanNet.mlmodel", "download_resource"),
         ("OceanNet.gguf", "download_resource"),
         ("OceanNet.keras", "download_resource"),
     ],

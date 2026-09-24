@@ -257,6 +257,8 @@ def test_zenodo_model_catalog_quarantines_a_non_model_result() -> None:
         ("model.pt", "checkpoint"),
         # Zenodo record 15519070 declares MACE `.model` files as its models.
         ("mace-mp_2d-hoip_large.model", "checkpoint"),
+        # Zenodo record 14638913 declares pytorch_model.bin as model weights.
+        ("pytorch_model.bin", "checkpoint"),
         ("oceannet.pt", None),
         ("weights.csv", None),
     ],

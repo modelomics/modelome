@@ -1,0 +1,14 @@
+# Microsoft's official VQ-Diffusion download script maps named checkpoints to
+# direct GitHub release assets, including parts concatenated into .pth files.
+[[source]]
+name = "microsoft-vq-diffusion-checkpoints"
+adapter = "microsoft_vq_diffusion_checkpoint_manifest"
+enabled = false
+entry_tags = ["field:generative-image-modeling", "ecosystem:microsoft", "model-family:vq-diffusion", "kind:checkpoint"]
+repository = "microsoft/VQ-Diffusion"
+branch = "main"
+source_path = "vqdiffusion_download_checkpoints.sh"
+provider_namespace = "microsoft:vq-diffusion"
+max_response_bytes = 4194304
+max_entries = 1000
+schedule = "weekly"

@@ -199,6 +199,87 @@ def test_entry_seed_does_not_attach_evidence_without_exact_record_identifier() -
     )
 
 
+def test_evidence_resource_is_not_attached_to_ambiguous_models_in_one_paper() -> None:
+    paper = _seed("paper-record", [])
+    paper["identifiers"] = [{"namespace": "doi", "value": "10.1000/multi-model"}]
+    paper["models"].extend(
+        [
+            {
+                "local_id": "model-b",
+                "name": "Second model",
+                "identifiers": [{"namespace": "provider:model", "value": "second"}],
+            }
+        ]
+    )
+    evidence = {
+        "source": "biorxiv-jats-supplementary",
+        "source_record_id": "paper-record:jats-model-resources",
+        "canonical_url": "https://example.org/paper.xml",
+        "title": "Paper supplementary resources",
+        "kind": "paper",
+        "identifiers": [{"namespace": "doi", "value": "10.1000/multi-model"}],
+        "links": [
+            {
+                "url": "https://example.org/shared-model-weights.safetensors",
+                "relation": "model_artifact",
+            }
+        ],
+        "models": [],
+    }
+
+    result = build_entries([paper, evidence])
+
+    assert len(result.entries) == 2
+    assert all(
+        resource.url != "https://example.org/shared-model-weights.safetensors"
+        for entry in result.entries
+        for resource in entry.resources
+    )
+
+
+def test_imported_checkpoint_evidence_does_not_become_identity_join_key() -> None:
+    model_from_paper = _seed(
+        "paper-record",
+        [{"namespace": "provider:model", "value": "paper-model"}],
+    )
+    model_from_paper["identifiers"] = [{"namespace": "doi", "value": "10.1000/paper"}]
+    evidence = {
+        "source": "zenodo-model-api",
+        "source_record_id": "record:42",
+        "canonical_url": "https://zenodo.org/records/42",
+        "title": "Zenodo model",
+        "kind": "catalog_record",
+        "identifiers": [{"namespace": "doi", "value": "10.1000/paper"}],
+        "links": [
+            {
+                "url": "https://weights.example/shared.safetensors",
+                "relation": "checkpoint",
+            }
+        ],
+        "models": [],
+    }
+    other_model = _seed(
+        "other-source-record",
+        [{"namespace": "other:model", "value": "unrelated"}],
+    )
+    other_model["source"] = "other-catalog"
+    other_model["links"] = [
+        {
+            "url": "https://weights.example/shared.safetensors",
+            "relation": "checkpoint",
+        }
+    ]
+
+    result = build_entries([model_from_paper, evidence, other_model])
+
+    assert len(result.entries) == 2
+    assert any(
+        resource.source == "zenodo-model-api"
+        for entry in result.entries
+        for resource in entry.resources
+    )
+
+
 def test_entry_seed_does_not_assign_paper_checkpoint_to_multiple_models() -> None:
     paper_record = _seed(
         "paper-record",

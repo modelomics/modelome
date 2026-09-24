@@ -437,6 +437,18 @@ def test_rejects_catalog_count_drift_and_cross_origin_rdf_source() -> None:
         adapter(QueuedClient(json_response(index(item("unsafe", control))))).fetch_page({})
 
 
+def test_rejects_duplicate_resource_ids_even_when_versions_do_not_overlap() -> None:
+    first_rdf = b"type: model\nname: Duplicate Resource\n"
+    second_rdf = b"type: model\nname: Duplicate Resource\nversion: second\n"
+    duplicated = index(
+        item("duplicate", version("duplicate", "v1", first_rdf, created_at="2026-01-01")),
+        item("duplicate", version("duplicate", "v2", second_rdf, created_at="2026-01-02")),
+    )
+
+    with pytest.raises(ValueError, match="duplicate model resource id"):
+        adapter(QueuedClient(json_response(duplicated))).fetch_page({})
+
+
 def test_bounds_page_size_and_accepts_catalog_only_unversioned_model() -> None:
     with pytest.raises(ValueError, match="page_size must not exceed 100"):
         adapter(QueuedClient(), page_size=101)

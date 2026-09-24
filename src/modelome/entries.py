@@ -522,6 +522,14 @@ def build_entries(seeds: Iterable[Mapping[str, Any]]) -> EntryBuildResult:
     for index, candidate in enumerate(candidates):
         urls = set()
         for resource in candidate.resources:
+            if (resource.source, resource.source_record_id) != (
+                candidate.source,
+                candidate.source_record_id,
+            ):
+                # Imported evidence links enrich a candidate but do not assert
+                # its identity. Only the candidate's own source declaration can
+                # act as a checkpoint identity bridge.
+                continue
             relation = resource.relation.casefold()
             if relation in _CHECKPOINT_IDENTITY_RELATIONS:
                 urls.add(resource.url)

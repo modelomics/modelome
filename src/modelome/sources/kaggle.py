@@ -346,6 +346,31 @@ class KaggleModelsSourceAdapter:
                     crawl=False,
                 )
             )
+        source_url = _optional_web_url(
+            instance.get("sourceUrl", instance.get("source_url")), self.url
+        )
+        if source_url:
+            links.append(
+                Link(
+                    source_url,
+                    relation="source_reference",
+                    locator="$.instances.sourceUrl",
+                    crawl=False,
+                )
+            )
+        attestation_url = _optional_web_url(
+            instance.get("attestationKernelUrl", instance.get("attestation_kernel_url")),
+            self.url,
+        )
+        if attestation_url:
+            links.append(
+                Link(
+                    attestation_url,
+                    relation="attestation",
+                    locator="$.instances.attestationKernelUrl",
+                    crawl=False,
+                )
+            )
         for dataset_index, value in enumerate(_sequence(instance.get("trainingData"))):
             dataset_url = _optional_web_url(value, self.url)
             if dataset_url:
@@ -403,6 +428,11 @@ class KaggleModelsSourceAdapter:
                         "baseModelInstanceInformation",
                         instance.get("base_model_instance_information"),
                     )
+                ),
+                "source_url": source_url,
+                "attestation_kernel_url": attestation_url,
+                "sigstore_state": _optional_text(
+                    instance.get("sigstoreState", instance.get("sigstore_state"))
                 ),
                 "total_uncompressed_bytes": _optional_nonnegative_int(
                     instance.get("totalUncompressedBytes")

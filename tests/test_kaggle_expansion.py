@@ -123,6 +123,9 @@ def test_optional_version_expansion_paginates_all_releases_and_builds_version_li
                             "versionNumber": 3,
                             "versionId": "latest-id",
                             "baseModelInstanceId": 77,
+                            "sourceUrl": "https://huggingface.co/google/gemma-2b",
+                            "attestationKernelUrl": "https://www.kaggle.com/code/google/attestation",
+                            "sigstoreState": "VERIFIED",
                             "baseModelInstanceInformation": {
                                 "id": 77,
                                 "modelSlug": "base-model",
@@ -184,6 +187,19 @@ def test_optional_version_expansion_paginates_all_releases_and_builds_version_li
         "instanceSlug": "7b",
         "framework": "PyTorch",
     }
+    assert page.records[0].releases[-1].metadata["source_url"] == (
+        "https://huggingface.co/google/gemma-2b"
+    )
+    assert page.records[0].releases[-1].metadata["attestation_kernel_url"] == (
+        "https://www.kaggle.com/code/google/attestation"
+    )
+    assert page.records[0].releases[-1].metadata["sigstore_state"] == "VERIFIED"
+    assert {
+        link.url for link in page.records[0].links if link.relation == "source_reference"
+    } == {"https://huggingface.co/google/gemma-2b"}
+    assert {
+        link.url for link in page.records[0].links if link.relation == "attestation"
+    } == {"https://www.kaggle.com/code/google/attestation"}
     assert {
         link.url for link in page.records[0].links if link.relation == "weights"
     } == {

@@ -89,6 +89,27 @@ def test_recovers_historical_paper_id_from_adjacent_official_xml_comment() -> No
     assert not page.issues
 
 
+def test_recovers_current_paper_id_from_embedded_resolved_url_comment() -> None:
+    # ACL Anthology's current XML writer retains fully resolved link URLs in
+    # comments inside the paper element for human-readable source data.
+    xml = b"""<collection id="2026.acl">
+      <volume id="2026.acl-long">
+        <meta><booktitle>Proceedings of ACL 2026</booktitle><year>2026</year></meta>
+        <paper id="1"><title>Paper with resolved URL comment</title>
+          <!-- https://aclanthology.org/2026.acl-long.1/ -->
+        </paper>
+      </volume>
+    </collection>"""
+    page = AclAnthologySourceAdapter(
+        url="https://aclanthology.org/2026.acl.xml",
+        client=QueueClient(xml),
+        clock=lambda: NOW,
+    ).fetch_page({})
+
+    assert [record.source_record_id for record in page.records] == ["2026.acl-long.1"]
+    assert not page.issues
+
+
 def test_rejects_unbounded_or_invalid_collection_payloads() -> None:
     oversized = AclAnthologySourceAdapter(
         url="https://aclanthology.org/test.xml",

@@ -682,14 +682,20 @@ class OpenReviewSourceAdapter:
                 if value_index:
                     locator += f"[{value_index}]"
                 for url, span in extract_url_mentions(scalar):
+                    attachment_name = _openreview_attachment_name(
+                        url, web_base_url=self.web_base_url
+                    )
+                    relation_key = _field_key(attachment_name) if attachment_name else key
                     self._append_link(
                         result,
                         url,
-                        relation=_link_relation(key, scalar, span),
+                        relation=_link_relation(relation_key, scalar, span),
                         locator=f"{locator}:{span}",
                     )
                 stripped = scalar.strip()
-                attachment_name = _openreview_attachment_name(stripped)
+                attachment_name = _openreview_attachment_name(
+                    stripped, web_base_url=self.web_base_url
+                )
                 if stripped.startswith("/") and (
                     _attachment_field(key) or attachment_name is not None
                 ):
@@ -738,7 +744,6 @@ class OpenReviewSourceAdapter:
             "implementation",
             "official_implementation",
             "project_page",
-            "weights",
             "model_card",
         }
         target.append(Link(canonical, relation=relation, locator=locator, crawl=crawl))
@@ -1087,10 +1092,16 @@ def _attachment_field(key: str) -> bool:
     )
 
 
-def _openreview_attachment_name(value: str) -> str | None:
-    """Return the named field for a root-relative OpenReview attachment route."""
+def _openreview_attachment_name(value: str, *, web_base_url: str) -> str | None:
+    """Return the field name from an OpenReview attachment route."""
     parts = urlsplit(value)
-    if parts.scheme or parts.netloc or parts.path.rstrip("/") != "/attachment":
+    if parts.path.rstrip("/") != "/attachment":
+        return None
+    if parts.scheme or parts.netloc:
+        base = urlsplit(web_base_url)
+        if parts.scheme not in {"http", "https"} or parts.hostname != base.hostname:
+            return None
+    elif not value.startswith("/"):
         return None
     names = parse_qs(parts.query, keep_blank_values=False).get("name", [])
     if len(names) != 1 or not names[0].strip():

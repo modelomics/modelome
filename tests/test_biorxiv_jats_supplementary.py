@@ -145,6 +145,51 @@ def test_public_jats_preserves_explicit_external_model_resource_url() -> None:
     assert link.url == "https://zenodo.org/records/1234567"
 
 
+def test_versioned_checkpoint_claims_keep_their_local_model_context_and_provenance() -> None:
+    first_xml_url = JATS_URL
+    second_xml_url = JATS_URL.replace("/2024/01/03/", "/2024/02/03/")
+    doi = "10.1101/2024.01.02.123456"
+    records = [
+        {
+            "doi": doi,
+            "title": "A model paper",
+            "version": version,
+            "date": "2024-01-03" if version == "1" else "2024-02-03",
+            "server": "bioRxiv",
+            "jatsxml": xml_url,
+        }
+        for version, xml_url in (("1", first_xml_url), ("2", second_xml_url))
+    ]
+    payload = _details_payload(count=2, total=2, records=records)
+    first_context = "Supplementary weights for AlphaFold model checkpoint"
+    second_context = "Fine-tuned weights for AlphaFold model checkpoint"
+    client = QueueClient(
+        payload,
+        _jats(title=first_context, href="https://zenodo.org/records/1234567"),
+        _jats(title=second_context, href="https://zenodo.org/records/1234567"),
+    )
+
+    page = _adapter(client).fetch_page({})
+
+    assert [record.source_record_id for record in page.records] == [
+        f"biorxiv:{doi}:v1:jats-model-resources",
+        f"biorxiv:{doi}:v2:jats-model-resources",
+    ]
+    assert [record.raw["metadata_source_record_id"] for record in page.records] == [
+        f"biorxiv:{doi}:v1",
+        f"biorxiv:{doi}:v2",
+    ]
+    assert [
+        record.raw["supplementary_model_resources"][0]["context"] for record in page.records
+    ] == [
+        first_context,
+        second_context,
+    ]
+    for record in page.records:
+        resource_link = next(link for link in record.links if link.relation == "model_artifact")
+        assert resource_link.url == "https://zenodo.org/records/1234567"
+
+
 def test_public_jats_only_follows_first_party_source_xml_urls() -> None:
     bad_record = {
         "doi": "10.1101/2024.01.02.123456",

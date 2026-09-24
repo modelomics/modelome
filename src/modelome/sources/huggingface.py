@@ -83,8 +83,10 @@ class HuggingFaceSourceAdapter:
     newest-first listing until reaching the previous ``lastModified`` watermark
     minus a configurable overlap. Cursor state also freezes that boundary so an
     interrupted run resumes the same scan. An optional periodic ascending
-    ``createdAt`` sweep provides a complete current-repository inventory to
-    recover rows missed by mutable last-modified ordering.
+    ``createdAt`` sweep makes a full cursor pass over the current repository
+    listing to recover persistent misses from mutable last-modified ordering.
+    The Hub does not document snapshot isolation for cursor pagination, so a
+    later sweep may be needed to reconcile repositories created mid-scan.
     """
 
     # The Hub cursor is provider-issued and page-level checkpoints remain exact;

@@ -1,0 +1,15 @@
+# PaddleNLP's official Taskflow sentiment module declares direct weight URLs
+# and MD5 values for its BILSTM and SKEP model_state checkpoints.
+[[source]]
+name = "paddlenlp-taskflow-sentiment-checkpoints"
+adapter = "paddlenlp_taskflow_sentiment"
+enabled = false
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/taskflow/sentiment_analysis.py"
+max_response_bytes = 4194304
+max_entries = 100
+
+# The adapter reads literal resource_files_urls maps from SentaTask and
+# SkepTask. It excludes UIESentaTask, internal testing fixtures, and
+# non-weight tokenizer/config resources.

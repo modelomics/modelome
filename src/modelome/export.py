@@ -460,7 +460,9 @@ Follow the external URLs and identifiers for those materials under their own ter
 source-manifest.json records configured sources and observed source checkpoints,
 including configured sources with no observed checkpoint. The checkpoint's
 complete flag and counts are reported only when that checkpoint exists; they do
-not claim unrun sources were ingested. Source-level terms remain in force.
+not claim unrun sources were ingested. A true complete flag means the adapter
+finished its checkpointed scan; it does not claim exhaustive historical or global
+coverage. Source-level terms remain in force.
 In particular, derivative users must preserve attribution and applicable
 share-alike obligations for records derived from the Papers with Code archival
 datasets. The arXiv snapshot contributes factual metadata only; paper-specific

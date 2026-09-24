@@ -37,11 +37,11 @@ _FILE_MARKER = re.compile(
     re.I,
 )
 _FILE_SUFFIX = re.compile(
-    r"\.(?:pth\.tar|pt\.tar|tar\.gz|safetensors|msgpack|keras|gguf|ggml|"
+    r"\.(?:pth\.tar|pt\.tar|tar\.gz|safetensors|msgpack|mlmodel|tflite|keras|gguf|ggml|"
     r"ckpt|hdf5|onnx|h5|pth|pt|bin)$",
     re.I,
 )
-_MODEL_SUFFIX = re.compile(r"\.(?:gguf|ggml|keras)$", re.I)
+_MODEL_SUFFIX = re.compile(r"\.(?:gguf|ggml|keras|mlmodel|tflite)$", re.I)
 _TRAILING_FILE_MARKER = re.compile(
     r"(?:[._ -]+)(?:checkpoint|ckpt|model[_ -]?weights|weights|model)$", re.I
 )

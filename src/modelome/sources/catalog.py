@@ -13,6 +13,7 @@ from modelome.http import HttpClient
 from modelome.sources.acl_anthology import AclAnthologySourceAdapter
 from modelome.sources.aggregator_registry import OpenMLFlowRegistrySourceAdapter
 from modelome.sources.allennlp_model_archives import AllenNLPModelArchiveSourceAdapter
+from modelome.sources.alphachip_rl_checkpoint import AlphaChipRlCheckpointAdapter
 from modelome.sources.alphafold_registry import AlphaFoldParameterArchiveSourceAdapter
 from modelome.sources.arxiv import ArxivSourceAdapter
 from modelome.sources.arxiv_snapshot import ArxivCompleteSnapshotSourceAdapter
@@ -36,6 +37,7 @@ from modelome.sources.commoncrawl import CommonCrawlWetSourceAdapter
 from modelome.sources.crossref import CrossrefSourceAdapter
 from modelome.sources.csv_source import CsvSourceAdapter
 from modelome.sources.datacite import DataCiteSourceAdapter
+from modelome.sources.deepchem_checkpoint import DeepChemMol2VecCheckpointSourceAdapter
 from modelome.sources.detectron2_model_zoo import Detectron2ModelZooSourceAdapter
 from modelome.sources.dgl_lifesci_registry import DglLifeSciCheckpointRegistrySourceAdapter
 from modelome.sources.dopamine_checkpoint_bundles import DopamineCheckpointBundleAdapter
@@ -53,9 +55,11 @@ from modelome.sources.gensim_registry import GensimDownloaderModelRegistrySource
 from modelome.sources.geospatial_registry import GeospatialRegistrySourceAdapter
 from modelome.sources.gharchive import GhArchiveSourceAdapter
 from modelome.sources.github_repositories import GitHubPublicRepositoriesSourceAdapter
+from modelome.sources.gitlab_release_assets import GitLabPublicReleaseAssetsSourceAdapter
 from modelome.sources.gpt4all_model_catalog import Gpt4AllModelCatalogSourceAdapter
 from modelome.sources.graph_ml_registry import GraphMLRegistrySourceAdapter
 from modelome.sources.graphgps_release_asset import GraphGPSReleaseAssetSourceAdapter
+from modelome.sources.grover_registry import GroverCheckpointRegistrySourceAdapter
 from modelome.sources.hal import HalSourceAdapter
 from modelome.sources.html_catalog import HtmlCatalogSourceAdapter
 from modelome.sources.huggingface import HuggingFaceSourceAdapter
@@ -100,6 +104,7 @@ from modelome.sources.openmmlab import OpenMMLabModelIndexSourceAdapter
 from modelome.sources.openreview import OpenReviewSourceAdapter
 from modelome.sources.openrouter import OpenRouterModelsSourceAdapter
 from modelome.sources.openvino_model_zoo import OpenVinoModelZooSourceAdapter
+from modelome.sources.openvla_checkpoints import OpenVLACheckpointSourceAdapter
 from modelome.sources.osf_preprints import OsfPreprintSourceAdapter
 from modelome.sources.paddle_detection_model_zoo import PaddleDetectionModelZooSourceAdapter
 from modelome.sources.paddle_model_center import PaddleModelCenterSourceAdapter
@@ -107,6 +112,7 @@ from modelome.sources.paddleclas_model_registry import PaddleClasModelRegistrySo
 from modelome.sources.paddlegan_tutorial_model_zoo import (
     PaddleGanTutorialModelZooSourceAdapter,
 )
+from modelome.sources.paddlenlp_taskflow_sentiment import PaddleNlpTaskflowSentimentSourceAdapter
 from modelome.sources.paddlenlp_taskflow_uie import PaddleNlpTaskflowUieSourceAdapter
 from modelome.sources.paddleocr_current_model_list import (
     PaddleOcrCurrentModelListSourceAdapter,
@@ -137,6 +143,7 @@ from modelome.sources.rl_checkpoints_extra import DiffusionPolicyCheckpointIndex
 from modelome.sources.robotics_extra import ArgusCheckpointInventorySourceAdapter
 from modelome.sources.robotics_registry_v3 import RoboticsTransformerCheckpointSourceAdapter
 from modelome.sources.semantic_scholar import SemanticScholarDatasetSourceAdapter
+from modelome.sources.sherpa_source_separation import SherpaSourceSeparationSourceAdapter
 from modelome.sources.software_heritage import SoftwareHeritageOriginSourceAdapter
 from modelome.sources.spacy_models import SpacyModelsSourceAdapter
 from modelome.sources.stanza_resources import StanzaResourcesSourceAdapter
@@ -156,6 +163,7 @@ from modelome.sources.torchgeo_weight_registry import TorchGeoWeightRegistrySour
 from modelome.sources.torchvision_weight_registry import (
     TorchvisionWeightRegistrySourceAdapter,
 )
+from modelome.sources.vq_diffusion import MicrosoftVqDiffusionCheckpointManifestSourceAdapter
 from modelome.sources.wenet_model_zoo import WenetPretrainedModelSourceAdapter
 from modelome.sources.zenodo import ZenodoModelRecordsSourceAdapter
 from modelome.sources.zenodo_oai_candidates import ZenodoOaiModelCandidatesSourceAdapter
@@ -954,6 +962,14 @@ def create_source(
             "nltk_data_models",
             "pytorch_hub_load_calls",
             "paddlenlp_taskflow_uie",
+            "deepchem_mol2vec_checkpoint",
+            "grover_checkpoint_registry",
+            "microsoft_vq_diffusion_checkpoint_manifest",
+            "openvla_checkpoints",
+            "sherpa_source_separation",
+            "alphachip_rl_checkpoint",
+            "paddlenlp_taskflow_sentiment",
+            "gitlab_public_release_assets",
             "pelican_vla_checkpoint_registry",
             "ocp_model_registry",
             "dopamine_checkpoint_bundles",
@@ -1742,6 +1758,86 @@ def create_source(
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
             max_entries=_integer(expanded.get("max_entries"), 1_000),
             **injected,
+        )
+
+    if adapter == "deepchem_mol2vec_checkpoint":
+        return DeepChemMol2VecCheckpointSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "grover_checkpoint_registry":
+        return GroverCheckpointRegistrySourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "microsoft_vq_diffusion_checkpoint_manifest":
+        return MicrosoftVqDiffusionCheckpointManifestSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            provider_namespace=_required_text(expanded, "provider_namespace"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 1_000),
+            **injected,
+        )
+
+    if adapter == "openvla_checkpoints":
+        return OpenVLACheckpointSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 20),
+            **injected,
+        )
+
+    if adapter == "sherpa_source_separation":
+        return SherpaSourceSeparationSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "master",
+            document_path=_required_text(expanded, "document_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_models=_integer(expanded.get("max_models"), 500),
+            **injected,
+        )
+
+    if adapter == "alphachip_rl_checkpoint":
+        return AlphaChipRlCheckpointAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "paddlenlp_taskflow_sentiment":
+        return PaddleNlpTaskflowSentimentSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 100),
+            **injected,
+        )
+
+    if adapter == "gitlab_public_release_assets":
+        return GitLabPublicReleaseAssetsSourceAdapter(
+            page_size=_integer(expanded.get("page_size"), 100),
+            max_projects_per_page=_integer(expanded.get("max_projects_per_page"), 100),
+            max_releases_per_page=_integer(expanded.get("max_releases_per_page"), 100),
+            max_assets_per_release=_integer(expanded.get("max_assets_per_release"), 1_000),
+            client=injected["client"],
         )
 
     if adapter == "pelican_vla_checkpoint_registry":

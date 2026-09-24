@@ -1,0 +1,20 @@
+# The OpenVLA first-party README names two pretrained releases and four LIBERO
+# fine-tunes with exact Hugging Face model URLs. Keep this dedicated adapter
+# disabled until it is registered and reviewed.
+[[source]]
+name = "openvla-checkpoints"
+adapter = "openvla_checkpoints"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:openvla", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 20
+
+# Primary inventory: https://github.com/openvla/openvla/blob/main/README.md
+# Base refs: https://huggingface.co/openvla/openvla-7b
+# https://huggingface.co/openvla/openvla-v01-7b
+# LIBERO fine-tunes: https://huggingface.co/openvla/openvla-7b-finetuned-libero-spatial
+# https://huggingface.co/openvla/openvla-7b-finetuned-libero-object
+# https://huggingface.co/openvla/openvla-7b-finetuned-libero-goal
+# https://huggingface.co/openvla/openvla-7b-finetuned-libero-10
+# The adapter records repo refs only and does not fetch model weights.

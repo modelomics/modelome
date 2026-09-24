@@ -5923,3 +5923,129 @@ source_path = "gpt4all-chat/metadata/models3.json"
 schedule = "daily"
 max_response_bytes = 4194304
 max_entries = 10000
+
+# First-party source from config/proposals/deepchem_mol2vec_checkpoint.toml.
+[[source]]
+name = "deepchem-mol2vec-checkpoint"
+adapter = "deepchem_mol2vec_checkpoint"
+enabled = true
+repository = "deepchem/deepchem"
+branch = "master"
+source_path = "deepchem/feat/molecule_featurizers/mol2vec_fingerprint.py"
+entry_tags = ["field:computational-chemistry", "ecosystem:deepchem", "model-family:mol2vec", "kind:checkpoint-archive"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# Reads the literal Mol2Vec default pretrained archive URL from a pinned
+# first-party source revision. The archive itself is not downloaded.
+
+# First-party source from config/proposals/tencent_grover_registry.toml.
+[[source]]
+name = "tencent-grover-finetuned-checkpoints"
+adapter = "grover_checkpoint_registry"
+enabled = true
+entry_tags = ["field:graph-machine-learning", "field:computational-chemistry", "ecosystem:tencent-grover", "task:molecular-property-prediction", "kind:checkpoint"]
+repository = "tencent-ailab/grover"
+branch = "main"
+source_path = "README.md"
+provider_namespace = "tencent-grover:finetuned-checkpoint"
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 100
+
+# First-party source from config/proposals/vq_diffusion.toml.
+[[source]]
+name = "microsoft-vq-diffusion-checkpoints"
+adapter = "microsoft_vq_diffusion_checkpoint_manifest"
+enabled = true
+entry_tags = ["field:generative-image-modeling", "ecosystem:microsoft", "model-family:vq-diffusion", "kind:checkpoint"]
+repository = "microsoft/VQ-Diffusion"
+branch = "main"
+source_path = "vqdiffusion_download_checkpoints.sh"
+provider_namespace = "microsoft:vq-diffusion"
+max_response_bytes = 4194304
+max_entries = 1000
+schedule = "weekly"
+
+# First-party source from config/proposals/openvla_checkpoints.toml.
+[[source]]
+name = "openvla-checkpoints"
+adapter = "openvla_checkpoints"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:openvla", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 20
+
+# First-party source from config/proposals/sherpa_source_separation.toml.
+[[source]]
+name = "sherpa-source-separation-models"
+adapter = "sherpa_source_separation"
+enabled = true
+entry_tags = ["field:audio-machine-learning", "task:audio-source-separation", "ecosystem:sherpa-onnx", "kind:checkpoint"]
+repository = "k2-fsa/sherpa"
+branch = "master"
+document_path = "docs/source/onnx/source-separation/models.rst"
+schedule = "weekly"
+max_response_bytes = 2097152
+max_models = 500
+
+# First-party source from config/proposals/alphachip_rl_checkpoint.toml.
+[[source]]
+name = "alphachip-rl-checkpoint"
+adapter = "alphachip_rl_checkpoint"
+enabled = true
+entry_tags = ["field:reinforcement-learning", "ecosystem:google-alphachip", "kind:checkpoint-archive"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# First-party source from config/proposals/paddlenlp_taskflow_sentiment.toml.
+[[source]]
+name = "paddlenlp-taskflow-sentiment-checkpoints"
+adapter = "paddlenlp_taskflow_sentiment"
+enabled = true
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/taskflow/sentiment_analysis.py"
+max_response_bytes = 4194304
+max_entries = 100
+
+# The Cohere list is scoped to models available to the configured API key.
+[[source]]
+name = "cohere-models-api"
+adapter = "json_catalog"
+enabled = true
+activation_env = "COHERE_API_KEY"
+entry_tags = ["field:machine-learning", "ecosystem:cohere", "kind:hosted-model", "evidence:current-api-availability"]
+url = "https://api.cohere.com/v1/models"
+provider_namespace = "cohere:model"
+model_card_url_template = "https://docs.cohere.com/docs/models"
+model_page_crawl = false
+auth_env = "COHERE_API_KEY"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+cursor_param = "page_token"
+page_size = 1000
+page_size_param = "page_size"
+schedule = "daily"
+max_response_bytes = 8388608
+
+[source.mapping]
+items_path = "models"
+id_path = "name"
+name_path = "name"
+next_cursor_path = "next_page_token"
+
+# GitLab's public-project keyset listing and per-project release asset links.
+# Each fetch_page performs one metadata request and records only low-confidence
+# candidates whose release context agrees with an explicit checkpoint link.
+[[source]]
+name = "gitlab-public-release-assets"
+adapter = "gitlab_public_release_assets"
+enabled = true
+entry_tags = ["ecosystem:gitlab", "kind:release-asset-candidate"]
+schedule = "daily"
+page_size = 100
+max_projects_per_page = 100
+max_releases_per_page = 100
+max_assets_per_release = 1000

@@ -1,0 +1,23 @@
+# sherpa documents model-only source-separation artifacts in a pinned RST index.
+# The reader excludes sample audio and only accepts .onnx files and .tar.bz2
+# archives with exact first-party release URLs.
+[[source]]
+name = "sherpa-source-separation-models"
+adapter = "sherpa_source_separation"
+enabled = false
+entry_tags = [
+  "field:audio-machine-learning",
+  "task:audio-source-separation",
+  "ecosystem:sherpa-onnx",
+  "kind:checkpoint",
+]
+repository = "k2-fsa/sherpa"
+branch = "master"
+document_path = "docs/source/onnx/source-separation/models.rst"
+schedule = "weekly"
+max_response_bytes = 2097152
+max_models = 500
+
+[evidence]
+model_index = "https://github.com/k2-fsa/sherpa/blob/master/docs/source/onnx/source-separation/models.rst"
+release_tag = "https://github.com/k2-fsa/sherpa-onnx/releases/tag/source-separation-models"

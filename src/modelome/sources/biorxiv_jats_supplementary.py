@@ -203,7 +203,7 @@ def _supplement_records(
                 continue
             seen_urls.add(url)
             locator = f"jats.supplementary-material[{supplement_index}].{href[:240]}"
-            resources.append({"url": url, "locator": locator})
+            resources.append({"url": url, "locator": locator, "context": context[:2000]})
             links.append(Link(url, relation="model_artifact", locator=locator, crawl=False))
             if len(links) > max_links:
                 raise ValueError(f"supplementary model links exceed {max_links}")
