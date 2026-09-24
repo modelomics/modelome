@@ -28,6 +28,9 @@ _BUNDLE_KEY = re.compile(
 _SHA1 = re.compile(r"^[0-9a-f]{40}$")
 _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _MAX_ENTRIES = 10_000
+_ARCHIVE_TAG = "hosting_storage_v1"
+_ASSET_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
+_ASSET_PAGE_SIZE = 100
 
 
 def _utcnow() -> datetime:
@@ -35,13 +38,12 @@ def _utcnow() -> datetime:
 
 
 class MonaiModelZooSourceAdapter:
-    """Enumerate every released bundle in MONAI's public model registry.
+    """Enumerate released bundles and versions in MONAI's public model zoo.
 
-    The Project MONAI model-zoo repository publishes ``models/model_info.json``
-    as the authoritative, machine-readable mapping from versioned bundle names
-    to immutable archive URLs and checksums.  The registry is resolved at one
-    public Git commit, so the adapter can retain a release identity and archive
-    checksum without downloading bundle or weight bytes.
+    The repository's pinned ``models/model_info.json`` provides archive URLs
+    and checksums. Its ``hosting_storage_v1`` GitHub release retains versioned
+    bundle assets, including historical assets absent from the current index.
+    The adapter joins both inventories without downloading bundle bytes.
 
     BioImage.IO and MONAI have overlapping application areas but distinct
     publishing ecosystems.  A MONAI bundle is emitted as release evidence only
@@ -52,7 +54,8 @@ class MonaiModelZooSourceAdapter:
     disable_derived_extraction = True
     coverage_limitation = (
         "Covers versioned bundles present in Project MONAI's public "
-        "models/model_info.json registry. Draft, private, removed, or "
+        "models/model_info.json registry or hosting_storage_v1 release. "
+        "Draft, private, removed, or "
         "independently distributed MONAI bundles are outside this source. "
         "Archive bytes and their embedded licenses are not downloaded."
     )
@@ -81,12 +84,13 @@ class MonaiModelZooSourceAdapter:
         self.clock = clock
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "monai-model-zoo-v1",
+                "adapter": "monai-model-zoo-v2",
                 "repository": self.repository,
                 "branch": self.branch,
                 "registry_path": self.registry_path,
                 "max_registry_bytes": self.max_registry_bytes,
                 "max_entries": self.max_entries,
+                "archive_release_tag": _ARCHIVE_TAG,
             }
         )
 
@@ -101,10 +105,36 @@ class MonaiModelZooSourceAdapter:
             f"{quote(self.branch, safe='')}"
         )
 
+    @property
+    def archive_release_url(self) -> str:
+        return (
+            f"https://api.github.com/repos/{self.repository}/releases/tags/"
+            f"{_ARCHIVE_TAG}"
+        )
+
     def fetch_page(self, state: Mapping[str, Any]) -> SourcePage:
         revision, commit_response = self._revision()
         checked_at = _isoformat(self.clock())
-        if revision == _text(state.get("completed_revision")):
+        archive_response: HttpResponse = self.client.get(
+            self.archive_release_url,
+            headers={"Accept": "application/vnd.github+json"},
+        )
+        if archive_response.status != 200:
+            raise ValueError(
+                f"{self.name}: archived release returned HTTP {archive_response.status}"
+            )
+        if len(archive_response.body) > self.max_registry_bytes:
+            raise ValueError(f"{self.name}: archived release exceeds response byte limit")
+        archive_payload = archive_response.json()
+        archive_assets = self._release_assets(archive_payload)
+        archive_controls = self._archive_controls(archive_payload, archive_assets)
+        archive_digest = content_hash(
+            {"release": archive_payload, "assets": list(archive_assets)}
+        )
+        if (
+            revision == _text(state.get("completed_revision"))
+            and archive_digest == _text(state.get("archive_assets_digest"))
+        ):
             next_state = dict(state)
             next_state["checked_at"] = checked_at
             if etag := _header(commit_response.headers, "etag"):
@@ -126,7 +156,22 @@ class MonaiModelZooSourceAdapter:
             raise ValueError(
                 f"{self.name}: registry exceeds {self.max_registry_bytes} bytes"
             )
-        controls = self._controls(response.json())
+        current_controls = self._controls(response.json())
+        controls_by_key = {control.release_key: control for control in current_controls}
+        for archive_control in archive_controls:
+            current = controls_by_key.get(archive_control.release_key)
+            if current is None:
+                controls_by_key[archive_control.release_key] = archive_control
+            else:
+                current.archive_asset_id = archive_control.archive_asset_id
+                current.archive_asset_digest = archive_control.archive_asset_digest
+                current.archive_asset_updated_at = archive_control.archive_asset_updated_at
+        controls = tuple(controls_by_key[key] for key in sorted(controls_by_key))
+        if len(controls) > self.max_entries:
+            raise ValueError(
+                f"{self.name}: combined registry and archive exceed "
+                f"{self.max_entries} bundles"
+            )
         current_controls = {control.release_key: control for control in controls}
         known_controls = self._checkpoint_controls(state.get("known_records"))
 
@@ -144,6 +189,8 @@ class MonaiModelZooSourceAdapter:
             "checked_at": checked_at,
             "registry_url": registry_url,
             "registry_sha256": content_hash(response.body),
+            "archive_assets_digest": archive_digest,
+            "archive_asset_count": len(archive_controls),
             "record_count": len(controls),
             "known_records": {
                 release_key: control.checkpoint_value()
@@ -193,13 +240,101 @@ class MonaiModelZooSourceAdapter:
     def _controls(self, payload: Any) -> tuple[_BundleControl, ...]:
         if not isinstance(payload, Mapping):
             raise ValueError(f"{self.name}: registry is not a JSON object")
-        if not payload:
-            raise ValueError(f"{self.name}: registry contains no bundles")
         if len(payload) > self.max_entries:
             raise ValueError(f"{self.name}: registry exceeds {self.max_entries} bundles")
         controls = []
         for release_key, raw in sorted(payload.items()):
             controls.append(self._control(release_key, raw))
+        return tuple(controls)
+
+    def _release_assets(self, payload: Any) -> tuple[Mapping[str, Any], ...]:
+        if not isinstance(payload, Mapping) or _text(payload.get("tag_name")) != _ARCHIVE_TAG:
+            raise ValueError(f"{self.name}: archive endpoint returned the wrong release tag")
+        release_id = _optional_asset_id(payload.get("id"), _ARCHIVE_TAG)
+        if release_id is None:
+            raise ValueError(f"{self.name}: archive release is missing its ID")
+        assets_count = _nonnegative_int(payload.get("assets_count"))
+        if assets_count is None:
+            raise ValueError(f"{self.name}: archive release has an invalid assets_count")
+        if assets_count > self.max_entries:
+            raise ValueError(f"{self.name}: archived release exceeds {self.max_entries} assets")
+        assets_url = _archive_assets_url(
+            payload.get("assets_url"), self.repository, release_id
+        )
+        collected: list[Mapping[str, Any]] = []
+        page_number = 1
+        while len(collected) < assets_count:
+            response: HttpResponse = self.client.get(
+                assets_url,
+                params={"per_page": _ASSET_PAGE_SIZE, "page": page_number},
+                headers={"Accept": "application/vnd.github+json"},
+            )
+            if response.status != 200:
+                raise ValueError(
+                    f"{self.name}: archive asset page {page_number} returned HTTP "
+                    f"{response.status}"
+                )
+            if len(response.body) > self.max_registry_bytes:
+                raise ValueError(
+                    f"{self.name}: archive asset page {page_number} exceeds response byte limit"
+                )
+            page_assets = response.json()
+            if not isinstance(page_assets, list) or len(page_assets) > _ASSET_PAGE_SIZE:
+                raise ValueError(f"{self.name}: archive asset page is not a bounded array")
+            if not page_assets and len(collected) < assets_count:
+                raise ValueError(f"{self.name}: archive asset listing ended before assets_count")
+            if len(collected) + len(page_assets) > assets_count:
+                raise ValueError(f"{self.name}: archive asset listing exceeds assets_count")
+            for asset in page_assets:
+                if not isinstance(asset, Mapping):
+                    raise ValueError(f"{self.name}: archived release asset is not an object")
+                collected.append(asset)
+            page_number += 1
+        if len(collected) != assets_count:
+            raise ValueError(f"{self.name}: incomplete archive asset listing")
+        return tuple(collected)
+
+    def _archive_controls(
+        self, payload: Any, assets: tuple[Mapping[str, Any], ...]
+    ) -> tuple[_BundleControl, ...]:
+        if not isinstance(payload, Mapping) or _text(payload.get("tag_name")) != _ARCHIVE_TAG:
+            raise ValueError(f"{self.name}: archive endpoint returned the wrong release tag")
+        controls = []
+        seen: set[str] = set()
+        seen_ids: set[int] = set()
+        for asset in assets:
+            name = _text(asset.get("name"))
+            asset_id = _optional_asset_id(asset.get("id"), name)
+            if asset_id is None or asset_id in seen_ids:
+                raise ValueError(f"{self.name}: missing or duplicate GitHub asset ID {name!r}")
+            seen_ids.add(asset_id)
+            if not name.endswith(".zip"):
+                continue
+            release_key = name[:-4]
+            match = _BUNDLE_KEY.fullmatch(release_key)
+            if match is None:
+                continue
+            if release_key in seen:
+                raise ValueError(f"{self.name}: duplicate archived bundle asset {name!r}")
+            seen.add(release_key)
+            source_url = _archive_asset_url(
+                asset.get("browser_download_url"), self.repository, _ARCHIVE_TAG, name
+            )
+            digest = _optional_asset_digest(asset.get("digest"), name)
+            controls.append(
+                _BundleControl(
+                    release_key=release_key,
+                    model_id=match.group("model"),
+                    version=match.group("version"),
+                    source_url=source_url,
+                    checksum=None,
+                    archive_asset_id=asset_id,
+                    archive_asset_digest=digest,
+                    archive_asset_updated_at=_optional_datetime_text(
+                        asset.get("updated_at"), name
+                    ),
+                )
+            )
         return tuple(controls)
 
     def _control(self, release_key: Any, raw: Any) -> _BundleControl:
@@ -219,6 +354,13 @@ class MonaiModelZooSourceAdapter:
             version=match.group("version"),
             source_url=source_url,
             checksum=checksum,
+            archive_asset_id=_optional_asset_id(raw.get("archive_asset_id"), key),
+            archive_asset_digest=_optional_asset_digest(
+                raw.get("archive_asset_digest"), key
+            ),
+            archive_asset_updated_at=_optional_datetime_text(
+                raw.get("archive_asset_updated_at"), key
+            ),
         )
 
     def _checkpoint_controls(self, value: Any) -> dict[str, _BundleControl]:
@@ -235,6 +377,9 @@ class MonaiModelZooSourceAdapter:
                 {
                     "source": raw.get("source_url"),
                     "checksum": raw.get("checksum"),
+                    "archive_asset_id": raw.get("archive_asset_id"),
+                    "archive_asset_digest": raw.get("archive_asset_digest"),
+                    "archive_asset_updated_at": raw.get("archive_asset_updated_at"),
                 },
             )
         return result
@@ -262,6 +407,9 @@ class MonaiModelZooSourceAdapter:
             metadata={
                 "archive_sha1": control.checksum,
                 "archive_url": control.source_url,
+                "github_archive_asset_id": control.archive_asset_id,
+                "github_archive_asset_digest": control.archive_asset_digest,
+                "github_archive_asset_updated_at": control.archive_asset_updated_at,
                 "registry_path": self.registry_path,
                 "registry_revision": revision,
             },
@@ -281,6 +429,9 @@ class MonaiModelZooSourceAdapter:
                 "version": control.version,
                 "source": control.source_url,
                 "checksum": control.checksum,
+                "archive_asset_id": control.archive_asset_id,
+                "archive_asset_digest": control.archive_asset_digest,
+                "archive_asset_updated_at": control.archive_asset_updated_at,
                 "locator": f"$.{control.release_key}",
             },
             text=f"{control.model_id}\n{control.release_key}",
@@ -298,6 +449,20 @@ class MonaiModelZooSourceAdapter:
                     relation="weights",
                     locator=f"$.{control.release_key}.source",
                     crawl=False,
+                ),
+                *(
+                    (
+                        Link(
+                            _archive_url(self.repository, _ARCHIVE_TAG, control.release_key),
+                            relation="github_archive",
+                            locator=f"$.{control.release_key}.archive_asset_id",
+                            crawl=False,
+                        ),
+                    )
+                    if control.archive_asset_id is not None
+                    and control.source_url
+                    != _archive_url(self.repository, _ARCHIVE_TAG, control.release_key)
+                    else ()
                 ),
             ),
             models=(model,),
@@ -322,6 +487,9 @@ class MonaiModelZooSourceAdapter:
                 "version": control.version,
                 "source": control.source_url,
                 "checksum": control.checksum,
+                "archive_asset_id": control.archive_asset_id,
+                "archive_asset_digest": control.archive_asset_digest,
+                "archive_asset_updated_at": control.archive_asset_updated_at,
                 "removal_observed": True,
             },
             identifiers=(Identifier("monai:bundle-record", control.release_key),),
@@ -330,7 +498,16 @@ class MonaiModelZooSourceAdapter:
 
 
 class _BundleControl:
-    __slots__ = ("release_key", "model_id", "version", "source_url", "checksum")
+    __slots__ = (
+        "release_key",
+        "model_id",
+        "version",
+        "source_url",
+        "checksum",
+        "archive_asset_id",
+        "archive_asset_digest",
+        "archive_asset_updated_at",
+    )
 
     def __init__(
         self,
@@ -340,15 +517,27 @@ class _BundleControl:
         version: str,
         source_url: str,
         checksum: str | None,
+        archive_asset_id: int | None = None,
+        archive_asset_digest: str | None = None,
+        archive_asset_updated_at: str | None = None,
     ) -> None:
         self.release_key = release_key
         self.model_id = model_id
         self.version = version
         self.source_url = source_url
         self.checksum = checksum
+        self.archive_asset_id = archive_asset_id
+        self.archive_asset_digest = archive_asset_digest
+        self.archive_asset_updated_at = archive_asset_updated_at
 
-    def checkpoint_value(self) -> dict[str, str | None]:
-        return {"source_url": self.source_url, "checksum": self.checksum}
+    def checkpoint_value(self) -> dict[str, Any]:
+        return {
+            "source_url": self.source_url,
+            "checksum": self.checksum,
+            "archive_asset_id": self.archive_asset_id,
+            "archive_asset_digest": self.archive_asset_digest,
+            "archive_asset_updated_at": self.archive_asset_updated_at,
+        }
 
 
 def _repository(value: str) -> str:
@@ -363,6 +552,56 @@ def _registry_path(value: str) -> str:
     if any(part in {"", ".", ".."} for part in path.split("/")):
         raise ValueError("registry_path must be a safe relative path")
     return path
+
+
+def _archive_url(repository: str, tag: str, release_key: str) -> str:
+    filename = f"{release_key}.zip"
+    return canonicalize_url(
+        f"https://github.com/{repository}/releases/download/{quote(tag, safe='')}/"
+        f"{quote(filename, safe='')}"
+    )
+
+
+def _archive_assets_url(value: Any, repository: str, release_id: int) -> str:
+    url = _web_url(value, "monai-model-zoo", "archive assets URL")
+    expected = f"https://api.github.com/repos/{repository}/releases/{release_id}/assets"
+    if url != expected:
+        raise ValueError("monai-model-zoo: unexpected archive assets API URL")
+    return url
+
+
+def _archive_asset_url(value: Any, repository: str, tag: str, filename: str) -> str:
+    url = _web_url(value, "monai-model-zoo", f"archive asset {filename!r}")
+    expected = _archive_url(repository, tag, filename[:-4])
+    if url != expected:
+        raise ValueError(f"monai-model-zoo: unexpected archive asset URL for {filename!r}")
+    return url
+
+
+def _optional_asset_id(value: Any, filename: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"monai-model-zoo: invalid GitHub asset ID for {filename!r}")
+    return value
+
+
+def _optional_asset_digest(value: Any, filename: str) -> str | None:
+    digest = _text(value).casefold()
+    if not digest:
+        return None
+    if not _ASSET_DIGEST.fullmatch(digest):
+        raise ValueError(f"monai-model-zoo: invalid GitHub asset digest for {filename!r}")
+    return digest
+
+
+def _optional_datetime_text(value: Any, filename: str) -> str | None:
+    timestamp = _text(value)
+    if not timestamp:
+        return None
+    if len(timestamp) > 128 or any(char in timestamp for char in "\r\n\x00"):
+        raise ValueError(f"monai-model-zoo: invalid GitHub asset timestamp for {filename!r}")
+    return timestamp
 
 
 def _web_url(value: Any, source: str, field: str) -> str:

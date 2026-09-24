@@ -18,8 +18,8 @@ import pyarrow.parquet as pq
 from modelome.lake import ParquetLandingZone
 from modelome.semantic_scholar_bulk import citation_edge_ids
 
-_FORMAT = "modelome-semantic-scholar-citation-events-v1"
-_ALGORITHM = "exact-corpus-id-citation-event-stream-v1"
+_FORMAT = "modelome-semantic-scholar-citation-events-v2"
+_ALGORITHM = "exact-corpus-id-citation-event-stream-v2"
 _COMPONENT = re.compile(r"[^A-Za-z0-9._-]+")
 _EDGE_SCHEMA = pa.schema(
     [
@@ -202,6 +202,7 @@ class SemanticScholarCitationMaterializer:
                 "row_count": event_index,
                 "schema": str(_EDGE_SCHEMA),
                 "source": self.source,
+                "transitions": _transitions_from_seal(seal),
             }
             manifest["manifest_sha256"] = _sha256_json(manifest)
             _write_json(temporary / "manifest.json", manifest)
@@ -305,6 +306,8 @@ class SemanticScholarCitationMaterializer:
         }
         if manifest.get("input") != expected_input:
             raise ValueError("citation projection input identity mismatch")
+        if manifest.get("transitions") != _transitions_from_seal(seal):
+            raise ValueError("citation projection transition lineage mismatch")
         parts = manifest.get("parts")
         if not isinstance(parts, list) or manifest.get("part_count") != len(parts):
             raise ValueError("citation projection part count mismatch")
@@ -359,6 +362,25 @@ class SemanticScholarCitationMaterializer:
             already_materialized=already_materialized,
         )
 
+    def open_projection(self, release: str) -> CitationProjectionReceipt:
+        """Open the deterministic event ledger for one sealed citation release."""
+
+        release = _required_text(release, "release")
+        seal_path = self.landing_zone._release_path(
+            self.source, "citations", release
+        ) / "RELEASE.json"
+        seal = self.landing_zone._verify_release(
+            seal_path, self.source, "citations", release
+        )
+        artifact_id = self._artifact_id(release, seal)
+        return self._verify_projection(
+            self._final_path(release, artifact_id),
+            release=release,
+            artifact_id=artifact_id,
+            seal=seal,
+            already_materialized=True,
+        )
+
     def _final_path(self, release: str, artifact_id: str) -> Path:
         source = _component(self.source)
         release_component = _component(release)
@@ -402,6 +424,25 @@ def _write_part(parts_dir: Path, index: int, rows: list[dict[str, Any]]) -> dict
         "byte_count": path.stat().st_size,
         "sha256": _file_sha256(path),
     }
+
+
+def _transitions_from_seal(seal: Mapping[str, Any]) -> list[dict[str, Any]]:
+    if seal.get("application_mode") == "snapshot":
+        return []
+    transitions: dict[int, dict[str, Any]] = {}
+    for shard in seal["shards"]:
+        order = shard["application_order"]
+        index = int(order["diff_index"])
+        transition = {
+            "diff_index": index,
+            "from_release": order["from_release"],
+            "to_release": order["to_release"],
+        }
+        prior = transitions.get(index)
+        if prior is not None and prior != transition:
+            raise ValueError("citation release has contradictory diff transitions")
+        transitions[index] = transition
+    return [transitions[index] for index in sorted(transitions)]
 
 
 def _row_size(row: Mapping[str, Any]) -> int:

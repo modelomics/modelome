@@ -31,6 +31,13 @@ def test_monai_bundle_keys_preserve_semver_build_metadata_and_exact_identity() -
     archive = "https://example.test/bundles/swin_unetr_3d-v1.2.0%2Bcuda.12.zip"
     client = QueuedClient(
         {"sha": REVISION},
+        {
+            "id": 1,
+            "tag_name": "hosting_storage_v1",
+            "assets_count": 0,
+            "assets_url": "https://api.github.com/repos/Project-MONAI/model-zoo/releases/1/assets",
+            "assets": [],
+        },
         {key: {"source": archive, "checksum": "A" * 40}},
     )
     source = MonaiModelZooSourceAdapter(client=client, clock=lambda: NOW)
