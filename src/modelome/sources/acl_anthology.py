@@ -312,7 +312,12 @@ class AclAnthologySourceAdapter:
         if b"<!DOCTYPE" in body.upper() or b"<!ENTITY" in body.upper():
             raise ValueError(f"{self.name}: collection XML must not declare a DTD or entities")
         try:
-            root = ElementTree.fromstring(body)
+            # A small number of historical Anthology XML rows lack the
+            # `<url>` element but retain the canonical paper URL in a nearby
+            # XML comment. Preserve comments so those first-party identities
+            # are not silently lost.
+            parser = ElementTree.XMLParser(target=ElementTree.TreeBuilder(insert_comments=True))
+            root = ElementTree.fromstring(body, parser=parser)
         except ElementTree.ParseError as error:
             raise ValueError(f"{self.name}: invalid collection XML: {error}") from None
         if root.tag != "collection":
@@ -323,9 +328,17 @@ class AclAnthologySourceAdapter:
             volume_id = volume.get("id", "")
             booktitle = _element_text(volume.find("./meta/booktitle"))
             year = _element_text(volume.find("./meta/year"))
-            paper_rows.extend(
-                (paper, volume_id, booktitle, year) for paper in volume.findall("./paper")
-            )
+            preceding_comment_id = ""
+            for child in volume:
+                if child.tag is ElementTree.Comment:
+                    preceding_comment_id = _comment_paper_id(child.text or "")
+                elif child.tag == "paper":
+                    if not _element_text(child.find("url")) and preceding_comment_id:
+                        # Materialize only an exact ACL URL declared in the
+                        # first-party XML comment immediately preceding it.
+                        ElementTree.SubElement(child, "url").text = preceding_comment_id
+                    paper_rows.append((child, volume_id, booktitle, year))
+                    preceding_comment_id = ""
         if len(paper_rows) > self.max_papers:
             raise ValueError(
                 f"{self.name}: collection has {len(paper_rows)} papers, "
@@ -415,7 +428,17 @@ class AclAnthologySourceAdapter:
 
 
 def _paper_id(paper: ElementTree.Element) -> str:
-    return _element_text(paper.find("url"))
+    paper_url = _element_text(paper.find("url"))
+    if paper_url:
+        return paper_url
+    return ""
+
+
+def _comment_paper_id(comment: str) -> str:
+    for candidate in re.findall(r"https://aclanthology\.org/([^\s/?#]+)/?", comment):
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.-]{0,127}", candidate):
+            return candidate
+    return ""
 
 
 def _element_text(element: ElementTree.Element | None) -> str:

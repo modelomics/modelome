@@ -395,6 +395,15 @@ class KaggleModelsSourceAdapter:
                 "license": _optional_text(instance.get("licenseName")),
                 "fine_tunable": instance.get("fineTunable"),
                 "model_instance_type": _optional_text(instance.get("modelInstanceType")),
+                "base_model_instance_id": _optional_text(
+                    instance.get("baseModelInstanceId", instance.get("base_model_instance_id"))
+                ),
+                "base_model_instance_information": _mapping_or_none(
+                    instance.get(
+                        "baseModelInstanceInformation",
+                        instance.get("base_model_instance_information"),
+                    )
+                ),
                 "total_uncompressed_bytes": _optional_nonnegative_int(
                     instance.get("totalUncompressedBytes")
                 ),
@@ -595,6 +604,10 @@ def _optional_text(value: Any) -> str | None:
     if isinstance(value, (int, float)):
         return str(value)
     return None
+
+
+def _mapping_or_none(value: Any) -> dict[str, Any] | None:
+    return dict(value) if isinstance(value, Mapping) else None
 
 
 def _optional_nonnegative_int(value: Any) -> int | None:

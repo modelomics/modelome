@@ -480,9 +480,15 @@ def build_entries(seeds: Iterable[Mapping[str, Any]]) -> EntryBuildResult:
 
     seed_count = 0
     candidates: list[_Candidate] = []
+    evidence_only_seeds: list[Mapping[str, Any]] = []
     for seed in seeds:
         seed_count += 1
-        candidates.extend(_candidates_from_seed(seed))
+        seed_candidates = _candidates_from_seed(seed)
+        if seed_candidates:
+            candidates.extend(seed_candidates)
+        else:
+            evidence_only_seeds.append(seed)
+    candidates = _attach_exact_record_resources(candidates, evidence_only_seeds)
     union = _UnionFind(len(candidates))
     identifier_owner: dict[str, int] = {}
     for index, candidate in enumerate(candidates):
@@ -572,6 +578,82 @@ def build_entries(seeds: Iterable[Mapping[str, Any]]) -> EntryBuildResult:
         candidate_count=len(candidates),
         resource_count=sum(len(entry.resources) for entry in entries),
     )
+
+
+def _attach_exact_record_resources(
+    candidates: list[_Candidate], evidence_seeds: Sequence[Mapping[str, Any]]
+) -> list[_Candidate]:
+    """Attach resource evidence to candidates with an exact artifact identifier.
+
+    Some source records enrich a paper or catalog record with checkpoint links
+    but declare no model themselves. Attach their links only when an exact
+    artifact identifier resolves to one candidate. A paper that describes
+    multiple models does not identify which model owns a checkpoint link.
+    """
+
+    candidates_by_artifact_identifier: dict[str, list[int]] = defaultdict(list)
+    for index, candidate in enumerate(candidates):
+        for identifier in candidate.artifact_identifiers:
+            candidates_by_artifact_identifier[identifier.key].append(index)
+
+    resources_by_candidate: dict[int, list[EntryResource]] = defaultdict(list)
+    for seed in evidence_seeds:
+        source = _required_text(seed.get("source"), "source")
+        source_record_id = _required_text(seed.get("source_record_id"), "source_record_id")
+        evidence_identifiers = _identifiers(seed.get("identifiers"), "identifiers")
+        target_indices = {
+            index
+            for identifier in evidence_identifiers
+            for index in candidates_by_artifact_identifier.get(identifier.key, ())
+            if (candidates[index].source, candidates[index].source_record_id)
+            != (source, source_record_id)
+        }
+        if len(target_indices) != 1:
+            continue
+        raw_links = seed.get("links", ())
+        if not isinstance(raw_links, Sequence) or isinstance(
+            raw_links, (str, bytes, bytearray)
+        ):
+            raise ValueError("links must be a list")
+        record_kind = _optional_text(seed.get("kind")) or "other"
+        for link_index, raw_link in enumerate(raw_links):
+            if not isinstance(raw_link, Mapping):
+                raise ValueError("links must contain objects")
+            relation = _optional_text(raw_link.get("relation")) or "references"
+            if relation.casefold() not in _WEIGHT_RELATIONS:
+                continue
+            url = _canonical_url(raw_link.get("url"), f"link {link_index} url")
+            crawl = _crawl(raw_link.get("crawl", True), f"link {link_index} crawl")
+            resolved_artifact, relation_evidence = _link_relation_metadata(
+                raw_link, link_index, url
+            )
+            scoped_model_ids = _link_model_local_ids(raw_link, link_index)
+            for index in target_indices:
+                candidate = candidates[index]
+                if scoped_model_ids and candidate.local_id not in scoped_model_ids:
+                    continue
+                resources_by_candidate[index].append(
+                    EntryResource(
+                        url=url,
+                        relation=relation,
+                        locator=_optional_text(raw_link.get("locator")),
+                        crawl=crawl,
+                        category=_category(relation, record_kind),
+                        source=source,
+                        source_record_id=source_record_id,
+                        model_local_id=candidate.local_id,
+                        resolved_artifact=resolved_artifact,
+                        relation_evidence=relation_evidence,
+                    )
+                )
+    if not resources_by_candidate:
+        return candidates
+    return [
+        replace(candidate, resources=(*candidate.resources, *resources_by_candidate[index]))
+        if index in resources_by_candidate
+        else candidate
+        for index, candidate in enumerate(candidates)
+    ]
 
 
 def _citation_url_keys(url: str) -> set[tuple[str, str]]:

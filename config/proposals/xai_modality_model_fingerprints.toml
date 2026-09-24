@@ -1,0 +1,48 @@
+# xAI's modality-specific full listings add provider model version and hosting
+# system fingerprint to image/video IDs, beyond the minimal /v1/models view.
+# Keep these API-key-scoped lists as current availability and fingerprint
+# evidence; their fingerprints identify the serving configuration, not weights.
+
+[[source]]
+name = "xai-image-model-fingerprints"
+adapter = "json_catalog"
+enabled = false
+activation_env = "XAI_API_KEY"
+entry_tags = ["field:machine-learning", "ecosystem:xai", "kind:hosted-model", "modality:image", "evidence:current-api-availability"]
+url = "https://api.x.ai/v1/image-generation-models"
+provider_namespace = "xai:model"
+model_card_url_template = "https://api.x.ai/v1/image-generation-models/{id_path}"
+model_page_crawl = false
+auth_env = "XAI_API_KEY"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+schedule = "daily"
+max_response_bytes = 4194304
+
+[source.mapping]
+items_path = "models"
+id_path = "id"
+name_path = "id"
+created_path = "created"
+
+[[source]]
+name = "xai-video-model-fingerprints"
+adapter = "json_catalog"
+enabled = false
+activation_env = "XAI_API_KEY"
+entry_tags = ["field:machine-learning", "ecosystem:xai", "kind:hosted-model", "modality:video", "evidence:current-api-availability"]
+url = "https://api.x.ai/v1/video-generation-models"
+provider_namespace = "xai:model"
+model_card_url_template = "https://api.x.ai/v1/video-generation-models/{id_path}"
+model_page_crawl = false
+auth_env = "XAI_API_KEY"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+schedule = "daily"
+max_response_bytes = 4194304
+
+[source.mapping]
+items_path = "models"
+id_path = "id"
+name_path = "id"
+created_path = "created"

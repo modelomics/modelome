@@ -130,3 +130,109 @@ def test_checkpoint_url_does_not_join_ambiguous_multi_model_catalog_link() -> No
     result = build_entries([first, second])
 
     assert len(result.entries) == 3
+
+
+def test_entry_seed_attaches_evidence_only_checkpoint_by_exact_record_identifier() -> None:
+    model_record = _seed(
+        "paper-record",
+        [{"namespace": "provider:model", "value": "example/model"}],
+    )
+    model_record["identifiers"] = [{"namespace": "doi", "value": "10.1000/paper"}]
+    evidence_record = {
+        "source": "biorxiv-jats-supplementary",
+        "source_record_id": "paper-record:jats-model-resources",
+        "canonical_url": "https://example.org/paper.xml",
+        "title": "Paper supplementary resources",
+        "kind": "paper",
+        "identifiers": [{"namespace": "doi", "value": "10.1000/paper"}],
+        "links": [
+            {
+                "url": "https://example.org/model-checkpoint.safetensors",
+                "relation": "model_artifact",
+                "locator": "jats.supplementary-material[0]",
+                "crawl": False,
+            }
+        ],
+        "models": [],
+    }
+
+    result = build_entries([model_record, evidence_record])
+
+    assert len(result.entries) == 1
+    resources = result.entries[0].resources
+    assert any(
+        resource.url == "https://example.org/model-checkpoint.safetensors"
+        and resource.source == "biorxiv-jats-supplementary"
+        and resource.category == "weights"
+        for resource in resources
+    )
+
+
+def test_entry_seed_does_not_attach_evidence_without_exact_record_identifier() -> None:
+    model_record = _seed(
+        "paper-record",
+        [{"namespace": "provider:model", "value": "example/model"}],
+    )
+    model_record["identifiers"] = [{"namespace": "doi", "value": "10.1000/paper-a"}]
+    evidence_record = {
+        "source": "zenodo-model-api",
+        "source_record_id": "record:42",
+        "canonical_url": "https://zenodo.org/records/42",
+        "title": "Zenodo model",
+        "kind": "catalog_record",
+        "identifiers": [{"namespace": "doi", "value": "10.1000/paper-b"}],
+        "links": [
+            {
+                "url": "https://zenodo.org/records/42/files/model.safetensors",
+                "relation": "checkpoint",
+            }
+        ],
+        "models": [],
+    }
+
+    result = build_entries([model_record, evidence_record])
+
+    assert len(result.entries) == 1
+    assert not any(
+        resource.url == "https://zenodo.org/records/42/files/model.safetensors"
+        for resource in result.entries[0].resources
+    )
+
+
+def test_entry_seed_does_not_assign_paper_checkpoint_to_multiple_models() -> None:
+    paper_record = _seed(
+        "paper-record",
+        [{"namespace": "provider:model", "value": "example/model-a"}],
+    )
+    paper_record["models"].append(
+        {
+            "local_id": "model-b",
+            "name": "Example model B",
+            "identifiers": [{"namespace": "provider:model", "value": "example/model-b"}],
+        }
+    )
+    paper_record["identifiers"] = [{"namespace": "doi", "value": "10.1000/paper"}]
+    evidence_record = {
+        "source": "biorxiv-jats-supplementary",
+        "source_record_id": "paper-record:jats-model-resources",
+        "canonical_url": "https://example.org/paper.xml",
+        "title": "Paper supplementary resources",
+        "kind": "paper",
+        "identifiers": [{"namespace": "doi", "value": "10.1000/paper"}],
+        "links": [
+            {
+                "url": "https://example.org/model-checkpoint.safetensors",
+                "relation": "model_artifact",
+            }
+        ],
+        "models": [],
+    }
+
+    result = build_entries([paper_record, evidence_record])
+
+    assert len(result.entries) == 2
+    assert all(
+        resource.url != "https://example.org/model-checkpoint.safetensors"
+        for entry in result.entries
+        for resource in entry.resources
+    )

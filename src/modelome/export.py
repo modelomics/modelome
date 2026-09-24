@@ -369,26 +369,34 @@ def _source_manifest(
         for row in source_configs
         if isinstance(row.get("name"), str)
     }
+    checkpoint_by_source = {str(row["source"]): row for row in checkpoints}
     sources = []
-    for checkpoint in sorted(checkpoints, key=lambda row: str(row["source"])):
-        config = configs.get(str(checkpoint["source"]), {})
+    for source in sorted(set(configs) | set(checkpoint_by_source)):
+        checkpoint = checkpoint_by_source.get(source)
+        config = configs.get(source, {})
         sources.append(
             {
-                "source": checkpoint["source"],
+                "source": source,
                 "adapter": config.get("adapter"),
+                "is_configured": source in configs,
+                "checkpoint_observed": checkpoint is not None,
                 "schedule": config.get("schedule"),
                 "configured": {
                     field: config[field]
                     for field in _PUBLIC_CONFIG_FIELDS
                     if field in config
                 },
-                "checkpoint": {
-                    "complete": checkpoint["complete"],
-                    "upstream_count": checkpoint["upstream_count"],
-                    "pages_ingested": checkpoint["pages_ingested"],
-                    "records_seen": checkpoint["records_seen"],
-                    "updated_at": checkpoint["updated_at"],
-                },
+                "checkpoint": (
+                    {
+                        "complete": checkpoint["complete"],
+                        "upstream_count": checkpoint["upstream_count"],
+                        "pages_ingested": checkpoint["pages_ingested"],
+                        "records_seen": checkpoint["records_seen"],
+                        "updated_at": checkpoint["updated_at"],
+                    }
+                    if checkpoint is not None
+                    else None
+                ),
             }
         )
     return {
@@ -449,8 +457,10 @@ Follow the external URLs and identifiers for those materials under their own ter
 
 ## Source attribution and rights
 
-source-manifest.json records every contributing configured source, its checkpoint
-coverage, and any configured dataset license. Source-level terms remain in force.
+source-manifest.json records configured sources and observed source checkpoints,
+including configured sources with no observed checkpoint. The checkpoint's
+complete flag and counts are reported only when that checkpoint exists; they do
+not claim unrun sources were ingested. Source-level terms remain in force.
 In particular, derivative users must preserve attribution and applicable
 share-alike obligations for records derived from the Papers with Code archival
 datasets. The arXiv snapshot contributes factual metadata only; paper-specific

@@ -66,6 +66,29 @@ def test_reads_official_collection_xml_as_paper_records_and_skips_unchanged_snap
     assert same.records == ()
 
 
+def test_recovers_historical_paper_id_from_adjacent_official_xml_comment() -> None:
+    # The official 1952.earlymt.xml historical collection includes a paper
+    # whose canonical ACL URL is recorded in a comment, without a <url> node.
+    xml = b"""<collection id="1952.earlymt">
+      <volume id="1">
+        <!-- https://aclanthology.org/1952.earlymt-1.6/ -->
+        <paper id="6"><title>Historical machine translation paper</title></paper>
+      </volume>
+    </collection>"""
+    page = AclAnthologySourceAdapter(
+        url="https://aclanthology.org/1952.earlymt.xml",
+        client=QueueClient(xml),
+        clock=lambda: NOW,
+    ).fetch_page({})
+
+    assert page.upstream_count == 1
+    assert len(page.records) == 1
+    record = page.records[0]
+    assert record.source_record_id == "1952.earlymt-1.6"
+    assert record.canonical_url == "https://aclanthology.org/1952.earlymt-1.6"
+    assert not page.issues
+
+
 def test_rejects_unbounded_or_invalid_collection_payloads() -> None:
     oversized = AclAnthologySourceAdapter(
         url="https://aclanthology.org/test.xml",

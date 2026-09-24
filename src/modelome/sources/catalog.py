@@ -38,10 +38,12 @@ from modelome.sources.csv_source import CsvSourceAdapter
 from modelome.sources.datacite import DataCiteSourceAdapter
 from modelome.sources.detectron2_model_zoo import Detectron2ModelZooSourceAdapter
 from modelome.sources.dgl_lifesci_registry import DglLifeSciCheckpointRegistrySourceAdapter
+from modelome.sources.dopamine_checkpoint_bundles import DopamineCheckpointBundleAdapter
 from modelome.sources.eartharxiv import EarthArxivSourceAdapter
 from modelome.sources.espnet_model_zoo import EspnetModelZooSourceAdapter
 from modelome.sources.europe_pmc import EuropePmcSourceAdapter
 from modelome.sources.fairseq_language_models import FairseqPretrainedLanguageModelSourceAdapter
+from modelome.sources.galaxea_vla_checkpoints import GalaxeaVLACheckpointSourceAdapter
 from modelome.sources.generative_extra import (
     CompVisLatentDiffusionDownloadsSourceAdapter,
     CompVisLatentDiffusionReadmeDownloadsSourceAdapter,
@@ -51,6 +53,7 @@ from modelome.sources.gensim_registry import GensimDownloaderModelRegistrySource
 from modelome.sources.geospatial_registry import GeospatialRegistrySourceAdapter
 from modelome.sources.gharchive import GhArchiveSourceAdapter
 from modelome.sources.github_repositories import GitHubPublicRepositoriesSourceAdapter
+from modelome.sources.gpt4all_model_catalog import Gpt4AllModelCatalogSourceAdapter
 from modelome.sources.graph_ml_registry import GraphMLRegistrySourceAdapter
 from modelome.sources.graphgps_release_asset import GraphGPSReleaseAssetSourceAdapter
 from modelome.sources.hal import HalSourceAdapter
@@ -60,6 +63,7 @@ from modelome.sources.jax_extra_registry import JaxExtraRegistrySourceAdapter
 from modelome.sources.jax_registry import JaxRegistrySourceAdapter
 from modelome.sources.json_catalog import JsonCatalogSourceAdapter
 from modelome.sources.kaggle import KaggleModelsSourceAdapter
+from modelome.sources.kaldi_model_index import KaldiModelIndexSourceAdapter
 from modelome.sources.keras_hub_preset_registry import KerasHubPresetRegistrySourceAdapter
 from modelome.sources.line_checkpoint_card_catalog import (
     LineCheckpointCardCatalogSourceAdapter,
@@ -83,6 +87,7 @@ from modelome.sources.neuralgcm_checkpoint_registry import (
 from modelome.sources.ngc import NgcModelsSourceAdapter
 from modelome.sources.nltk_data_models import NltkDataModelIndexSourceAdapter
 from modelome.sources.nnunet_registry import NnUNetV1PretrainedRegistryAdapter
+from modelome.sources.ocp_model_registry import OCPModelRegistrySourceAdapter
 from modelome.sources.ollama_library_tags import OllamaLibraryTagCatalogAdapter
 from modelome.sources.onnx_model_zoo import OnnxModelZooSourceAdapter
 from modelome.sources.openai_models import OpenAIModelsSourceAdapter
@@ -102,6 +107,7 @@ from modelome.sources.paddleclas_model_registry import PaddleClasModelRegistrySo
 from modelome.sources.paddlegan_tutorial_model_zoo import (
     PaddleGanTutorialModelZooSourceAdapter,
 )
+from modelome.sources.paddlenlp_taskflow_uie import PaddleNlpTaskflowUieSourceAdapter
 from modelome.sources.paddleocr_current_model_list import (
     PaddleOcrCurrentModelListSourceAdapter,
 )
@@ -114,6 +120,9 @@ from modelome.sources.paperswithcode import (
     PapersWithCodeEvaluationMethodsSourceAdapter,
     PapersWithCodeLinksSourceAdapter,
     PapersWithCodeValidatedMethodsSourceAdapter,
+)
+from modelome.sources.pelican_vla_checkpoint_registry import (
+    PelicanVLACheckpointRegistrySourceAdapter,
 )
 from modelome.sources.plos import PlosSourceAdapter
 from modelome.sources.pmc import PmcSourceAdapter
@@ -944,6 +953,13 @@ def create_source(
             "rfdiffusion_checkpoint_registry",
             "nltk_data_models",
             "pytorch_hub_load_calls",
+            "paddlenlp_taskflow_uie",
+            "pelican_vla_checkpoint_registry",
+            "ocp_model_registry",
+            "dopamine_checkpoint_bundles",
+            "kaldi_model_index",
+            "galaxea_vla_checkpoints",
+            "gpt4all_model_catalog",
         }
         else _required_text(expanded, "url")
     )
@@ -1044,6 +1060,9 @@ def create_source(
             token=token or None,
             include_private=_boolean(expanded.get("include_private"), default=False),
             include_revisions=_boolean(expanded.get("include_revisions"), default=False),
+            created_at_sweep_interval_days=_nonnegative_integer(
+                expanded.get("created_at_sweep_interval_days"), 0
+            ),
             **injected,
         )
 
@@ -1712,6 +1731,72 @@ def create_source(
             max_code_chars=_integer(expanded.get("max_code_chars"), 256 * 1024),
             max_pages=_integer(expanded.get("max_pages"), 1_000),
             client=injected["client"],
+        )
+
+    if adapter == "paddlenlp_taskflow_uie":
+        return PaddleNlpTaskflowUieSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 1_000),
+            **injected,
+        )
+
+    if adapter == "pelican_vla_checkpoint_registry":
+        return PelicanVLACheckpointRegistrySourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 20),
+            **injected,
+        )
+
+    if adapter == "ocp_model_registry":
+        if _required_text(expanded, "page_url") != (
+            "https://facebookresearch.github.io/fairchem/models-1/"
+        ):
+            raise ValueError(f"{name}: unexpected FAIR Chemistry model page")
+        return OCPModelRegistrySourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "dopamine_checkpoint_bundles":
+        return DopamineCheckpointBundleAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "kaldi_model_index":
+        return KaldiModelIndexSourceAdapter(
+            name=name,
+            index_url=_required_text(expanded, "index_url"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_resources=_integer(expanded.get("max_resources"), 100),
+            max_archives=_integer(expanded.get("max_archives"), 2_000),
+            **injected,
+        )
+
+    if adapter == "galaxea_vla_checkpoints":
+        return GalaxeaVLACheckpointSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 50),
+            **injected,
+        )
+
+    if adapter == "gpt4all_model_catalog":
+        return Gpt4AllModelCatalogSourceAdapter(
+            name=name,
+            repository=_required_text(expanded, "repository"),
+            branch=_text(expanded.get("branch")) or "main",
+            source_path=_required_text(expanded, "source_path"),
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 10_000),
+            **injected,
         )
 
     if adapter == "mindspore_modelzoo":

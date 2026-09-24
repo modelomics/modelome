@@ -1,0 +1,22 @@
+# Kaldi's official model directory lists M1.. resources and links to detail
+# pages that declare archive filenames and direct download anchors. The bounded
+# reader only follows resources present in models.html and archive links under
+# the matching /models/<id>/ path; it does not crawl the older downloads tree.
+[[source]]
+name = "kaldi-model-index"
+adapter = "kaldi_model_index"
+enabled = false
+entry_tags = [
+  "field:speech-and-audio",
+  "ecosystem:kaldi",
+  "kind:model-zoo",
+]
+index_url = "https://www.kaldi-asr.org/models.html"
+schedule = "monthly"
+max_response_bytes = 2097152
+max_resources = 100
+max_archives = 2000
+
+[evidence]
+model_index = "https://www.kaldi-asr.org/models.html"
+archive_host = "https://kaldi-asr.org/models/<resource-id>/<filename>"

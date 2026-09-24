@@ -46,6 +46,34 @@ class _FakeClient:
                     "b7cdb936c551c06ef2cdc6227238c5ccc9c8c5259a11f99f4a937419d52af61b",
                 ),
                 (
+                    "bllip_wsj_no_aux",
+                    "BLLIP Parser: WSJ Model",
+                    "models",
+                    "24516205",
+                    "e00339b708f23c24b5cf67ff3db5711dd4d80b21083f52787cf167bf77ac2126",
+                ),
+                (
+                    "moses_sample",
+                    "Moses Sample Models",
+                    "models",
+                    "10961490",
+                    "0639dfa1d1939295d29c3d57478b1eb7767405dc916effe2cf6a90071943f7e8",
+                ),
+                (
+                    "word2vec_sample",
+                    "Word2Vec Sample",
+                    "models",
+                    "49396025",
+                    "d29ff84a6ceca407f8578648568c55894dac34641ceb1fa02f920264fe326b43",
+                ),
+                (
+                    "punkt",
+                    "Punkt Tokenizer Models",
+                    "tokenizers",
+                    "13905355",
+                    "51c3078994aeaf650bfc8e028be4fb42b4a0d177d41c012b6a983979653660ec",
+                ),
+                (
                     "punkt_tab",
                     "Punkt Tokenizer Models",
                     "tokenizers",
@@ -65,6 +93,20 @@ class _FakeClient:
                     "corpora",
                     "3314357",
                     "9b275f9b3b95d7bd66ccfb7cd259f445a13bbe5d1f4107aba09fd3e8364bafa6",
+                ),
+                (
+                    "wmt15_eval",
+                    "Evaluation data from WMT15",
+                    "models",
+                    "383096",
+                    "56ea67e320f75be1abdee60b9d57aef1bd50324edd176e11c3c40f451043c80e",
+                ),
+                (
+                    "rslp",
+                    "RSLP Stemmer",
+                    "stemmers",
+                    "3805",
+                    "f482f9666a2a76cdd4acab16b01a44b002550ebaac29906dbd5a1bbc281e4f8b",
                 ),
             ):
                 ET.SubElement(
@@ -104,11 +146,15 @@ def test_nltk_data_index_extracts_exact_model_package_assets() -> None:
 
     page = adapter.fetch_page({})
 
-    assert page.upstream_count == 3
+    assert page.upstream_count == 7
     assert {record.raw["id"] for record in page.records} == {
         "averaged_perceptron_tagger_eng",
+        "bllip_wsj_no_aux",
         "maxent_ne_chunker",
+        "moses_sample",
+        "punkt",
         "punkt_tab",
+        "word2vec_sample",
     }
     model = next(record for record in page.records if record.raw["id"] == "punkt_tab")
     assert model.canonical_url.endswith("/packages/tokenizers/punkt_tab.zip")

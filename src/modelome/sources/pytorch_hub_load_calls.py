@@ -6,6 +6,7 @@ import ast
 import re
 import textwrap
 from collections.abc import Mapping
+from contextlib import suppress
 from datetime import UTC, datetime
 from html.parser import HTMLParser
 from typing import Any
@@ -31,6 +32,9 @@ _REPO_REF = re.compile(
     r"^(?P<repo>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+):(?P<ref>[A-Za-z0-9_.-]+)$"
 )
 _ENTRYPOINT = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*$")
+_COMMENTED_LOAD_EXAMPLE = re.compile(
+    r"^\s*#\s*(?:[A-Za-z_]\w*\s*=\s*)?torch\.hub\.load\s*\("
+)
 
 
 def _utcnow() -> datetime:
@@ -342,49 +346,57 @@ def _load_calls(code_blocks: list[str]) -> tuple[dict[str, Any], ...]:
     calls: list[dict[str, Any]] = []
     seen = set()
     for block_index, block in enumerate(code_blocks):
-        try:
-            tree = ast.parse(textwrap.dedent(block).strip())
-        except SyntaxError:
-            continue
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call) or _call_name(node.func) != "torch.hub.load":
+        trees = []
+        with suppress(SyntaxError):
+            trees.append(ast.parse(textwrap.dedent(block).strip()))
+        for line in block.splitlines():
+            if not _COMMENTED_LOAD_EXAMPLE.match(line):
                 continue
-            if len(node.args) < 2:
+            commented_code = line.lstrip()[1:].strip()
+            try:
+                trees.append(ast.parse(commented_code))
+            except SyntaxError:
                 continue
-            repo_ref = _literal_string(node.args[0])
-            entrypoint = _literal_string(node.args[1])
-            match = _REPO_REF.fullmatch(repo_ref)
-            if match is None or not _ENTRYPOINT.fullmatch(entrypoint):
-                continue
-            arguments = {
-                f"arg_{index + 3}": _safe_unparse(value)
-                for index, value in enumerate(node.args[2:])
-            }
-            arguments.update(
-                {
-                    keyword.arg: _safe_unparse(keyword.value)
-                    for keyword in node.keywords
-                    if keyword.arg is not None
+        for tree in trees:
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call) or _call_name(node.func) != "torch.hub.load":
+                    continue
+                if len(node.args) < 2:
+                    continue
+                repo_ref = _literal_string(node.args[0])
+                entrypoint = _literal_string(node.args[1])
+                match = _REPO_REF.fullmatch(repo_ref)
+                if match is None or not _ENTRYPOINT.fullmatch(entrypoint):
+                    continue
+                arguments = {
+                    f"arg_{index + 3}": _safe_unparse(value)
+                    for index, value in enumerate(node.args[2:])
                 }
-            )
-            identity = (
-                match.group("repo"),
-                match.group("ref"),
-                entrypoint,
-                tuple(sorted(arguments.items())),
-            )
-            if identity in seen:
-                continue
-            seen.add(identity)
-            calls.append(
-                {
-                    "repo": match.group("repo"),
-                    "ref": match.group("ref"),
-                    "entrypoint": entrypoint,
-                    "arguments": arguments,
-                    "code_block": block_index,
-                }
-            )
+                arguments.update(
+                    {
+                        keyword.arg: _safe_unparse(keyword.value)
+                        for keyword in node.keywords
+                        if keyword.arg is not None
+                    }
+                )
+                identity = (
+                    match.group("repo"),
+                    match.group("ref"),
+                    entrypoint,
+                    tuple(sorted(arguments.items())),
+                )
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                calls.append(
+                    {
+                        "repo": match.group("repo"),
+                        "ref": match.group("ref"),
+                        "entrypoint": entrypoint,
+                        "arguments": arguments,
+                        "code_block": block_index,
+                    }
+                )
     return tuple(calls)
 
 

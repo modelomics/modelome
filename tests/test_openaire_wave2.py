@@ -10,6 +10,7 @@ from modelome.openaire_projection import (
     project_openaire_relation,
     project_openaire_software,
 )
+from modelome.storage import Database
 
 
 def _software() -> dict[str, Any]:
@@ -94,6 +95,29 @@ def test_projects_openAIRE_software_repository_and_documentation_fields() -> Non
     assert record.raw["documentation_urls"] == ["https://docs.example.org/project"]
 
 
+def test_exact_code_repository_url_enters_existing_crawl_frontier(tmp_path: Path) -> None:
+    database = Database(tmp_path / "registry")
+    database.initialize()
+    record = project_openaire_software(
+        {
+            "id": "openaire-github-project",
+            "type": "software",
+            "mainTitle": "Project with a GitHub repository",
+            "pid": [{"scheme": "url", "value": "https://github.com/example/project"}],
+            "codeRepositoryUrl": "https://github.com/example/project",
+        }
+    )
+    assert record is not None
+    assert record.links[0].relation == "code_repository"
+    assert record.links[0].crawl is True
+
+    database.ingest_page("openaire-graph", (record,), {}, extractor="fixture")
+
+    assert [item["url"] for item in database.list_frontier(status="pending")] == [
+        "https://github.com/example/project"
+    ]
+
+
 def test_preserves_instance_identifiers_as_version_links_not_product_identity() -> None:
     record = project_openaire_software(
         {
@@ -142,15 +166,20 @@ def test_keeps_pid_only_software_identity_when_doi_provides_canonical_url() -> N
     assert record.title == "software-no-provider-url"
 
 
-def test_skips_products_without_a_safe_canonical_url() -> None:
-    assert project_openaire_software(
+def test_uses_graph_resolver_for_products_without_safe_external_urls() -> None:
+    record = project_openaire_software(
         {
             "id": "software-no-url",
             "type": "software",
             "pids": [{"scheme": "handle", "value": "123/456"}],
             "instances": [{"urls": ["http://repository.example.org/software"]}],
         }
-    ) is None
+    )
+    assert record is not None
+    assert record.canonical_url == (
+        "https://api.openaire.eu/graph/v3/research-products/software-no-url"
+    )
+    assert record.links == ()
 
 
 def test_projects_explicit_software_to_dataset_relation_as_non_model_evidence() -> None:

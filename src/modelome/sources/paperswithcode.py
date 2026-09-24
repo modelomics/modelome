@@ -824,12 +824,17 @@ def _evaluation_records(
                                     "datasets": dataset_scope,
                                     "code_links": set(),
                                     "model_links": set(),
+                                    "model_link_titles": {},
                                 },
                             )
                             for code in _evaluation_code_urls(value.get("code_links")):
                                 entry["code_links"].add(code)
                             for model_url in _evaluation_code_urls(value.get("model_links")):
                                 entry["model_links"].add(model_url)
+                            for model_url, label in _evaluation_model_link_titles(
+                                value.get("model_links")
+                            ):
+                                entry["model_link_titles"].setdefault(model_url, set()).add(label)
                 # The metrics object can contain tens of thousands of metric keys;
                 # model observations live only on this declared structural path.
                 pending.extend(
@@ -932,6 +937,13 @@ def _evaluation_records(
                     "datasets": list(entry["datasets"]),
                     "code_urls": sorted(entry["code_links"]),
                     "model_artifact_urls": sorted(entry["model_links"]),
+                    "model_artifacts": [
+                        {
+                            "url": model_url,
+                            "titles": sorted(entry["model_link_titles"].get(model_url, set())),
+                        }
+                        for model_url in sorted(entry["model_links"])
+                    ],
                 },
                 identifiers=(identifier,),
                 links=tuple(links),
@@ -1303,6 +1315,20 @@ def _evaluation_code_urls(value: Any) -> tuple[str, ...]:
         if (url := _optional_web_url(item.get("url")))
     }
     return tuple(sorted(urls))
+
+
+def _evaluation_model_link_titles(value: Any) -> tuple[tuple[str, str], ...]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        return ()
+    pairs = {
+        (url, title)
+        for item in value
+        if isinstance(item, Mapping)
+        if (url := _optional_web_url(item.get("url")))
+        if (title := _text(item.get("title")))
+        if len(title) <= 240 and not _CONTROL_CHARACTER.search(title)
+    }
+    return tuple(sorted(pairs))
 
 
 def _required_text(value: Any, field: str) -> str:

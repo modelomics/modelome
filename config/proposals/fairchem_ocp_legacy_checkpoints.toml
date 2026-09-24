@@ -1,0 +1,13 @@
+# Direct checkpoint links in FAIR Chemistry's first-party legacy pretrained-model page.
+[[source]]
+name = "fairchem-ocp-legacy-checkpoints"
+adapter = "ocp_model_registry"
+enabled = false
+page_url = "https://facebookresearch.github.io/fairchem/models-1/"
+entry_tags = ["field:computational-chemistry", "ecosystem:fairchem", "model-family:open-catalyst-project", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# Covers direct .pt checkpoint anchors for legacy OC20/OC22 model rows only.
+# The page separately recommends UMA; UMA weights are Hub hosted and are excluded.
+# Artifact targets are validated to the exact dl.fbaipublicfiles.com host; weights are never fetched.

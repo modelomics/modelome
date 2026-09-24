@@ -116,13 +116,14 @@ The following are available capabilities, not a directive to run every source or
 loader now. During the entry-first phase, use only the bounded source or link operations
 needed to validate the per-paper workflow. Their later corpus-scale role is documented in
 [Entry-first modelome](docs/entry-first.md#path-to-complete-paper-ingestion).
-The default catalog currently has **301 enabled sources** (288 loadable without provider credentials); this is a configuration count,
+The default catalog currently has **311 enabled sources** (296 loadable without provider credentials); this is a configuration count,
 not a claim that all upstream inventories have been exhausted.
 
 The default catalog enables independent, unfiltered streams for:
 
 - public Hugging Face model repositories, cards, revisions, weight-file metadata, declared
-  paper/code URLs, and `base_model` relations;
+  paper/code URLs, and `base_model` relations, with monthly created-at windows for bounded
+  temporal discovery;
 - the documented bounded union of ModelScope's public model-list orderings, retaining
   source-native model cards and metadata while explicitly respecting its 3,000-row
   per-sort pagination ceiling;
@@ -147,6 +148,9 @@ The default catalog enables independent, unfiltered streams for:
   version-scoped metadata and download references without fetching model files;
 - TorchGeo source-declared pretrained weight definitions and historical AllenNLP model archives, plus five first-party Fairseq NLP model zoos: RoBERTa, BART, XLM-R, mBART, and Transformer language models;
 - first-party checkpoint registries for Scenic, StarDist, Coqui TTS, DGL-LifeSci (including generative models), Uni-MOF, OpenFold/OpenFold3, and Argus robotics, retaining exact source-native handles and checkpoint links;
+- first-party PaddleNLP Taskflow UIE checkpoints, Pelican and Galaxea G05 VLA policies,
+  FAIR Chemistry OCP legacy models, Dopamine checkpoint bundles, Kaldi model declarations,
+  and the GPT4All model catalog;
 - the complete ACL Anthology XML manifest traversal, plus Oracle OCI pretrained-model and
   Azure Foundry models-sold-by-Azure catalogs; these are paper or hosted-offering evidence,
   not inferred weight claims;
@@ -172,6 +176,8 @@ The default catalog enables independent, unfiltered streams for:
   imbalanced-learn technique pages;
 - every xAI model returned by its Models API when `XAI_API_KEY` is configured,
   as account-visible serving evidence with the credential excluded from records;
+- xAI image and video model-family availability APIs when `XAI_API_KEY` is configured,
+  plus public Mistral lifecycle documentation;
 - every configured-public-owner row returned by OpenAI's documented Models API, retaining
   its exact provider ID, owner, creation/shutdown metadata, and provider-resource link while
   excluding account-specific/private-owner rows before persistence;

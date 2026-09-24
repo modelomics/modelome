@@ -33,7 +33,9 @@ _CHECKPOINT_FILENAME = re.compile(
     r"(?:^|[._-])(?:checkpoint|ckpt|model|model_weights|weights)(?:[._-]|$)",
     re.IGNORECASE,
 )
-_MODEL_WEIGHT_SUFFIX = re.compile(r"\.(?:ckpt|h5|hdf5|onnx|pt|pth|safetensors)$", re.IGNORECASE)
+_MODEL_WEIGHT_SUFFIX = re.compile(
+    r"\.(?:ckpt|h5|hdf5|model|onnx|pt|pth|safetensors)$", re.IGNORECASE
+)
 
 
 def _utcnow() -> datetime:

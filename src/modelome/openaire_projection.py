@@ -154,8 +154,6 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
         identifiers.append(Identifier(f"openaire-pid:{scheme.casefold()}", value))
         if scheme.casefold() == "doi" and canonical_url is None:
             canonical_url = f"https://doi.org/{quote(value, safe='/') }"
-        elif scheme.casefold() in {"url", "uri"} and canonical_url is None:
-            canonical_url = _public_https(value)
 
     links: list[Link] = []
     instance_pids: list[dict[str, str]] = []
@@ -213,17 +211,8 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
                         crawl=True,
                     )
                 )
-    if canonical_url is None and links:
-        canonical_url = next(
-            (
-                item.url
-                for item in links
-                if item.relation == "code_repository"
-            ),
-            links[0].url,
-        )
     if canonical_url is None:
-        return None
+        canonical_url = _research_product_api_url(graph_id)
 
     title = _title(payload.get("mainTitle")) or _title(payload.get("title")) or graph_id
     unique_identifiers = tuple(dict.fromkeys(identifiers))

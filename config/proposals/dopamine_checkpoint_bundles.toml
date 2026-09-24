@@ -1,0 +1,16 @@
+# Dopamine's official docs list one TensorFlow checkpoint archive for each of
+# four Atari agents. Each archive covers 60 Atari games and five runs. The
+# archives are large; this adapter only indexes the four links and never fetches
+# archive bytes or asserts an inventory of internal files. Keep disabled pending
+# catalog-owner review of the bundle-level granularity and public access path.
+[[source]]
+name = "dopamine-checkpoint-bundles"
+adapter = "dopamine_checkpoint_bundles"
+enabled = false
+entry_tags = ["field:reinforcement-learning", "ecosystem:google-dopamine", "kind:checkpoint-archive"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+[evidence]
+official_docs = "https://google.github.io/dopamine/docs/"
+repository = "https://github.com/google/dopamine"

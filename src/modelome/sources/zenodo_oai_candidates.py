@@ -3,7 +3,7 @@
 Zenodo recommends OAI-PMH for bulk metadata access. This adapter scans its
 complete DCAT stream, which includes file distributions, and emits candidate
 hints only where record metadata describes neural models and a distribution
-names a checkpoint/weights file in a recognized serialization format. The
+names a model/checkpoint/weights file in a recognized serialization format. The
 candidate is not a documented or released model assertion.
 """
 
@@ -33,12 +33,17 @@ _OAI = "http://www.openarchives.org/OAI/2.0/"
 _RECORD_ID = re.compile(r"^oai:zenodo\.org:([1-9][0-9]*)$")
 _DOI = re.compile(r"10\.5281/zenodo\.([1-9][0-9]*)", re.IGNORECASE)
 _FILE_MARKER = re.compile(
-    r"(?:^|[._\-/ ])(?:checkpoint|ckpt|model[_ -]?weights|weights)(?:[._\-/ ]|$)",
+    r"(?:^|[._\-/ ])(?:checkpoint|ckpt|model[_ -]?weights|weights|model)(?:[._\-/ ]|$)",
     re.I,
 )
-_FILE_SUFFIX = re.compile(r"\.(?:ckpt|h5|hdf5|onnx|pt|pth|safetensors)$", re.I)
+_FILE_SUFFIX = re.compile(
+    r"\.(?:pth\.tar|pt\.tar|tar\.gz|safetensors|msgpack|keras|gguf|ggml|"
+    r"ckpt|hdf5|onnx|h5|pth|pt|bin)$",
+    re.I,
+)
+_MODEL_SUFFIX = re.compile(r"\.(?:gguf|ggml|keras)$", re.I)
 _TRAILING_FILE_MARKER = re.compile(
-    r"(?:[._ -]+)(?:checkpoint|ckpt|model[_ -]?weights|weights)$", re.I
+    r"(?:[._ -]+)(?:checkpoint|ckpt|model[_ -]?weights|weights|model)$", re.I
 )
 _NEURAL_SCOPE = re.compile(
     r"\b(?:deep[ -]learning|neural[ -](?:network|model|architecture|operator)|"
@@ -59,8 +64,9 @@ class ZenodoOaiModelCandidatesSourceAdapter:
 
     coverage_limitation = (
         "Scans the public Zenodo OAI-PMH DCAT stream, one provider page per call. "
-        "Only records with neural-model wording and an explicitly named checkpoint "
-        "or weights file in a recognized model serialization format are emitted. "
+        "Only records with neural-model wording and an explicitly named model, "
+        "checkpoint, or weights file in a recognized model serialization format "
+        "are emitted. "
         "This is candidate evidence, not a model declaration; restricted files are "
         "not downloaded. Zenodo resumption tokens expire after approximately two "
         "minutes, so persisted page checkpoints must be resumed promptly."
@@ -90,7 +96,7 @@ class ZenodoOaiModelCandidatesSourceAdapter:
                 "url": self.url,
                 "metadata_prefix": "dcat",
                 "max_response_bytes": max_response_bytes,
-                "admission": "neural model wording plus named checkpoint/weights file",
+                "admission": "neural model wording plus named model/checkpoint/weights file",
             }
         )
 
@@ -215,10 +221,13 @@ class ZenodoOaiModelCandidatesSourceAdapter:
         matching_files: list[tuple[str, str]] = []
         all_file_links: list[tuple[str, str]] = []
         for distribution in metadata.iter():
-            if _local(distribution.tag) != "Distribution":
+            if not _is_distribution(distribution):
                 continue
             label_parts: list[str] = []
             urls: list[str] = []
+            about_url = _attribute_value(distribution, "about")
+            if about_url and _zenodo_distribution_file_url(about_url):
+                urls.append(canonicalize_url(about_url))
             for element in distribution.iter():
                 key = _local(element.tag).casefold()
                 if key in {"title", "name", "format", "mediatype"} and (
@@ -231,14 +240,30 @@ class ZenodoOaiModelCandidatesSourceAdapter:
                     and _zenodo_file_url(value)
                 ):
                     urls.append(canonicalize_url(value))
+            urls = list(dict.fromkeys(urls))
             label = " ".join(label_parts)
             file_evidence = (label, *(urlsplit(url).path for url in urls))
             if any(
-                _FILE_MARKER.search(value) and _FILE_SUFFIX.search(value)
+                _is_model_file_evidence(value)
                 for value in file_evidence
             ):
                 matching_files.extend((url, label or url) for url in urls)
             all_file_links.extend((url, label or url) for url in urls)
+        # DCAT permits the distribution object itself to be expressed as an RDF
+        # resource link, without an inline dcat:Distribution description.
+        for element in metadata.iter():
+            if _local(element.tag).casefold() != "distribution":
+                continue
+            value = _attribute_value(element, "resource")
+            if not value or not _zenodo_distribution_file_url(value):
+                continue
+            url = canonicalize_url(value)
+            label = urlsplit(url).path.rsplit("/", 1)[-1]
+            all_file_links.append((url, label))
+            if _is_model_file_evidence(label):
+                matching_files.append((url, label))
+        all_file_links = list(dict.fromkeys(all_file_links))
+        matching_files = list(dict.fromkeys(matching_files))
         if not matching_files:
             return None
 
@@ -330,7 +355,9 @@ class ZenodoOaiModelCandidatesSourceAdapter:
                     for node in header
                     if _local(node.tag) == "setSpec" and (node.text or "").strip()
                 ],
-                "candidate_signal": "neural metadata plus named checkpoint/weights distribution",
+                "candidate_signal": (
+                    "neural metadata plus named model/checkpoint/weights distribution"
+                ),
                 "checkpoint_files": [label for _, label in matching_files],
             },
             text="\n\n".join((title, context)),
@@ -363,6 +390,41 @@ def _element_value(element: ET.Element) -> str:
     return next(
         (value.strip() for key, value in element.attrib.items() if _local(key) == "resource"),
         "",
+    )
+
+
+def _attribute_value(element: ET.Element, name: str) -> str:
+    return next(
+        (value.strip() for key, value in element.attrib.items() if _local(key) == name),
+        "",
+    )
+
+
+def _is_distribution(element: ET.Element) -> bool:
+    if _local(element.tag) == "Distribution":
+        return True
+    if _local(element.tag) != "Description":
+        return False
+    return any(
+        _local(child.tag) == "type"
+        and _element_value(child).rstrip("/#").endswith(("#Distribution", "/Distribution"))
+        for child in element
+    )
+
+
+def _zenodo_distribution_file_url(value: str) -> bool:
+    parts = urlsplit(value)
+    path = unquote(parts.path)
+    return (
+        _zenodo_file_url(value)
+        and "/files/" in path
+        and _FILE_SUFFIX.search(path) is not None
+    )
+
+
+def _is_model_file_evidence(value: str) -> bool:
+    return _FILE_SUFFIX.search(value) is not None and (
+        _FILE_MARKER.search(value) is not None or _MODEL_SUFFIX.search(value) is not None
     )
 
 

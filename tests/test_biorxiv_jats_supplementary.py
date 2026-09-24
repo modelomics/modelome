@@ -109,8 +109,7 @@ def test_public_jats_followup_emits_explicit_model_supplement_and_keeps_nested_c
     )
     link = next(link for link in resource.links if link.relation == "model_artifact")
     assert link.url == (
-        "https://www.biorxiv.org/content/early/2024/01/03/"
-        "supplementary/checkpoint.pt"
+        "https://www.biorxiv.org/content/early/2024/01/03/supplementary/checkpoint.pt"
     )
     assert link.crawl is False
     assert resource.raw["jatsxml"] == JATS_URL
@@ -213,3 +212,73 @@ def test_public_jats_pacing_applies_between_followup_requests() -> None:
     source.fetch_page({})
 
     assert sleeps == [pytest.approx(0.34), pytest.approx(0.34)]
+
+
+def test_paper_without_jats_is_skipped_without_losing_association_or_checkpoint() -> None:
+    no_jats = {
+        "doi": "10.1101/2024.01.02.654321",
+        "title": "No JATS paper",
+        "version": "1",
+        "date": "2024-01-03",
+        "server": "bioRxiv",
+        "jatsxml": "NA",
+    }
+    payload = _details_payload(
+        count=2,
+        total=2,
+        records=[
+            {
+                "doi": "10.1101/2024.01.02.123456",
+                "title": "A model paper",
+                "version": "1",
+                "date": "2024-01-03",
+                "server": "bioRxiv",
+                "jatsxml": JATS_URL,
+            },
+            no_jats,
+        ],
+    )
+    client = QueueClient(payload, _jats(title="Pretrained model checkpoint"))
+
+    page = _adapter(client).fetch_page({})
+
+    assert len(page.records) == 1
+    assert page.records[0].raw["metadata_source_record_id"] == (
+        "biorxiv:10.1101/2024.01.02.123456:v1"
+    )
+    assert page.next_state["metadata_state"]["watermark"] == "2026-08-31"
+    assert [url for url, _ in client.calls] == [
+        "https://api.biorxiv.org/details/biorxiv/2026-08-25/2026-08-31/0/json",
+        JATS_URL,
+    ]
+
+
+def test_failed_followup_replays_same_metadata_page_before_advancing_checkpoint() -> None:
+    metadata_url = "https://api.biorxiv.org/details/biorxiv/2026-08-25/2026-08-31/0/json"
+
+    class RetryOnceClient(QueueClient):
+        def __init__(self) -> None:
+            super().__init__(
+                _details_payload(),
+                _details_payload(),
+                _jats(title="Pretrained model checkpoint"),
+            )
+            self.fail_next_jats = True
+
+        def get(self, url: str, *, headers=None, **kwargs: Any) -> HttpResponse:
+            if url == JATS_URL and self.fail_next_jats:
+                self.fail_next_jats = False
+                self.calls.append((url, dict(headers or {})))
+                raise TimeoutError("temporary JATS timeout")
+            return super().get(url, headers=headers, **kwargs)
+
+    client = RetryOnceClient()
+    source = _adapter(client)
+
+    with pytest.raises(TimeoutError, match="temporary JATS timeout"):
+        source.fetch_page({})
+    retried_page = source.fetch_page({})
+
+    metadata_calls = [url for url, _ in client.calls if url.startswith("https://api.")]
+    assert metadata_calls == [metadata_url, metadata_url]
+    assert len(retried_page.records) == 1

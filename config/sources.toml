@@ -21,6 +21,7 @@ artifact_kind = "model_card"
 schedule = "daily"
 page_size = 100
 overlap_days = 1
+created_at_sweep_interval_days = 30
 max_response_bytes = 16777216
 
 # Kaggle Models is a separate public model-and-variation registry. The adapter
@@ -5752,3 +5753,173 @@ page_batch_size = 10
 max_response_bytes = 4194304
 max_code_chars = 262144
 max_pages = 1000
+
+# First-party source from config/proposals/paddlenlp_taskflow_uie.toml.
+[[source]]
+name = "paddlenlp-taskflow-uie-checkpoints"
+adapter = "paddlenlp_taskflow_uie"
+enabled = true
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/taskflow/information_extraction.py"
+max_response_bytes = 4194304
+max_entries = 1000
+
+# Resource map: resource_files_urls in PaddleNLP's official Taskflow
+# information_extraction.py. Exact URLs and MD5 values are declared per model.
+# Internal test fixture IDs and auxiliary config/tokenizer assets are excluded.
+
+# First-party source from config/proposals/pelican_vla_checkpoint_registry.toml.
+[[source]]
+name = "pelican-vla-checkpoint-registry"
+adapter = "pelican_vla_checkpoint_registry"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:pelican-vla", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 20
+
+# The adapter reads only the Model Download table from the first-party README.
+# It records Hugging Face repository IDs and does not enumerate Hub files or
+# download model weights. Exact first-party model identities:
+# https://huggingface.co/X-Humanoid/Pelican-VLA05
+# https://huggingface.co/X-Humanoid/Pelican-VLA05-Robotwin
+# Source document: https://github.com/Open-X-Humanoid/Pelican-VLA05/blob/main/readme.md
+
+# First-party source from config/proposals/fairchem_ocp_legacy_checkpoints.toml.
+[[source]]
+name = "fairchem-ocp-legacy-checkpoints"
+adapter = "ocp_model_registry"
+enabled = true
+page_url = "https://facebookresearch.github.io/fairchem/models-1/"
+entry_tags = ["field:computational-chemistry", "ecosystem:fairchem", "model-family:open-catalyst-project", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# Covers direct .pt checkpoint anchors for legacy OC20/OC22 model rows only.
+# The page separately recommends UMA; UMA weights are Hub hosted and are excluded.
+# Artifact targets are validated to the exact dl.fbaipublicfiles.com host; weights are never fetched.
+
+# First-party source from config/proposals/dopamine_checkpoint_bundles.toml.
+[[source]]
+name = "dopamine-checkpoint-bundles"
+adapter = "dopamine_checkpoint_bundles"
+enabled = true
+entry_tags = ["field:reinforcement-learning", "ecosystem:google-dopamine", "kind:checkpoint-archive"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# First-party source from config/proposals/xai_modality_model_fingerprints.toml.
+[[source]]
+name = "xai-image-model-fingerprints"
+adapter = "json_catalog"
+enabled = true
+activation_env = "XAI_API_KEY"
+entry_tags = ["field:machine-learning", "ecosystem:xai", "kind:hosted-model", "modality:image", "evidence:current-api-availability"]
+url = "https://api.x.ai/v1/image-generation-models"
+provider_namespace = "xai:model"
+model_card_url_template = "https://api.x.ai/v1/image-generation-models/{id_path}"
+model_page_crawl = false
+auth_env = "XAI_API_KEY"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+schedule = "daily"
+max_response_bytes = 4194304
+
+[source.mapping]
+items_path = "models"
+id_path = "id"
+name_path = "id"
+created_path = "created"
+
+# First-party source from config/proposals/xai_modality_model_fingerprints.toml.
+[[source]]
+name = "xai-video-model-fingerprints"
+adapter = "json_catalog"
+enabled = true
+activation_env = "XAI_API_KEY"
+entry_tags = ["field:machine-learning", "ecosystem:xai", "kind:hosted-model", "modality:video", "evidence:current-api-availability"]
+url = "https://api.x.ai/v1/video-generation-models"
+provider_namespace = "xai:model"
+model_card_url_template = "https://api.x.ai/v1/video-generation-models/{id_path}"
+model_page_crawl = false
+auth_env = "XAI_API_KEY"
+auth_header = "Authorization"
+auth_scheme = "Bearer"
+schedule = "daily"
+max_response_bytes = 4194304
+
+[source.mapping]
+items_path = "models"
+id_path = "id"
+name_path = "id"
+created_path = "created"
+
+# First-party source from config/proposals/mistral_model_lifecycle.toml.
+[[source]]
+name = "mistral-model-lifecycle-documentation"
+adapter = "html_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:mistral", "kind:model-lifecycle-documentation", "evidence:provider-lifecycle-history"]
+url = "https://docs.mistral.ai/models"
+provider_namespace = "mistral:model-lifecycle"
+artifact_kind = "catalog_record"
+model_status = "documented"
+schedule = "daily"
+max_response_bytes = 8388608
+max_entries = 5000
+
+[[source.rules]]
+kind = "table"
+header_pattern = '^Model \| Version \| API$'
+name_column = 0
+identity_source = "name"
+require_url = false
+
+# First-party source from config/proposals/kaldi_model_index.toml.
+[[source]]
+name = "kaldi-model-index"
+adapter = "kaldi_model_index"
+enabled = true
+entry_tags = [
+  "field:speech-and-audio",
+  "ecosystem:kaldi",
+  "kind:model-zoo",
+]
+index_url = "https://www.kaldi-asr.org/models.html"
+schedule = "monthly"
+max_response_bytes = 2097152
+max_resources = 100
+max_archives = 2000
+
+# First-party source from config/proposals/galaxea_vla_checkpoints.toml.
+[[source]]
+name = "galaxea-g05-checkpoints"
+adapter = "galaxea_vla_checkpoints"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:galaxea-g05", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 50
+
+# Primary inventory: https://github.com/OpenGalaxea/GalaxeaVLA/blob/main/README.md
+# Exact checkpoint folder refs declared by its Model Checkpoints table:
+# https://huggingface.co/OpenGalaxea/G05/tree/main/g05-base
+# https://huggingface.co/OpenGalaxea/G05/tree/main/g05-so101
+# https://huggingface.co/OpenGalaxea/G05/tree/main/g05-droid
+# https://huggingface.co/OpenGalaxea/G05/tree/main/g05-libero
+# https://huggingface.co/OpenGalaxea/G05/tree/main/g05-robotwin20
+# The Hub requires agreement to its G0.5 model terms. The adapter doesn't fetch weights.
+
+# First-party source from config/proposals/gpt4all_model_catalog.toml.
+[[source]]
+name = "gpt4all-model-catalog"
+adapter = "gpt4all_model_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:gpt4all", "kind:local-model-artifact"]
+repository = "nomic-ai/gpt4all"
+branch = "main"
+source_path = "gpt4all-chat/metadata/models3.json"
+schedule = "daily"
+max_response_bytes = 4194304
+max_entries = 10000

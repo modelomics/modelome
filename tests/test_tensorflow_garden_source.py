@@ -266,3 +266,71 @@ def test_garden_fetches_added_vision_readme_at_pinned_revision() -> None:
     assert [record.title for record in page.records] == ["YOLOv7"]
     assert page.records[0].raw["revision"] == REVISION
     assert client.calls == [adapter.raw_url(REVISION, "official/vision/README.md")]
+
+
+def test_garden_resolves_first_party_config_initialization_checkpoint() -> None:
+    table = "\n".join(
+        [
+            "### RetinaNet (ImageNet pretrained)",
+            "| Backbone | Resolution | Download |",
+            "|---|---|---|",
+            (
+                "| R50-FPN | 640x640 | "
+                "[config](https://github.com/tensorflow/models/blob/master/"
+                "official/vision/configs/retinanet.py#L187-L258) | "
+                "[ckpt](https://storage.googleapis.com/tf_model_garden/vision/"
+                "retinanet/retinanet-resnet50fpn.tar.gz) |"
+            ),
+        ]
+    )
+    first_client = Client(response(table))
+    adapter = TensorFlowGardenSourceAdapter(client=first_client)
+
+    document_page = adapter.fetch_page({"revision": REVISION, "doc_index": 3})
+
+    assert document_page.records[0].raw["config_paths"] == [
+        "official/vision/configs/retinanet.py"
+    ]
+    assert document_page.next_state["config_queue"][0]["path"] == (
+        "official/vision/configs/retinanet.py"
+    )
+
+    config = """
+    task=RetinaNetTask(
+        init_checkpoint='gs://cloud-tpu-checkpoints/vision-2.0/resnet50_imagenet/ckpt-28080',
+        init_checkpoint_modules='backbone',
+    )
+    """
+    config_client = Client(response(config))
+    adapter.client = config_client
+    config_page = adapter.fetch_page(document_page.next_state)
+
+    assert config_page.complete is True
+    assert len(config_page.records) == 1
+    record = config_page.records[0]
+    assert record.models[0].identifiers == document_page.records[0].models[0].identifiers
+    assert record.releases[0].metadata == {
+        "config_path": "official/vision/configs/retinanet.py",
+        "checkpoint": (
+            "https://storage.googleapis.com/cloud-tpu-checkpoints/vision-2.0/"
+            "resnet50_imagenet/ckpt-28080"
+        ),
+        "checkpoint_modules": "backbone",
+        "revision": REVISION,
+    }
+    assert config_client.calls == [
+        adapter.raw_url(REVISION, "official/vision/configs/retinanet.py")
+    ]
+
+
+def test_garden_reads_literal_yaml_init_checkpoint_without_fetching_artifact() -> None:
+    from modelome.sources.tensorflow_garden import _declared_config_checkpoints
+
+    assert _declared_config_checkpoints(
+        "task:\n  init_checkpoint: gs://tf_model_garden/nlp/bert/bert_model.ckpt\n"
+    ) == (
+        (
+            "https://storage.googleapis.com/tf_model_garden/nlp/bert/bert_model.ckpt",
+            None,
+        ),
+    )

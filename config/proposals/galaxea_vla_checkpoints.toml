@@ -1,0 +1,20 @@
+# Galaxea's first-party README enumerates five G0.5 checkpoint folders with
+# exact links, task uses, and local weight paths. Keep disabled until this
+# dedicated adapter is registered and reviewed.
+[[source]]
+name = "galaxea-g05-checkpoints"
+adapter = "galaxea_vla_checkpoints"
+enabled = false
+entry_tags = ["field:robotics", "ecosystem:galaxea-g05", "kind:pretrained-policy"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 50
+
+# Primary inventory: https://github.com/OpenGalaxea/GalaxeaVLA/blob/main/README.md
+# Exact checkpoint folder refs declared by its Model Checkpoints table:
+# https://huggingface.co/OpenGalaxea/G05/tree/main/g05-base
+# https://huggingface.co/OpenGalaxea/G05/tree/main/g05-so101
+# https://huggingface.co/OpenGalaxea/G05/tree/main/g05-droid
+# https://huggingface.co/OpenGalaxea/G05/tree/main/g05-libero
+# https://huggingface.co/OpenGalaxea/G05/tree/main/g05-robotwin20
+# The Hub requires agreement to its G0.5 model terms. The adapter doesn't fetch weights.

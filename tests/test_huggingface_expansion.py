@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from modelome.http import HttpResponse
@@ -26,8 +27,10 @@ class _RouteClient:
     def __init__(self, routes: dict[str, tuple[object, dict[str, str]]]) -> None:
         self.routes = routes
         self.calls: list[str] = []
+        self.params_calls: list[dict[str, Any]] = []
 
     def get(self, url: str, *, params=None, headers=None) -> HttpResponse:
+        self.params_calls.append(dict(params or {}))
         if params:
             url = f"{url}?catalog=1"
         self.calls.append(url)
@@ -173,3 +176,58 @@ def test_huggingface_revision_queue_returns_to_unfinished_model_listing() -> Non
         "lab/second-model"
     ]
     assert second_catalog_page.complete is False
+
+
+def test_huggingface_created_at_sweep_recovers_old_modified_public_models() -> None:
+    repo = "lab/long-lived-model"
+    catalog_url = "https://huggingface.co/api/models?catalog=1"
+    next_url = "https://huggingface.co/api/models?cursor=created-2"
+    client = _RouteClient(
+        {
+            catalog_url: (
+                [
+                    {
+                        "id": repo,
+                        "sha": "new-head",
+                        "createdAt": "2019-01-01T00:00:00Z",
+                        "lastModified": "2019-01-02T00:00:00Z",
+                        "disabled": True,
+                    }
+                ],
+                {"Link": f'<{next_url}>; rel="next"'},
+            ),
+            next_url: ([{"id": "lab/recreated-model", "sha": "new-instance"}], {}),
+        }
+    )
+    now = [datetime(2026, 9, 23, tzinfo=UTC)]
+    adapter = HuggingFaceSourceAdapter(
+        client=client,
+        overlap_days=2,
+        created_at_sweep_interval_days=30,
+        clock=lambda: now[0],
+    )
+
+    first = adapter.fetch_page({"watermark": "2026-09-20T00:00:00Z"})
+    assert [record.source_record_id for record in first.records] == [repo]
+    assert first.records[0].raw["disabled"] is True
+    assert first.complete is False
+    assert first.next_state["coverage_mode"] == "created_at_sweep"
+    assert client.params_calls[0]["sort"] == "createdAt"
+    assert client.params_calls[0]["direction"] == 1
+
+    second = adapter.fetch_page(first.next_state)
+    assert [record.source_record_id for record in second.records] == ["lab/recreated-model"]
+    assert second.complete is True
+    assert second.next_state["created_at_sweep_completed_at"] == "2026-09-23T00:00:00Z"
+    # Preserve the lastModified cursor watermark; createdAt has a distinct role.
+    assert second.next_state["watermark"] == "2026-09-20T00:00:00Z"
+
+    # The next run is back on the normal incremental listing, not another census.
+    adapter.fetch_page(second.next_state)
+    assert client.params_calls[-1]["sort"] == "lastModified"
+    assert client.params_calls[-1]["direction"] == -1
+
+    now[0] += timedelta(days=31)
+    adapter.fetch_page(second.next_state)
+    assert client.params_calls[-1]["sort"] == "createdAt"
+    assert client.params_calls[-1]["direction"] == 1

@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlsplit
 
+import pytest
+
 from modelome.http import HttpResponse
 from modelome.models import ArtifactKind
 from modelome.sources.zenodo_oai_candidates import ZenodoOaiModelCandidatesSourceAdapter
@@ -34,7 +36,30 @@ def harvest_page(content: str, token: str = "") -> str:
 </OAI-PMH>"""
 
 
-def oai_record(record_id: int, *, title: str, description: str, filename: str, url: str) -> str:
+def oai_record(
+    record_id: int,
+    *,
+    title: str,
+    description: str,
+    filename: str,
+    url: str,
+    url_shape: str = "download_resource",
+) -> str:
+    if url_shape == "distribution_about":
+        distribution = f"""<rdf:Description rdf:about="{url}">
+        <rdf:type rdf:resource="http://www.w3.org/ns/dcat#Distribution"/>
+        <dct:title>{filename}</dct:title>
+      </rdf:Description>"""
+    elif url_shape == "distribution_resource":
+        distribution = f'<dcat:distribution rdf:resource="{url}"/>'
+    elif url_shape == "download_text":
+        distribution = f"""<dcat:Distribution><dct:title>{filename}</dct:title>
+        <dcat:downloadURL>{url}</dcat:downloadURL>
+      </dcat:Distribution>"""
+    else:
+        distribution = f"""<dcat:Distribution><dct:title>{filename}</dct:title>
+        <dcat:downloadURL rdf:resource="{url}"/>
+      </dcat:Distribution>"""
     return f"""<record>
   <header><identifier>oai:zenodo.org:{record_id}</identifier>
     <datestamp>2026-09-22T10:00:00Z</datestamp><setSpec>openaire_data</setSpec>
@@ -43,9 +68,7 @@ def oai_record(record_id: int, *, title: str, description: str, filename: str, u
       xmlns:dcat="http://www.w3.org/ns/dcat#" xmlns:dct="http://purl.org/dc/terms/">
     <dcat:Dataset><dct:title>{title}</dct:title><dct:description>{description}</dct:description>
       <dct:type>Dataset</dct:type>
-      <dcat:distribution><dcat:Distribution><dct:title>{filename}</dct:title>
-        <dcat:downloadURL rdf:resource="{url}"/>
-      </dcat:Distribution></dcat:distribution>
+      <dcat:distribution>{distribution}</dcat:distribution>
     </dcat:Dataset>
   </rdf:RDF></metadata>
 </record>"""
@@ -88,7 +111,7 @@ def test_oai_dcat_discovers_candidate_checkpoint_and_resumes_with_opaque_token()
     assert record.models[0].name == "OceanNet"
     assert record.models[0].status.value == "candidate"
     assert record.raw["candidate_signal"] == (
-        "neural metadata plus named checkpoint/weights distribution"
+        "neural metadata plus named model/checkpoint/weights distribution"
     )
     assert any(
         link.relation == "checkpoint"
@@ -135,6 +158,81 @@ def test_punctuation_distinct_checkpoint_stems_keep_distinct_candidate_ids() -> 
     # Both context matches can resolve to the same display spelling, but the
     # source's distinct file stems must remain distinct candidate identities.
     assert len({model.local_id for model in page.records[0].models}) == 2
+
+
+@pytest.mark.parametrize(
+    ("filename", "url_shape"),
+    [
+        ("OceanNet_model_weights.bin", "distribution_about"),
+        ("OceanNet_weights.gguf", "download_text"),
+        ("OceanNet_model_weights.bin", "distribution_resource"),
+        ("OceanNet_checkpoint.keras", "download_resource"),
+        ("OceanNet_checkpoint.msgpack", "download_resource"),
+        ("OceanNet_checkpoint.pth.tar", "download_resource"),
+        ("OceanNet.gguf", "download_resource"),
+        ("OceanNet.keras", "download_resource"),
+    ],
+)
+def test_dcat_distribution_shapes_and_documented_weight_formats(
+    filename: str, url_shape: str
+) -> None:
+    url = f"https://zenodo.org/records/126/files/{filename}?download=1"
+    xml = harvest_page(
+        oai_record(
+            126,
+            title="OceanNet model",
+            description="OceanNet is a deep learning neural network model.",
+            filename=filename,
+            url=url,
+            url_shape=url_shape,
+        )
+    )
+    adapter = ZenodoOaiModelCandidatesSourceAdapter(
+        client=Client(response(xml)),
+        clock=lambda: datetime(2026, 9, 22, 12, 0, tzinfo=UTC),
+    )
+
+    page = adapter.fetch_page({})
+
+    assert len(page.records) == 1
+    assert [model.name for model in page.records[0].models] == ["OceanNet"]
+    assert any(link.relation == "checkpoint" for link in page.records[0].links)
+
+
+def test_dcat_distribution_subject_requires_zenodo_file_path_and_model_suffix() -> None:
+    unrelated = oai_record(
+        127,
+        title="OceanNet neural network model",
+        description="OceanNet uses a neural network.",
+        filename="OceanNet_weights.bin",
+        url="https://zenodo.org/records/127",
+        url_shape="distribution_about",
+    )
+    no_model_extension = oai_record(
+        128,
+        title="OceanNet neural network model",
+        description="OceanNet uses a neural network.",
+        filename="OceanNet_weights.csv",
+        url="https://zenodo.org/records/128/files/OceanNet_weights.csv",
+        url_shape="distribution_about",
+    )
+    unmarked_generic_binary = oai_record(
+        129,
+        title="OceanNet neural network model",
+        description="OceanNet uses a neural network.",
+        filename="OceanNet.bin",
+        url="https://zenodo.org/records/129/files/OceanNet.bin",
+        url_shape="distribution_about",
+    )
+    page_xml = harvest_page(unrelated + no_model_extension + unmarked_generic_binary)
+    adapter = ZenodoOaiModelCandidatesSourceAdapter(
+        client=Client(response(page_xml)),
+        clock=lambda: datetime(2026, 9, 22, 12, 0, tzinfo=UTC),
+    )
+
+    page = adapter.fetch_page({})
+
+    assert page.records == ()
 
 
 def test_oai_dcat_rejects_expired_token_checkpoint() -> None:

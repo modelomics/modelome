@@ -255,6 +255,8 @@ def test_zenodo_model_catalog_quarantines_a_non_model_result() -> None:
         ("oceannet_weights.pth", "checkpoint"),
         # Zenodo record 16948542 declares model.pt as a Chemprop checkpoint.
         ("model.pt", "checkpoint"),
+        # Zenodo record 15519070 declares MACE `.model` files as its models.
+        ("mace-mp_2d-hoip_large.model", "checkpoint"),
         ("oceannet.pt", None),
         ("weights.csv", None),
     ],

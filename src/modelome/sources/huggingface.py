@@ -82,7 +82,9 @@ class HuggingFaceSourceAdapter:
     A first run follows every RFC 8288 ``Link`` cursor. Later runs walk the
     newest-first listing until reaching the previous ``lastModified`` watermark
     minus a configurable overlap. Cursor state also freezes that boundary so an
-    interrupted run resumes the same scan.
+    interrupted run resumes the same scan. An optional periodic ascending
+    ``createdAt`` sweep provides a complete current-repository inventory to
+    recover rows missed by mutable last-modified ordering.
     """
 
     # The Hub cursor is provider-issued and page-level checkpoints remain exact;
@@ -97,6 +99,7 @@ class HuggingFaceSourceAdapter:
         artifact_kind: str | ArtifactKind = ArtifactKind.MODEL_CARD,
         page_size: int = 100,
         overlap_days: int = 2,
+        created_at_sweep_interval_days: int = 0,
         max_response_bytes: int = 16 * 1024 * 1024,
         token: str | None = None,
         include_private: bool = False,
@@ -109,6 +112,9 @@ class HuggingFaceSourceAdapter:
         self.artifact_kind = ArtifactKind(artifact_kind)
         self.page_size = int(page_size)
         self.overlap_days = int(overlap_days)
+        self.created_at_sweep_interval_days = _nonnegative_int(
+            created_at_sweep_interval_days, "created_at_sweep_interval_days"
+        )
         self.max_response_bytes = _positive_int(max_response_bytes, "max_response_bytes")
         self.token = token
         self.include_private = bool(include_private)
@@ -117,11 +123,12 @@ class HuggingFaceSourceAdapter:
         self.clock = clock
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "huggingface-v2",
+                "adapter": "huggingface-v3",
                 "url": self.url,
                 "artifact_kind": self.artifact_kind.value,
                 "page_size": self.page_size,
                 "overlap_days": self.overlap_days,
+                "created_at_sweep_interval_days": self.created_at_sweep_interval_days,
                 "max_response_bytes": self.max_response_bytes,
                 "include_private": self.include_private,
                 "include_revisions": self.include_revisions,
@@ -138,6 +145,21 @@ class HuggingFaceSourceAdapter:
 
         next_url = _text(state.get("next_url"))
         resuming_scan = bool(next_url)
+        sweep_in_progress = _text(state.get("coverage_mode")) == "created_at_sweep"
+        last_sweep = _parse_timestamp(state.get("created_at_sweep_completed_at"))
+        now = _isoformat(self.clock())
+        sweep_due = (
+            self.created_at_sweep_interval_days > 0
+            and (
+                last_sweep is None
+                or _parse_timestamp(now) is None
+                or _parse_timestamp(now)
+                >= last_sweep + timedelta(days=self.created_at_sweep_interval_days)
+            )
+        )
+        created_at_sweep = self.created_at_sweep_interval_days > 0 and (
+            sweep_in_progress or (not resuming_scan and sweep_due)
+        )
         raw_items_seen = _state_count(state, "raw_items_seen") if resuming_scan else 0
         scan_total = _state_count(state, "scan_total") if resuming_scan else None
         count_is_complete = not resuming_scan or (
@@ -146,14 +168,18 @@ class HuggingFaceSourceAdapter:
         prior_watermark = _parse_timestamp(state.get("watermark"))
         if next_url:
             next_url = self._safe_next_url(next_url, self.url)
-            cutoff = _parse_timestamp(state.get("cutoff"))
+            cutoff = None if created_at_sweep else _parse_timestamp(state.get("cutoff"))
             scan_high = _parse_timestamp(state.get("scan_high_watermark"))
             response: HttpResponse = self.client.get(next_url, headers=headers)
         else:
             cutoff = (
-                prior_watermark - timedelta(days=self.overlap_days)
-                if prior_watermark is not None
-                else None
+                None
+                if created_at_sweep
+                else (
+                    prior_watermark - timedelta(days=self.overlap_days)
+                    if prior_watermark is not None
+                    else None
+                )
             )
             scan_high = None
             response = self.client.get(
@@ -165,8 +191,8 @@ class HuggingFaceSourceAdapter:
                     # The Hub API excludes model configuration from `full`;
                     # it is a separate opt-in (`config=true` in the REST API).
                     "config": "true",
-                    "sort": "lastModified",
-                    "direction": -1,
+                    "sort": "createdAt" if created_at_sweep else "lastModified",
+                    "direction": 1 if created_at_sweep else -1,
                 },
                 headers=headers,
             )
@@ -249,10 +275,20 @@ class HuggingFaceSourceAdapter:
         complete = reached_cutoff or not link_next
         now = _isoformat(self.clock())
         if complete:
-            watermark = scan_high or prior_watermark or _parse_timestamp(now)
+            watermark = (
+                prior_watermark
+                if created_at_sweep
+                else scan_high or prior_watermark or _parse_timestamp(now)
+            )
             next_state: dict[str, Any] = {"completed_at": now}
             if watermark is not None:
                 next_state["watermark"] = _isoformat(watermark)
+            if created_at_sweep:
+                next_state["created_at_sweep_completed_at"] = now
+            elif state.get("created_at_sweep_completed_at"):
+                next_state["created_at_sweep_completed_at"] = state[
+                    "created_at_sweep_completed_at"
+                ]
         else:
             next_state = {
                 "next_url": link_next,
@@ -269,6 +305,12 @@ class HuggingFaceSourceAdapter:
                 next_state["cutoff"] = _isoformat(cutoff)
             if scan_high is not None:
                 next_state["scan_high_watermark"] = _isoformat(scan_high)
+            if created_at_sweep:
+                next_state["coverage_mode"] = "created_at_sweep"
+            if state.get("created_at_sweep_completed_at"):
+                next_state["created_at_sweep_completed_at"] = state[
+                    "created_at_sweep_completed_at"
+                ]
 
         if self.include_revisions:
             # The Hub's refs and commits endpoints expose exact immutable commit
@@ -765,6 +807,12 @@ def _text(value: Any) -> str:
 def _positive_int(value: Any, field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError(f"{field} must be a positive integer")
+    return value
+
+
+def _nonnegative_int(value: Any, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{field} must be a nonnegative integer")
     return value
 
 

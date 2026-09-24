@@ -101,3 +101,49 @@ def test_dynamic_repo_or_non_pretrained_call_does_not_create_release() -> None:
     page = adapter.fetch_page(adapter.fetch_page({}).next_state)
     assert len(page.records[0].releases) == 0
     assert len(page.records[0].raw["torch_hub_load_calls"]) == 2
+
+
+def test_first_party_resnet_card_keeps_each_commented_pretrained_variant_distinct() -> None:
+    # These loader examples are copied from the official ResNet Hub card's code sample.
+    # https://pytorch.org/hub/pytorch_vision_resnet/
+    card_code = """
+    import torch
+    model = torch.hub.load('pytorch/vision:v0.10.0', 'resnet18', pretrained=True)
+    # or any of these variants
+    # model = torch.hub.load('pytorch/vision:v0.10.0', 'resnet34', pretrained=True)
+    # model = torch.hub.load('pytorch/vision:v0.10.0', 'resnet50', pretrained=True)
+    # model = torch.hub.load('pytorch/vision:v0.10.0', 'resnet101', pretrained=True)
+    # model = torch.hub.load('pytorch/vision:v0.10.0', 'resnet152', pretrained=True)
+    model.eval()
+    """
+    client = FakeHttp(
+        [
+            _html_response(
+                "https://pytorch.org/hub/",
+                '<a href="/hub/pytorch_vision_resnet/">ResNet</a>',
+            ),
+            _html_response(
+                "https://pytorch.org/hub/pytorch_vision_resnet/",
+                f"<pre><code>{card_code}</code></pre>",
+            ),
+        ]
+    )
+    adapter = PyTorchHubLoadCallSourceAdapter(client=client)
+    record = adapter.fetch_page(adapter.fetch_page({}).next_state).records[0]
+
+    assert [release.metadata["entrypoint"] for release in record.releases] == [
+        "resnet18",
+        "resnet34",
+        "resnet50",
+        "resnet101",
+        "resnet152",
+    ]
+    assert all(release.version == "v0.10.0" for release in record.releases)
+    assert len({release.local_id for release in record.releases}) == 5
+    assert len(
+        {
+            (identifier.namespace, identifier.value)
+            for release in record.releases
+            for identifier in release.identifiers
+        }
+    ) == 5

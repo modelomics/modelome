@@ -1,0 +1,15 @@
+# PaddleNLP Taskflow's first-party UIE resource map declares direct checkpoint
+# URLs and source MD5s. This covers only its public model_state weights.
+[[source]]
+name = "paddlenlp-taskflow-uie-checkpoints"
+adapter = "paddlenlp_taskflow_uie"
+enabled = false
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/taskflow/information_extraction.py"
+max_response_bytes = 4194304
+max_entries = 1000
+
+# Resource map: resource_files_urls in PaddleNLP's official Taskflow
+# information_extraction.py. Exact URLs and MD5 values are declared per model.
+# Internal test fixture IDs and auxiliary config/tokenizer assets are excluded.

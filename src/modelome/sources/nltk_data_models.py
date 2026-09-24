@@ -28,7 +28,7 @@ _PACKAGE_ID = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _REPOSITORY = "nltk/nltk_data"
 _INDEX = "index.xml"
-_MODEL_DIRS = {"chunkers", "taggers"}
+_MODEL_DIRS = {"chunkers", "models", "taggers"}
 
 
 def _utcnow() -> datetime:
@@ -36,18 +36,19 @@ def _utcnow() -> datetime:
 
 
 class NltkDataModelIndexSourceAdapter:
-    """Enumerate released tagger, chunker, and learned tokenizer bundles.
+    """Enumerate released parser, tagger, chunker, and tokenizer bundles.
 
     NLTK's official data index supplies package IDs, archive URLs, sizes, and
-    checksums. The adapter admits only named model packages in model directories
-    and Punkt tokenizer models, excluding corpora and tagset metadata.
+    checksums. The adapter admits explicitly named parsers/models, taggers,
+    chunkers, and Punkt tokenizer models, excluding corpora, stemmer data, and
+    tagset metadata.
     """
 
     disable_derived_extraction = True
     coverage_limitation = (
-        "Covers model bundles identified by the official NLTK data index as "
-        "taggers, chunkers, or Punkt tokenizer models. It excludes corpora, "
-        "grammars, lexicons, and tagset mappings."
+        "Covers named models, parsers, taggers, chunkers, and Punkt tokenizer "
+        "models in the official NLTK data index. It excludes corpora, evaluation "
+        "sets, stemmer resources, grammars, lexicons, and tagset mappings."
     )
 
     def __init__(
@@ -82,7 +83,7 @@ class NltkDataModelIndexSourceAdapter:
                 "repository": repository,
                 "branch": branch,
                 "index": _INDEX,
-                "admission": "tagger/chunker and Punkt tokenizer packages",
+                "admission": "named model/parser, tagger/chunker and Punkt tokenizer packages",
                 "max_response_bytes": max_response_bytes,
                 "max_entries": max_entries,
             }
@@ -200,9 +201,16 @@ def _model_rows(packages: ET.Element, source: str) -> tuple[Mapping[str, str], .
             subdir == "tokenizers" and "punkt tokenizer models" in name.lower()
         ):
             continue
-        # Prevent tagset tables and other metadata in the taggers directory from
-        # being represented as trained model releases.
-        if subdir == "taggers" and "tagger" not in name.lower():
+        lowered_name = name.lower()
+        # Directory names alone are insufficient: tagsets and evaluation data
+        # also live under these paths. Require each row to identify model assets.
+        if subdir == "taggers" and "tagger" not in lowered_name:
+            continue
+        if subdir == "chunkers" and "chunker" not in lowered_name:
+            continue
+        if subdir == "models" and not any(
+            marker in lowered_name for marker in ("model", "parser", "word2vec")
+        ):
             continue
         url = package.get("url", "")
         size = package.get("size", "")

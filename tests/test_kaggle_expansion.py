@@ -122,6 +122,13 @@ def test_optional_version_expansion_paginates_all_releases_and_builds_version_li
                             "framework": "PyTorch",
                             "versionNumber": 3,
                             "versionId": "latest-id",
+                            "baseModelInstanceId": 77,
+                            "baseModelInstanceInformation": {
+                                "id": 77,
+                                "modelSlug": "base-model",
+                                "instanceSlug": "7b",
+                                "framework": "PyTorch",
+                            },
                             "downloadUrl": "/models/google/gemma/PyTorch/2b/3/download",
                         }
                     ],
@@ -168,6 +175,15 @@ def test_optional_version_expansion_paginates_all_releases_and_builds_version_li
         for release in page.records[0].releases
     )
     assert page.records[0].releases[0].metadata["total_uncompressed_bytes"] == 10
+    assert page.records[0].releases[-1].metadata["base_model_instance_id"] == "77"
+    assert page.records[0].releases[-1].metadata[
+        "base_model_instance_information"
+    ] == {
+        "id": 77,
+        "modelSlug": "base-model",
+        "instanceSlug": "7b",
+        "framework": "PyTorch",
+    }
     assert {
         link.url for link in page.records[0].links if link.relation == "weights"
     } == {

@@ -56,6 +56,28 @@ def test_parser_keeps_only_exact_task_or_tflite_asset_links() -> None:
     assert parsed[2][0] == "Objectron"
 
 
+def test_parser_deduplicates_tracking_query_variants_of_one_artifact_url() -> None:
+    document = """### Face Detection
+* [Short-range](https://storage.googleapis.com/mediapipe-assets/model.tflite?utm_source=docs)
+* [Short-range](https://storage.googleapis.com/mediapipe-assets/model.tflite)
+"""
+
+    parsed = _parse_entries(document, maximum=10, source="test")
+
+    assert len(parsed) == 1
+    assert parsed[0][2] == "https://storage.googleapis.com/mediapipe-assets/model.tflite"
+
+
+def test_parser_rejects_conflicting_labels_after_url_canonicalization() -> None:
+    document = """### Face Detection
+* [Short-range](https://storage.googleapis.com/mediapipe-assets/model.tflite?utm_source=docs)
+* [Full-range](https://storage.googleapis.com/mediapipe-assets/model.tflite)
+"""
+
+    with pytest.raises(ValueError, match="duplicate artifact URL"):
+        _parse_entries(document, maximum=10, source="test")
+
+
 def test_adapter_emits_exact_binary_links_with_revisioned_first_party_source() -> None:
     client = _Client()
     adapter = MediaPipeModelCatalogSourceAdapter(

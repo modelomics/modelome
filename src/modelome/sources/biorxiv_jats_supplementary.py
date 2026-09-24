@@ -73,17 +73,13 @@ class BioRxivJatsSupplementSourceAdapter:
         if not isinstance(client_body_limit, int) or isinstance(client_body_limit, bool):
             raise ValueError("JATS HTTP client must expose its max_response_bytes limit")
         if client_body_limit > self.max_jats_bytes:
-            raise ValueError(
-                "JATS HTTP client's max_response_bytes must not exceed max_jats_bytes"
-            )
+            raise ValueError("JATS HTTP client's max_response_bytes must not exceed max_jats_bytes")
         self.max_jats_elements = _positive(max_jats_elements, "max_jats_elements")
         self.max_supplement_links_per_record = _positive(
             max_supplement_links_per_record, "max_supplement_links_per_record"
         )
         if not 0.1 <= minimum_request_interval_seconds <= 60:
-            raise ValueError(
-                "minimum_request_interval_seconds must be between 0.1 and 60"
-            )
+            raise ValueError("minimum_request_interval_seconds must be between 0.1 and 60")
         self.minimum_request_interval_seconds = float(minimum_request_interval_seconds)
         self.monotonic = monotonic
         self.sleep = sleep
@@ -179,9 +175,7 @@ def _supplement_records(
         ),
         "",
     )
-    expected_doi = next(
-        (item.value for item in paper.identifiers if item.namespace == "doi"), ""
-    )
+    expected_doi = next((item.value for item in paper.identifiers if item.namespace == "doi"), "")
     if article_doi and article_doi != expected_doi:
         raise ValueError("JATS DOI does not match the metadata record DOI")
     links: list[Link] = []
@@ -242,7 +236,7 @@ def _parse_article(body: Any, source: str, limit: int) -> ET.Element:
         raise ValueError(f"{source}: JATS response body must be bytes")
     if len(body) > limit:
         raise ValueError(f"{source}: JATS response exceeds {limit} bytes")
-    if re.search(br"<!\s*(?:DOCTYPE|ENTITY)\b", body, flags=re.IGNORECASE):
+    if re.search(rb"<!\s*(?:DOCTYPE|ENTITY)\b", body, flags=re.IGNORECASE):
         raise ValueError(f"{source}: unsafe XML declaration in JATS response")
     try:
         return ET.fromstring(body)

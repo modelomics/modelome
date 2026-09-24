@@ -390,8 +390,14 @@ def test_evaluation_tables_emit_only_paper_backed_candidate_labels(
                                     {"url": "https://github.com/example/implementation"},
                                 ],
                                 "model_links": [
-                                    {"url": "https://example.org/models/candidate.safetensors"},
-                                    {"url": "https://example.org/models/candidate.safetensors"},
+                                    {
+                                        "title": "Candidate checkpoint",
+                                        "url": "https://example.org/models/candidate.safetensors",
+                                    },
+                                    {
+                                        "title": "Candidate checkpoint",
+                                        "url": "https://example.org/models/candidate.safetensors",
+                                    },
                                     {"url": "javascript:alert(1)"},
                                 ],
                             },
@@ -460,6 +466,12 @@ def test_evaluation_tables_emit_only_paper_backed_candidate_labels(
     assert model_artifact_links[0].crawl is False
     assert record.raw["model_artifact_urls"] == [
         "https://example.org/models/candidate.safetensors"
+    ]
+    assert record.raw["model_artifacts"] == [
+        {
+            "url": "https://example.org/models/candidate.safetensors",
+            "titles": ["Candidate checkpoint"],
+        }
     ]
     assert second.complete is True
     assert second.next_state["completed_snapshot_revision"] == revision

@@ -77,6 +77,7 @@ def test_metadata_export_preserves_joins_without_raw_source_content(tmp_path) ->
                 "license": "CC-BY-SA-4.0",
             },
             {"name": "code", "adapter": "json_catalog"},
+            {"name": "never-run", "adapter": "html_catalog"},
         ),
     )
 
@@ -115,6 +116,14 @@ def test_metadata_export_preserves_joins_without_raw_source_content(tmp_path) ->
     manifest = json.loads((output / "source-manifest.json").read_text())
     catalog = next(row for row in manifest["sources"] if row["source"] == "catalog")
     assert catalog["configured"]["license"] == "CC-BY-SA-4.0"
+    assert catalog["is_configured"] is True
+    assert catalog["checkpoint_observed"] is True
+    assert catalog["checkpoint"]["complete"] is False
+    assert catalog["checkpoint"]["records_seen"] == 1
+    never_run = next(row for row in manifest["sources"] if row["source"] == "never-run")
+    assert never_run["is_configured"] is True
+    assert never_run["checkpoint_observed"] is False
+    assert never_run["checkpoint"] is None
     assert b"SENSITIVE SOURCE BODY" not in b"".join(
         path.read_bytes() for path in output.iterdir() if path.is_file()
     )
