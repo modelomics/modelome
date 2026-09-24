@@ -14,6 +14,7 @@ from modelome.sources.mace_foundation_registry import (
 REVISION = "8" * 40
 MP = "https://github.com/ACEsuit/mace-mp/releases/download/"
 FOUNDATIONS = "https://github.com/ACEsuit/mace-foundations/releases/download/"
+MDP = "https://raw.githubusercontent.com/Nilsgoe/MACE-MDP/main/models/MACE-MDP.model"
 
 
 class QueuedClient:
@@ -41,6 +42,7 @@ polar_model_urls = {{
     "polar-1-m": "{FOUNDATIONS}mace_polar_1/MACE-POLAR-1-M.model",
     "polar-1-l": "{FOUNDATIONS}mace_polar_1/MACE-POLAR-1-L.model",
 }}
+mace_mdp_default_url = "{MDP}"
 '''.encode()
 
 
@@ -53,10 +55,11 @@ def test_indexes_mace_mp_and_polar_literal_keys_with_exact_release_urls() -> Non
     page = adapter.fetch_page({})
 
     assert page.complete and page.authoritative_snapshot
-    assert page.upstream_count == 6
+    assert page.upstream_count == 7
     records = {record.source_record_id: record for record in page.records}
     assert "checkpoint:mace-mp:medium-mpa-0" in records
     assert "checkpoint:mace-polar:polar-1-l" in records
+    assert "checkpoint:mace-mdp:default" in records
     assert records["checkpoint:mace-mp:medium-mpa-0"].raw["weight_url"] == (
         f"{MP}mace_mpa_0/mace-mpa-0-medium.model"
     )
@@ -65,13 +68,18 @@ def test_indexes_mace_mp_and_polar_literal_keys_with_exact_release_urls() -> Non
         f"{FOUNDATIONS}mace_polar_1/MACE-POLAR-1-L.model"
     )
     assert polar.models[0].identifiers[0].namespace == "mace:polar-checkpoint"
+    mdp = records["checkpoint:mace-mdp:default"]
+    assert mdp.raw["weight_url"] == MDP
+    assert mdp.models[0].identifiers[0].namespace == "mace:mdp-checkpoint"
+    assert mdp.releases[0].metadata["family_map"] == "mace_mdp_default_url"
     assert len(client.calls) == 2
 
 
 def test_rejects_nonliteral_mapping_values_without_importing_source() -> None:
-    source = b'''mace_mp_urls = {"small": resolve_model_url("small")}
-polar_model_urls = {"polar-1-s": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_polar_1/MACE-POLAR-1-S.model"}
-'''
+    source = f'''mace_mp_urls = {{"small": resolve_model_url("small")}}
+polar_model_urls = {{"polar-1-s": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_polar_1/MACE-POLAR-1-S.model"}}
+mace_mdp_default_url = "{MDP}"
+'''.encode()
     client = QueuedClient(response(json.dumps({"sha": REVISION}).encode()), response(source))
     with pytest.raises(ValueError, match="literal handles and URLs"):
         MaceFoundationCheckpointRegistrySourceAdapter(client=client).fetch_page({})
@@ -80,6 +88,7 @@ polar_model_urls = {"polar-1-s": "https://github.com/ACEsuit/mace-foundations/re
 def test_rejects_nonfirstparty_or_wrong_polar_assets() -> None:
     source = f'''mace_mp_urls = {{"small": "{MP}mace_mp_0/small.model"}}
 polar_model_urls = {{"polar-1-s": "{FOUNDATIONS}mace_polar_1/other.model"}}
+mace_mdp_default_url = "{MDP}"
 '''.encode()
     client = QueuedClient(response(json.dumps({"sha": REVISION}).encode()), response(source))
     with pytest.raises(ValueError, match="unapproved checkpoint URL"):

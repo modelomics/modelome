@@ -1,23 +1,26 @@
 """Public NVIDIA NGC model-catalog ingestion.
 
 NGC exposes a guest-readable search endpoint for the currently public ``MODEL``
-resource group.  The endpoint paginates a moving catalog, so this adapter checks
+resource group. The endpoint paginates a moving catalog, so this adapter checks
 the provider's total during a run but deliberately does not invoke authoritative
-snapshot deletion semantics.  It records the public model-card page and the
-declared latest-version handle without fetching individual cards, archives, or
-weight bytes.
+snapshot deletion semantics. By default, it records each public model-card page
+and the declared latest-version handle. Optional one-page version expansion
+uses NGC's guest-readable model-version metadata endpoint without fetching
+individual cards, archives, or weight bytes.
 """
 
 from __future__ import annotations
 
 import json
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from math import ceil
 from typing import Any
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 
-from modelome.http import HttpClient, HttpResponse
+from modelome.http import HttpClient, HttpFailure, HttpResponse
 from modelome.models import (
     ArtifactKind,
     Identifier,
@@ -74,8 +77,11 @@ class NgcModelsSourceAdapter:
     coverage_limitation = (
         "Covers the guest-visible, currently listed NVIDIA NGC MODEL resource "
         "group reachable through its public search endpoint. It does not fetch "
-        "individual cards, historical versions, archives, or weights, and does "
-        "not cover private, gated, removed, or unlisted resources. Because the "
+        "individual cards, archives, or weights. Historical versions can be "
+        "requested with include_all_versions when the guest endpoint reports "
+        "them in one page; multi-page version continuation is currently "
+        "rejected because its contract is unverified. It does not cover private, "
+        "gated, removed, or unlisted resources. Because the "
         "paginated catalog is mutable rather than a versioned export, completed "
         "sweeps do not use authoritative-snapshot deletion semantics."
     )
@@ -88,6 +94,7 @@ class NgcModelsSourceAdapter:
         model_page_base_url: str = "https://catalog.ngc.nvidia.com",
         metadata_base_url: str = "https://api.ngc.nvidia.com",
         page_size: int = _MAX_PAGE_SIZE,
+        include_all_versions: bool = False,
         max_response_bytes: int = 4 * 1024 * 1024,
         client: HttpClient | Any | None = None,
         clock: Clock = _utcnow,
@@ -111,6 +118,9 @@ class NgcModelsSourceAdapter:
             max_response_bytes,
             "max_response_bytes",
         )
+        if not isinstance(include_all_versions, bool):
+            raise ValueError(f"{self.name}: include_all_versions must be a boolean")
+        self.include_all_versions = include_all_versions
         self.client = client or HttpClient(max_response_bytes=self.max_response_bytes)
         self.clock = clock
         self.checkpoint_signature = content_hash(
@@ -120,6 +130,7 @@ class NgcModelsSourceAdapter:
                 "model_page_base_url": self.model_page_base_url,
                 "metadata_base_url": self.metadata_base_url,
                 "page_size": self.page_size,
+                "include_all_versions": self.include_all_versions,
                 "max_response_bytes": self.max_response_bytes,
                 "query_fields": _QUERY_FIELDS,
                 "fields": _FIELDS,
@@ -320,15 +331,24 @@ class NgcModelsSourceAdapter:
             for url in extract_urls(description)
         )
         attributes = _attributes(item.get("attributes"))
-        releases = _latest_release(
+        latest_releases = _latest_release(
             resource_id,
             local_id,
             attributes,
             _text(item.get("dateModified")) or None,
         )
+        if self.include_all_versions:
+            releases, version_inventory_status, version_inventory_error = (
+                self._model_versions(resource_id, local_id, latest_releases)
+            )
+        else:
+            releases = latest_releases
+            version_inventory_status = "not_requested"
+            version_inventory_error = None
+        latest_version = _text(attributes.get("latestVersionIdStr"))
         metadata_url = (
-            self._model_metadata_url(org_name, team_name, model_name, releases[0].version)
-            if releases and releases[0].version
+            self._model_metadata_url(org_name, team_name, model_name, latest_version)
+            if latest_version
             else None
         )
         if metadata_url:
@@ -346,6 +366,9 @@ class NgcModelsSourceAdapter:
         raw = dict(item)
         raw["catalog_page"] = page_number
         raw["provider_total"] = provider_total
+        raw["version_inventory_status"] = version_inventory_status
+        if version_inventory_error is not None:
+            raw["version_inventory_error"] = version_inventory_error
         return SourceRecord(
             source_record_id=resource_id,
             kind=ArtifactKind.MODEL_CARD,
@@ -359,6 +382,139 @@ class NgcModelsSourceAdapter:
             models=(model,),
             releases=releases,
         )
+
+    def _model_versions(
+        self,
+        resource_id: str,
+        model_local_id: str,
+        latest_releases: tuple[ReleaseHint, ...],
+    ) -> tuple[tuple[ReleaseHint, ...], str, str | None]:
+        """Expand guest-visible exact versions from NGC's model metadata route.
+
+        The guest endpoint currently reports its version list in one page. We
+        validate that contract and retain the base catalog row with an
+        unavailable inventory status if one model cannot be expanded. This
+        keeps a single inaccessible model from dropping its catalog row or
+        interrupting later catalog pages.
+        """
+        try:
+            return self._fetch_model_versions(resource_id, model_local_id, latest_releases)
+        except Exception as error:
+            status, message = _version_failure_status(error)
+            fallback = tuple(
+                _with_version_inventory_status(release, status, message)
+                for release in latest_releases
+            )
+            return fallback, status, message
+
+    def _fetch_model_versions(
+        self,
+        resource_id: str,
+        model_local_id: str,
+        latest_releases: tuple[ReleaseHint, ...],
+    ) -> tuple[tuple[ReleaseHint, ...], str, str | None]:
+        url = f"{self.metadata_base_url}/v2/models/{_quoted_resource_id(resource_id)}/versions"
+        response: HttpResponse = self.client.get(
+            url,
+            headers={"Accept": "application/json"},
+        )
+        if response.status in {401, 403}:
+            message = f"HTTP {response.status}"
+            fallback = tuple(
+                _with_version_inventory_status(
+                    release,
+                    "unavailable_unauthorized",
+                    message,
+                )
+                for release in latest_releases
+            )
+            return fallback, "unavailable_unauthorized", message
+        if response.status != 200:
+            if response.status in {408, 425, 429, 500, 502, 503, 504}:
+                message = f"HTTP {response.status}"
+                fallback = tuple(
+                    _with_version_inventory_status(
+                        release,
+                        "unavailable_transient",
+                        message,
+                    )
+                    for release in latest_releases
+                )
+                return fallback, "unavailable_transient", message
+            raise ValueError(
+                f"{self.name}: versions for {resource_id} returned HTTP {response.status}"
+            )
+        if len(response.body) > self.max_response_bytes:
+            raise ValueError(
+                f"{self.name}: versions for {resource_id} exceed "
+                f"{self.max_response_bytes} bytes"
+            )
+        payload = response.json()
+        if not isinstance(payload, Mapping):
+            raise ValueError(f"{self.name}: versions response for {resource_id} is not an object")
+        rows = payload.get("modelVersions")
+        if not _is_sequence(rows) or any(
+            not isinstance(row, Mapping) for row in rows
+        ):
+            raise ValueError(
+                f"{self.name}: modelVersions for {resource_id} is not a list of objects"
+            )
+        pagination = payload.get("paginationInfo")
+        if not isinstance(pagination, Mapping):
+            raise ValueError(
+                f"{self.name}: versions response for {resource_id} has no paginationInfo"
+            )
+        total = _state_nonnegative_int(
+            pagination.get("totalResults"),
+            "version totalResults",
+        )
+        total_pages = _state_nonnegative_int(
+            pagination.get("totalPages"),
+            "version totalPages",
+        )
+        page_index = _state_nonnegative_int(pagination.get("index"), "version page index")
+        page_size = _positive_int(pagination.get("size"), "version page size")
+        valid_total_pages = (
+            total_pages in {0, 1}
+            if total == 0
+            else total_pages == ceil(total / page_size)
+        )
+        if page_index != 0 or not valid_total_pages:
+            raise ValueError(f"{self.name}: invalid version pagination metadata for {resource_id}")
+        if total == 0 and not rows:
+            return (), "complete", None
+        if total_pages != 1 or len(rows) != total:
+            raise ValueError(
+                f"{self.name}: versions for {resource_id} span {total_pages} page(s); "
+                "the guest endpoint's continuation contract is not verified"
+            )
+        releases: list[ReleaseHint] = []
+        seen: set[str] = set()
+        for index, row in enumerate(rows):
+            version = _required_text(row.get("versionId"), f"version row {index} versionId")
+            if version in seen:
+                raise ValueError(f"{self.name}: duplicate version {version!r} for {resource_id}")
+            seen.add(version)
+            released_at = _text(row.get("createdDate")) or None
+            identity = Identifier("ngc:model-version", f"{resource_id}:{version}")
+            metadata = {
+                key: value
+                for key, value in row.items()
+                if key not in {"versionId", "createdDate"}
+            }
+            metadata["version_inventory_status"] = "complete"
+            releases.append(
+                ReleaseHint(
+                    local_id=f"{resource_id}#version:{version}",
+                    model_local_id=model_local_id,
+                    version=version,
+                    identifiers=(identity,),
+                    released_at=released_at,
+                    metadata=metadata,
+                    locator=f"$.modelVersions[{index}]",
+                )
+            )
+        return tuple(releases), "complete", None
 
     def _model_page_url(self, org_name: str, team_name: str, model_name: str) -> str:
         segments = ["orgs", quote(org_name, safe="")]
@@ -475,6 +631,43 @@ def _resource_id(value: Any) -> str:
     if has_invalid_part:
         raise ValueError("catalog model resourceId has an invalid path segment")
     return result
+
+
+def _quoted_resource_id(value: str) -> str:
+    return "/".join(quote(part, safe="") for part in value.split("/"))
+
+
+def _version_failure_status(error: Exception) -> tuple[str, str]:
+    """Classify per-model HTTP failures without copying request URLs or tokens."""
+    cause = error.__cause__ if isinstance(error, HttpFailure) else error
+    if isinstance(cause, HTTPError):
+        code = cause.code
+        if code in {401, 403}:
+            return "unavailable_unauthorized", f"HTTP {code}"
+        if code in {408, 425, 429, 500, 502, 503, 504}:
+            return "unavailable_transient", f"HTTP {code}"
+        return "unavailable_error", f"HTTP {code}"
+    if isinstance(cause, TimeoutError):
+        return "unavailable_transient", "network timeout"
+    if isinstance(cause, URLError):
+        return "unavailable_transient", "network request failed"
+    if isinstance(error, HttpFailure):
+        return "unavailable_error", "HTTP request failed"
+    return "unavailable_error", f"{type(error).__name__}: {error}"
+
+
+def _with_version_inventory_status(
+    release: ReleaseHint,
+    status: str,
+    error: str | None = None,
+) -> ReleaseHint:
+    metadata = {**release.metadata, "version_inventory_status": status}
+    if error is not None:
+        metadata["version_inventory_error"] = error
+    return replace(
+        release,
+        metadata=metadata,
+    )
 
 
 def _validate_resource_id(

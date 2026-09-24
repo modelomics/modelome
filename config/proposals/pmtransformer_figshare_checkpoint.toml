@@ -1,0 +1,18 @@
+# First-party PMTransformer checkpoint file in the authors' public Figshare article.
+# The JSON API provides the exact asset ID, URL, size, and MD5. Metadata only.
+[[source]]
+name = "pmtransformer-figshare-checkpoint"
+adapter = "pmtransformer_figshare"
+enabled = false
+article_id = 22698655
+article_url = "https://figshare.com/articles/dataset/PMTransformer_pre-trained_model/22698655"
+api_url = "https://api.figshare.com/v2/articles/22698655"
+entry_tags = ["field:materials-science", "ecosystem:pmtransformer", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# Article version 3 contains pmtransformer.ckpt (Figshare file 40298992,
+# 1,045,762,627 bytes, MD5 dfea8141311cb39eb52801f4791d0fe0). The companion
+# moftransformer.ckpt is already represented by the MOFTransformer source;
+# jsons.zip is not a checkpoint. No artifact bytes were fetched by metadata
+# verification.

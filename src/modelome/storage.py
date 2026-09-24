@@ -140,7 +140,7 @@ class Database:
         self._derived_extraction_keys: set[tuple[str, str]] = set()
         self._source_by_name: dict[str, dict[str, Any]] = {}
         self._frontier_by_url: dict[str, dict[str, Any]] = {}
-        self._url_discoveries_by_relation: dict[str, list[dict[str, Any]]] = {}
+        self._url_discovery_url_ids_by_relation: dict[str, set[str]] = {}
         self._url_discoveries_by_url_id: dict[str, list[dict[str, Any]]] = {}
         self._weight_artifact_urls: set[str] = set()
         self._reindex()
@@ -196,10 +196,13 @@ class Database:
 
         self._read_current()
         for relation in relations:
-            for discovery in self._url_discoveries_by_relation.get(relation, ()):
-                frontier = self._by_id["url_frontier"].get(discovery["url_id"])
-                if frontier is not None and frontier.get("status") == "observed":
-                    yield frontier, discovery
+            for url_id in self._url_discovery_url_ids_by_relation.get(relation, ()):
+                frontier = self._by_id["url_frontier"].get(url_id)
+                if frontier is None or frontier.get("status") != "observed":
+                    continue
+                for discovery in self._url_discoveries_by_url_id.get(url_id, ()):
+                    if str(discovery.get("relation", "")).casefold() == relation:
+                        yield frontier, discovery
 
     def declared_url_discoveries_for_ids(
         self, url_ids: set[str]
@@ -2542,12 +2545,14 @@ class Database:
         }
         self._source_by_name = {row["source"]: row for row in self._tables["source_checkpoints"]}
         self._frontier_by_url = {row["url"]: row for row in self._tables["url_frontier"]}
-        discoveries_by_relation: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+        discovery_url_ids_by_relation: defaultdict[str, set[str]] = defaultdict(set)
         discoveries_by_url_id: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
         for row in self._tables["url_discoveries"]:
-            discoveries_by_relation[str(row.get("relation", "")).casefold()].append(row)
-            discoveries_by_url_id[str(row["url_id"])].append(row)
-        self._url_discoveries_by_relation = dict(discoveries_by_relation)
+            relation = str(row.get("relation", "")).casefold()
+            url_id = str(row["url_id"])
+            discovery_url_ids_by_relation[relation].add(url_id)
+            discoveries_by_url_id[url_id].append(row)
+        self._url_discovery_url_ids_by_relation = dict(discovery_url_ids_by_relation)
         self._url_discoveries_by_url_id = dict(discoveries_by_url_id)
         self._weight_artifact_urls = {
             canonicalize_url(str(row["canonical_url"]))

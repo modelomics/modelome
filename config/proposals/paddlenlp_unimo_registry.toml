@@ -1,0 +1,11 @@
+# PaddleNLP's UNIMO config pairs seven model IDs with exact direct model_state URLs.
+[[source]]
+name = "paddlenlp-unimo-pretrained-registry"
+adapter = "paddlenlp_unimo_registry"
+enabled = false
+entry_tags = ["field:natural-language-processing", "ecosystem:paddlenlp", "kind:checkpoint"]
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/transformers/unimo/configuration.py"
+provider_namespace = "paddlenlp:transformer-model"
+max_response_bytes = 4194304

@@ -164,6 +164,26 @@ def test_extracts_model_release_urls_from_official_arxiv_abstract_field() -> Non
     assert [(link.url, link.relation) for link in abstract_links] == [(github, "weights")]
 
 
+def test_extracts_arxiv_display_spaced_url_from_abstract() -> None:
+    # The current official arXiv abstract page for CodeT5 renders this URL
+    # spelling; retain the original metadata span while normalizing its URL.
+    repo = "https://github.com/salesforce/CodeT5"
+    abstract = (
+        "Our code and pre-trained models are released at "
+        "https: //github.com/salesforce/CodeT5 ."
+    )
+    root = ET.fromstring(oai_response(raw_record("2109.00859", abstract=abstract)))
+    element = root.find(f"{{{OAI_NAMESPACE}}}record")
+    assert element is not None
+
+    record = ArxivSourceAdapter()._record(element)
+    link = next(item for item in record.links if item.url == repo)
+    assert link.relation == "weights"
+    assert link.locator == (
+        f"metadata.abstract:text:{abstract.index('https:')}-{abstract.index(' .')}"
+    )
+
+
 def test_extracts_huggingface_checkpoint_url_from_arxiv_abstract() -> None:
     checkpoint = "https://huggingface.co/aehrc/cxrmate"
     abstract = (

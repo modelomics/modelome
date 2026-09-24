@@ -1,3 +1,6 @@
+import json
+
+from modelome.http import HttpResponse
 from modelome.models import (
     ArtifactKind,
     ModelHint,
@@ -6,6 +9,7 @@ from modelome.models import (
     SourceRecord,
 )
 from modelome.pipeline import SyncEngine
+from modelome.sources.huggingface import HuggingFaceSourceAdapter
 from modelome.storage import Database
 
 
@@ -91,6 +95,113 @@ def test_source_can_batch_local_commits_without_skipping_page_checkpoints(tmp_pa
     assert outcome.stats["pages"] == 2
     assert database.get_source_state(source.name) == {"watermark": "done"}
     assert source.states == [{}, {"cursor": "page-two"}]
+
+
+class TransientFailureDuringPrefetchSource:
+    name = "transient-prefetch"
+    commit_pages = 2
+
+    def __init__(self):
+        self.states = []
+        self.fail_next_page = True
+
+    def fetch_page(self, state):
+        self.states.append(dict(state))
+        if not state:
+            return SourcePage(
+                records=(record("prefetched", "Prefetched Page Model"),),
+                next_state={"cursor": "page-two"},
+                complete=False,
+            )
+        if self.fail_next_page:
+            self.fail_next_page = False
+            raise RuntimeError("temporary page-two failure")
+        return SourcePage(
+            records=(record("page-two", "Page Two Model"),),
+            next_state={"cursor": "done"},
+            complete=True,
+        )
+
+
+def test_prefetch_failure_commits_prior_pages_and_resumes_at_next_cursor(tmp_path) -> None:
+    database = Database(tmp_path / "store")
+    database.initialize()
+    source = TransientFailureDuringPrefetchSource()
+    engine = SyncEngine(database, {source.name: source})
+
+    failed = engine.sync()[0]
+
+    assert failed.status == "failed"
+    assert failed.stats["pages"] == 1
+    assert failed.stats["new_artifacts"] == 1
+    assert database.get_source_state(source.name) == {"cursor": "page-two"}
+    assert database.stats()["artifacts"] == 1
+
+    resumed = engine.sync()[0]
+
+    assert resumed.status == "complete"
+    assert resumed.stats["new_artifacts"] == 1
+    assert source.states == [{}, {"cursor": "page-two"}, {"cursor": "page-two"}]
+    assert database.get_source_state(source.name) == {"cursor": "done"}
+
+
+class _FailingHuggingFacePageClient:
+    base_url = "https://huggingface.co/api/models"
+    next_url = "https://huggingface.co/api/models?cursor=page-two"
+
+    def __init__(self):
+        self.calls = []
+        self.fail_next_page = True
+
+    def get(self, url, *, params=None, headers=None):
+        del headers
+        self.calls.append((url, dict(params or {})))
+        if url == self.base_url:
+            return HttpResponse(
+                status=200,
+                headers={"Link": f'<{self.next_url}>; rel="next"'},
+                body=json.dumps([{"id": "org/first-model", "sha": "first"}]).encode(),
+                url=url,
+            )
+        if url == self.next_url:
+            if self.fail_next_page:
+                self.fail_next_page = False
+                raise RuntimeError("temporary Hugging Face page failure")
+            return HttpResponse(
+                status=200,
+                headers={},
+                body=json.dumps([{"id": "org/second-model", "sha": "second"}]).encode(),
+                url=url,
+            )
+        raise AssertionError(f"unexpected Hugging Face request: {url}")
+
+
+def test_huggingface_prefetch_failure_resumes_without_refetching_committed_page(tmp_path) -> None:
+    database = Database(tmp_path / "store")
+    database.initialize()
+    client = _FailingHuggingFacePageClient()
+    source = HuggingFaceSourceAdapter(client=client, page_size=1)
+    engine = SyncEngine(database, {source.name: source})
+
+    failed = engine.sync()[0]
+
+    assert failed.status == "failed"
+    assert failed.stats["pages"] == 1
+    assert failed.stats["new_artifacts"] == 1
+    assert database.get_source_state(source.name)["next_url"] == client.next_url
+    assert database.stats()["artifacts"] == 1
+
+    resumed = engine.sync()[0]
+
+    assert resumed.status == "complete"
+    assert resumed.stats["pages"] == 1
+    assert resumed.stats["new_artifacts"] == 1
+    assert [url for url, _ in client.calls] == [
+        client.base_url,
+        client.next_url,
+        client.next_url,
+    ]
+    assert database.stats()["artifacts"] == 2
 
 
 class PartiallyMalformedSource:

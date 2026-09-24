@@ -847,6 +847,11 @@ class HuggingFaceSourceAdapter:
         if phase == "refs":
             url = f"https://huggingface.co/api/models/{encoded_id}/refs"
             response = self.client.get(url, headers=headers)
+            if response.status in {401, 403, 404}:
+                queue.pop(0)
+                return self._revision_access_issue_page(
+                    state, queue, repo_id, "refs", response.status
+                )
             payload = self._revision_json(response)
             refs: list[dict[str, Any]] = []
             target_ref_indexes: dict[str, int] = {}
@@ -921,6 +926,18 @@ class HuggingFaceSourceAdapter:
                 f"https://huggingface.co/api/models/{encoded_id}/commits/{quote(ref, safe='')}"
             )
             response = self.client.get(url, headers=headers)
+            if response.status in {401, 403, 404}:
+                item.pop("next_url", None)
+                item["ref_index"] = index + 1
+                if index + 1 >= len(refs):
+                    queue.pop(0)
+                else:
+                    item["refs"] = refs
+                    item["phase"] = "commits"
+                    queue[0] = item
+                return self._revision_access_issue_page(
+                    state, queue, repo_id, "commits", response.status
+                )
             payload = self._revision_json(response)
             if not isinstance(payload, Sequence) or isinstance(
                 payload, (str, bytes, bytearray)
@@ -972,6 +989,35 @@ class HuggingFaceSourceAdapter:
         else:
             raise ValueError(f"{self.name}: invalid revision checkpoint phase {phase!r}")
         return self._revision_page_result(state, queue, ())
+
+    def _revision_access_issue_page(
+        self,
+        state: Mapping[str, Any],
+        queue: list[dict[str, Any]],
+        repo_id: str,
+        endpoint: str,
+        status: int,
+    ) -> SourcePage:
+        page = self._revision_page_result(state, queue, ())
+        issue = SourceIssue(
+            source_record_id=f"{repo_id}:revision-history",
+            stage="source_normalize",
+            error=f"revision {endpoint} endpoint is unavailable (HTTP {status})",
+            summary={
+                "model_id": repo_id,
+                "revision_history_status": "incomplete",
+                "endpoint": endpoint,
+                "http_status": status,
+            },
+        )
+        return SourcePage(
+            records=page.records,
+            next_state=page.next_state,
+            complete=page.complete,
+            upstream_count=page.upstream_count,
+            issues=(issue,),
+            advance_on_source_issues=True,
+        )
 
     def _revision_json(self, response: HttpResponse) -> Any:
         if response.status != 200:

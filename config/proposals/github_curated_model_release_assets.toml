@@ -1,0 +1,31 @@
+# Disabled exact-repository metadata scan. The named repositories' own README
+# files document model weights released as GitHub assets:
+# vlad3996/forgeryscope: README inventories 7 model files served from its release.
+# jlherraiz/ULDPET_nnFormer_FILM: README lists 2 safetensors release mirrors.
+# bwchen05/RegionRoute: README lists 4 released style LoRA safetensors.
+# xvjiarui/VFS: README model zoo lists 4 .pth checkpoints.
+#
+# Total incremental documented inventory: 17 weight files. This is an inventory count from
+# the first-party README tables, not a promise that all assets remain public.
+# The scanner only requests JSON metadata; it never downloads asset bytes.
+# For anonymous GitHub's 60-request/hour limit, run at most
+# `sync --source github-curated-model-release-assets-17 --max-pages 12`.
+# With the default 4 HTTP attempts per page, this is bounded at 48 attempts
+# per invocation. Retries across invocations are separately bounded.
+[[source]]
+name = "github-curated-model-release-assets-17"
+adapter = "github_curated_release_assets"
+enabled = false
+repository_names = [
+  "vlad3996/forgeryscope",
+  "jlherraiz/ULDPET_nnFormer_FILM",
+  "bwchen05/RegionRoute",
+  "xvjiarui/VFS",
+]
+page_size = 100
+max_releases_per_repository = 120
+max_assets_per_release = 100
+max_release_pages_per_repository = 2
+max_asset_pages_per_release = 1
+schedule = "monthly"
+entry_tags = ["ecosystem:github", "kind:release-asset"]

@@ -34,9 +34,10 @@ class OrbModelsPretrainedRegistryAdapter:
 
     disable_derived_extraction = True
     coverage_limitation = (
-        "Indexes named loader functions whose first-party source declares a literal "
-        "public checkpoint URL in the weights_path default. It reads GitHub source "
-        "metadata only and never requests checkpoint bytes."
+        "Indexes first-party named loader functions with literal public checkpoint "
+        "URLs in their weights_path defaults. It uses ORB_PRETRAINED_MODELS when "
+        "present, or public function names on current main, and reads source metadata "
+        "only without requesting checkpoint bytes."
     )
 
     def __init__(
@@ -53,7 +54,7 @@ class OrbModelsPretrainedRegistryAdapter:
         self.max_response_bytes = max_response_bytes
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "orb-models-pretrained-registry-v1",
+                "adapter": "orb-models-pretrained-registry-v2",
                 "repository": _REPOSITORY,
                 "branch": _BRANCH,
                 "source_path": _SOURCE_PATH,
@@ -135,9 +136,6 @@ def _parse_pretrained_urls(source_text: str, source: str) -> tuple[tuple[str, st
                 target = node.targets[0].id
                 if isinstance(node.value, ast.Name):
                     aliases[target] = node.value.id
-    if registry is None:
-        raise ValueError(f"{source}: ORB_PRETRAINED_MODELS registry is missing")
-
     def resolve(name: str) -> str:
         visited: set[str] = set()
         while name in aliases:
@@ -148,49 +146,76 @@ def _parse_pretrained_urls(source_text: str, source: str) -> tuple[tuple[str, st
         return name
 
     rows: list[tuple[str, str]] = []
-    for key, value_node in zip(registry.keys, registry.values, strict=True):
-        if not isinstance(key, ast.Constant) or not isinstance(key.value, str):
-            raise ValueError(f"{source}: registry keys must be literal strings")
-        if not isinstance(value_node, ast.Name):
-            raise ValueError(f"{source}: registry values must name loader functions")
-        model_name = key.value
-        loader_name = resolve(value_node.id)
-        node = functions.get(loader_name)
-        if node is None:
-            raise ValueError(f"{source}: registry loader {loader_name!r} is undefined")
-        positional = (*node.args.posonlyargs, *node.args.args)
-        names = [argument.arg for argument in positional]
-        if "weights_path" not in names:
-            raise ValueError(f"{source}: {model_name!r} loader has no weights_path")
-        index = names.index("weights_path")
-        default_index = index - (len(positional) - len(node.args.defaults))
-        if default_index < 0:
-            raise ValueError(
-                f"{source}: {model_name!r} loader requires an unspecified weights_path"
-            )
-        value = node.args.defaults[default_index]
-        if isinstance(value, ast.Constant) and value.value is None:
-            continue
-        if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
-            raise ValueError(f"{source}: {model_name!r} loader has no literal checkpoint URL")
-        url = value.value
-        parsed = urlsplit(url)
-        if (
-            parsed.scheme != "https"
-            or parsed.hostname != _WEIGHT_HOST
-            or parsed.query
-            or parsed.fragment
-            or not parsed.path.endswith(".ckpt")
-            or not parsed.path.startswith("/forcefields/")
-        ):
-            raise ValueError(f"{source}: unsafe or unexpected checkpoint URL for {model_name}")
-        rows.append((model_name, url))
+    if registry is not None:
+        for key, value_node in zip(registry.keys, registry.values, strict=True):
+            if not isinstance(key, ast.Constant) or not isinstance(key.value, str):
+                raise ValueError(f"{source}: registry keys must be literal strings")
+            if not isinstance(value_node, ast.Name):
+                raise ValueError(f"{source}: registry values must name loader functions")
+            model_name = key.value
+            loader_name = resolve(value_node.id)
+            node = functions.get(loader_name)
+            if node is None:
+                raise ValueError(f"{source}: registry loader {loader_name!r} is undefined")
+            value = _weights_path_default(node)
+            if value is None or isinstance(value, ast.Constant) and value.value is None:
+                continue
+            if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+                raise ValueError(f"{source}: {model_name!r} loader has no literal checkpoint URL")
+            _validate_checkpoint_url(value.value, model_name, source)
+            rows.append((model_name, value.value))
+    else:
+        # Current Orb main uses named loader functions as the registry; the old
+        # ORB_PRETRAINED_MODELS constant is no longer present. Function names are
+        # first-party model IDs, and only literal public S3 checkpoint defaults
+        # are admitted here.
+        for model_name, node in functions.items():
+            if model_name.startswith("_"):
+                continue
+            value = _weights_path_default(node)
+            if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+                continue
+            if not value.value.startswith("https://"):
+                continue
+            _validate_checkpoint_url(value.value, model_name, source)
+            rows.append((model_name, value.value))
     if not rows:
         raise ValueError(f"{source}: no literal pretrained checkpoint URLs found")
     names = [name for name, _ in rows]
     if len(set(names)) != len(names):
         raise ValueError(f"{source}: duplicate model name")
     return tuple(rows)
+
+
+def _weights_path_default(node: ast.FunctionDef | ast.AsyncFunctionDef) -> ast.expr | None:
+    positional = (*node.args.posonlyargs, *node.args.args)
+    if "weights_path" in (argument.arg for argument in positional):
+        index = next(
+            index for index, argument in enumerate(positional) if argument.arg == "weights_path"
+        )
+        default_index = index - (len(positional) - len(node.args.defaults))
+        return node.args.defaults[default_index] if default_index >= 0 else None
+    if "weights_path" in (argument.arg for argument in node.args.kwonlyargs):
+        index = next(
+            index
+            for index, argument in enumerate(node.args.kwonlyargs)
+            if argument.arg == "weights_path"
+        )
+        return node.args.kw_defaults[index]
+    return None
+
+
+def _validate_checkpoint_url(url: str, model_name: str, source: str) -> None:
+    parsed = urlsplit(url)
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != _WEIGHT_HOST
+        or parsed.query
+        or parsed.fragment
+        or not parsed.path.endswith(".ckpt")
+        or not parsed.path.startswith("/forcefields/")
+    ):
+        raise ValueError(f"{source}: unsafe or unexpected checkpoint URL for {model_name}")
 
 
 def _record(

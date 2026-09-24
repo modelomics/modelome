@@ -383,6 +383,16 @@ def test_detail_budget_reports_unchecked_hf_summaries_and_advances_page() -> Non
     assert client.detail_calls == [first_url]
 
 
+def test_detail_budget_can_cover_larger_configured_pages() -> None:
+    adapter = AzureAssetGalleryV2Adapter(
+        page_size=1000,
+        max_hf_origin_details_per_page=1000,
+        client=FixtureClient([]),
+    )
+
+    assert adapter.max_hf_origin_details_per_page == adapter.page_size
+
+
 def test_asset_gallery_restarts_when_total_changes_and_rejects_bad_identity() -> None:
     changed_total = FixtureClient(
         [

@@ -105,9 +105,7 @@ class FalModelGalleryAdapter:
         page_number = _state_int(state.get("page", 1), "page")
         if page_number > self.max_pages:
             raise ValueError(f"{self.name}: page limit exceeded")
-        expected_total = state.get("total")
-        if expected_total is not None:
-            expected_total = _state_int(expected_total, "total")
+        seen_ids = _seen_ids(state.get("seen_ids", []), self.max_pages * self.page_size)
 
         page_url = self.url if page_number == 1 else f"{self.url}?page={page_number}"
         response: HttpResponse = self.client.get(page_url, headers={"Accept": "text/html"})
@@ -134,9 +132,6 @@ class FalModelGalleryAdapter:
         total = _number(match.group("total"))
         first = _number(match.group("first")) if match.group("first") else 0
         last = _number(match.group("last")) if match.group("last") else 0
-        if expected_total is not None and total != expected_total:
-            raise ValueError(f"{self.name}: gallery total changed during pagination")
-
         records_by_id: dict[str, SourceRecord] = {}
         for href, text, is_model_card in parser.items:
             if not is_model_card:
@@ -146,8 +141,10 @@ class FalModelGalleryAdapter:
             if item_match is None:
                 continue
             endpoint_id = item_match.group("id").strip("/")
-            if not endpoint_id or endpoint_id in records_by_id:
+            if not endpoint_id:
                 continue
+            if endpoint_id in records_by_id:
+                raise ValueError(f"{self.name}: duplicate model card on gallery page")
             item_url = f"{_ORIGIN}/models/{quote(endpoint_id, safe='/._-')}"
             records_by_id[endpoint_id] = SourceRecord(
                 source_record_id=f"fal:model-endpoint:{endpoint_id}",
@@ -169,29 +166,49 @@ class FalModelGalleryAdapter:
                 ),
             )
 
+        page_card_count = len(records_by_id)
         if total == 0:
-            if records_by_id:
+            if page_card_count:
                 raise ValueError(f"{self.name}: zero-result page contains model cards")
             complete = True
         else:
             if first < 1 or last < first or last > total:
                 raise ValueError(f"{self.name}: invalid gallery result range")
-            if len(records_by_id) != last - first + 1:
+            if page_card_count != last - first + 1:
                 raise ValueError(f"{self.name}: card count does not match reported page range")
             if first != (page_number - 1) * self.page_size + 1:
                 raise ValueError(f"{self.name}: page range does not match requested page")
-            if last < total and len(records_by_id) != self.page_size:
+            if last < total and page_card_count != self.page_size:
                 raise ValueError(f"{self.name}: short non-terminal gallery page")
             complete = last == total
 
+        # A live gallery can reorder or add/remove cards between requests. Keep
+        # walking by page number, but emit each endpoint only once per run.
+        novel_ids = set(records_by_id) - set(seen_ids)
+        if page_card_count and not novel_ids:
+            raise ValueError(f"{self.name}: gallery page made no model-ID progress")
+        page_records = tuple(
+            record for endpoint_id, record in records_by_id.items() if endpoint_id in novel_ids
+        )
+        next_seen_ids = [
+            *seen_ids,
+            *(
+                endpoint_id
+                for endpoint_id in records_by_id
+                if endpoint_id in novel_ids
+            ),
+        ]
+        if len(next_seen_ids) > self.max_pages * self.page_size:
+            raise ValueError(f"{self.name}: seen model-ID limit exceeded")
+
         next_state: dict[str, Any] = {
             "page": page_number + 1,
-            "total": total,
+            "seen_ids": next_seen_ids,
         }
         if complete:
-            next_state = {"page": page_number, "total": total, "complete": True}
+            next_state = {"page": page_number, "seen_ids": next_seen_ids, "complete": True}
         return SourcePage(
-            records=tuple(records_by_id.values()),
+            records=page_records,
             next_state=next_state,
             complete=complete,
             upstream_count=total,
@@ -206,6 +223,16 @@ def _number(value: str) -> int:
 def _state_int(value: Any, label: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError(f"fal gallery {label} state must be a positive integer")
+    return value
+
+
+def _seen_ids(value: Any, maximum: int) -> list[str]:
+    if not isinstance(value, list) or len(value) > maximum:
+        raise ValueError("fal gallery seen_ids state must be a bounded list")
+    if any(not isinstance(item, str) or not item for item in value):
+        raise ValueError("fal gallery seen_ids state must contain non-empty strings")
+    if len(set(value)) != len(value):
+        raise ValueError("fal gallery seen_ids state contains duplicates")
     return value
 
 

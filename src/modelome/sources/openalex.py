@@ -261,6 +261,8 @@ class OpenAlexSourceAdapter:
             raise ValueError(f"{self.name}: work result is missing id")
 
         identifiers = list(_work_identifiers(work, openalex_id))
+        if re.fullmatch(r"https://openalex\.org/W\d+", openalex_url):
+            identifiers.append(Identifier("url", canonicalize_url(openalex_url)))
         links = list(_work_links(work))
         primary = work.get("primary_location")
         primary_landing = _location_url(primary, "landing_page_url")

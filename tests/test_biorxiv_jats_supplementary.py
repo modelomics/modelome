@@ -79,12 +79,14 @@ def _jats(
     return _response(xml.encode(), "application/xml")
 
 
-def _adapter(client: QueueClient, **options: Any) -> BioRxivJatsSupplementSourceAdapter:
+def _adapter(
+    client: QueueClient, *, server: str = "biorxiv", **options: Any
+) -> BioRxivJatsSupplementSourceAdapter:
     client.max_response_bytes = options.get("max_jats_bytes", client.max_response_bytes)
     metadata = BioRxivSourceAdapter(
-        name="biorxiv",
-        url="https://api.biorxiv.org/details",
-        server="biorxiv",
+        name=server,
+        url=f"https://api.{server}.org/details",
+        server=server,
         client=client,
         clock=lambda: NOW,
     )
@@ -96,6 +98,34 @@ def _adapter(client: QueueClient, **options: Any) -> BioRxivJatsSupplementSource
     )
 
 
+def test_medrxiv_jats_followup_resolves_exact_checkpoint_supplement() -> None:
+    doi = "10.1101/2024.01.02.123456"
+    jats_url = f"https://www.medrxiv.org/content/early/2024/01/03/{doi}.source.xml"
+    paper = {
+        "doi": doi,
+        "title": "A medical imaging model paper",
+        "version": "1",
+        "date": "2024-01-03",
+        "server": "medRxiv",
+        "jatsxml": jats_url,
+    }
+    payload = _details_payload(records=[paper])
+    xml = _jats(title="Downloadable trained model checkpoint", doi=doi)
+    client = QueueClient(payload, xml)
+
+    page = _adapter(client, server="medrxiv").fetch_page({})
+
+    assert len(page.records) == 1
+    link = next(link for link in page.records[0].links if link.relation == "model_artifact")
+    assert link.url == (
+        "https://www.medrxiv.org/content/early/2024/01/03/10.1101/supplementary/checkpoint.pt"
+    )
+    assert link.crawl is False
+    assert page.records[0].raw["server"] == "medrxiv"
+    assert [url for url, _ in client.calls] == [
+        "https://api.medrxiv.org/details/medrxiv/2026-08-25/2026-08-31/0/json",
+        jats_url,
+    ]
 def test_public_jats_followup_emits_explicit_model_supplement_and_keeps_nested_checkpoint() -> None:
     client = QueueClient(_details_payload(), _jats(title="Pretrained model checkpoint"))
     source = _adapter(client)

@@ -75,6 +75,46 @@ def test_gallery_paginates_exact_provider_endpoint_ids() -> None:
     assert record.links[0].crawl is False
 
 
+def test_gallery_allows_total_drift_and_deduplicates_overlap_between_pages() -> None:
+    page_2 = (
+        '<a class="page-model-card" href="/models/fal-ai/demo/model-24">overlap</a>'
+        + "".join(
+            f'<a class="page-model-card" '
+            f'href="/models/fal-ai/demo/model-{number}">model {number}</a>'
+            for number in range(25, 48)
+        )
+        + "<p>Showing 25 to 48 of 48 results</p>"
+    )
+    client = _Client(
+        {
+            _BASE: (_cards(1, 24), _BASE),
+            _PAGE_2: (page_2, _PAGE_2),
+        }
+    )
+    adapter = FalModelGalleryAdapter(client=client)
+
+    first = adapter.fetch_page({})
+    second = adapter.fetch_page(first.next_state)
+
+    assert not first.complete
+    assert first.upstream_count == 25
+    assert second.complete
+    assert second.upstream_count == 48
+    assert len(second.records) == 23
+    assert "fal-ai/demo/model-24" not in [record.title for record in second.records]
+    assert "fal-ai/demo/model-47" in [record.title for record in second.records]
+
+
+def test_gallery_rejects_page_with_no_new_ids_after_page_shift() -> None:
+    body = _cards(1, 24).replace("1 to 24 of 25", "25 to 48 of 48")
+    client = _Client({_PAGE_2: (body, _PAGE_2)})
+
+    with pytest.raises(ValueError, match="made no model-ID progress"):
+        FalModelGalleryAdapter(client=client).fetch_page(
+            {"page": 2, "seen_ids": [f"fal-ai/demo/model-{i}" for i in range(1, 25)]}
+        )
+
+
 def test_gallery_rejects_missing_or_inconsistent_pagination_evidence() -> None:
     client = _Client({_BASE: ("<main>some models, but no result range</main>", _BASE)})
     with pytest.raises(ValueError, match="no gallery result range"):

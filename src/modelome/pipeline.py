@@ -119,11 +119,18 @@ class SyncEngine:
             while max_pages is None or stats.pages < max_pages:
                 page_batch = []
                 fetch_state = state
+                fetch_error: Exception | None = None
                 while (
                     len(page_batch) < commit_pages
                     and (max_pages is None or stats.pages + len(page_batch) < max_pages)
                 ):
-                    page = source.fetch_page(fetch_state)
+                    try:
+                        page = source.fetch_page(fetch_state)
+                    except Exception as error:
+                        if not page_batch:
+                            raise
+                        fetch_error = error
+                        break
                     retry_page = bool(page.issues) and not page.advance_on_source_issues
                     if retry_page:
                         # A quarantined upstream item is still part of this page. Keep
@@ -239,6 +246,8 @@ class SyncEngine:
                     )
                 if checkpoint_error is not None:
                     raise RuntimeError(checkpoint_error)
+                if fetch_error is not None:
+                    raise fetch_error
                 if stats.complete:
                     break
 

@@ -1,5 +1,7 @@
 # fal's public model gallery exposes exact endpoint IDs on stable model detail
-# pages and reports the result range and total for the current gallery page.
+# pages and reports the result range and total for each gallery page. Totals can
+# change between page requests; the adapter deduplicates exact IDs and rejects a
+# page that makes no ID progress.
 # This adapter records provider endpoints as documented models only; it makes
 # no reusable-weight/checkpoint claim and does not call inference endpoints.
 [[source]]

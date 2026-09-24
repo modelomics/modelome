@@ -105,6 +105,75 @@ def test_explicit_exact_mirror_identifier_joins_within_one_source() -> None:
     }
 
 
+def test_openrouter_exact_huggingface_origin_joins_hub_repo() -> None:
+    endpoint = _seed(
+        "openrouter-model",
+        [{"namespace": "openrouter:model", "value": "meta-llama/Llama-3.1-8B-Instruct"}],
+    )
+    endpoint["source"] = "openrouter-models"
+    endpoint["model_relations"] = [
+        {
+            "subject_local_id": "model",
+            "predicate": "hosted_huggingface_model",
+            "target": {
+                "local_id": "model#huggingface",
+                "name": "meta-llama/Llama-3.1-8B-Instruct",
+                "identifiers": [
+                    {
+                        "namespace": "huggingface:model",
+                        "value": "meta-llama/Llama-3.1-8B-Instruct",
+                    }
+                ],
+            },
+        }
+    ]
+    hub = _seed(
+        "meta-llama/Llama-3.1-8B-Instruct",
+        [
+            {
+                "namespace": "huggingface:model",
+                "value": "meta-llama/Llama-3.1-8B-Instruct",
+            }
+        ],
+    )
+    hub["source"] = "huggingface"
+
+    result = build_entries([endpoint, hub])
+
+    assert len(result.entries) == 1
+    assert {member.source for member in result.entries[0].members} == {
+        "openrouter-models",
+        "huggingface",
+    }
+
+
+def test_openrouter_origin_bridge_does_not_join_a_different_huggingface_repo() -> None:
+    endpoint = _seed("openrouter-model", [])
+    endpoint["source"] = "openrouter-models"
+    endpoint["model_relations"] = [
+        {
+            "subject_local_id": "model",
+            "predicate": "hosted_huggingface_model",
+            "target": {
+                "local_id": "model#huggingface",
+                "name": "org/model-a",
+                "identifiers": [
+                    {"namespace": "huggingface:model", "value": "org/model-a"}
+                ],
+            },
+        }
+    ]
+    unrelated = _seed(
+        "org/model-b",
+        [{"namespace": "huggingface:model", "value": "org/model-b"}],
+    )
+    unrelated["source"] = "huggingface"
+
+    result = build_entries([endpoint, unrelated])
+
+    assert len(result.entries) == 2
+
+
 def test_exact_huggingface_model_card_link_joins_provider_documentation_entry() -> None:
     provider = _seed(
         "mistral-docs",

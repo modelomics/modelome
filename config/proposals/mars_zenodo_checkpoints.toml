@@ -1,0 +1,14 @@
+# Zenodo record 17800805 publishes four MaRS RGB/SAR encoder-only checkpoints.
+[[source]]
+name = "mars-zenodo-checkpoints"
+adapter = "mars_zenodo_checkpoints"
+enabled = false
+entry_tags = ["field:remote-sensing", "ecosystem:zenodo", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_files = 20
+
+[evidence]
+model_inventory = "https://zenodo.org/records/17800805"
+first_party_implementation = "https://github.com/WanderRainy/MaRS"
+checkpoint_scope = "Four RGB/SAR base/large encoder-only .pth files; excludes the MaRS16M demonstration dataset archive; metadata only"

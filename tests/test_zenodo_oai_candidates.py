@@ -44,7 +44,13 @@ def oai_record(
     filename: str,
     url: str,
     url_shape: str = "download_resource",
+    model_resource_type: bool = False,
 ) -> str:
+    model_type = (
+        '<dct:type rdf:resource="https://w3id.org/citedcat-ap/Model"/>'
+        if model_resource_type
+        else ""
+    )
     if url_shape == "distribution_about":
         distribution = f"""<rdf:Description rdf:about="{url}">
         <rdf:type rdf:resource="http://www.w3.org/ns/dcat#Distribution"/>
@@ -68,6 +74,7 @@ def oai_record(
       xmlns:dcat="http://www.w3.org/ns/dcat#" xmlns:dct="http://purl.org/dc/terms/">
     <dcat:Dataset><dct:title>{title}</dct:title><dct:description>{description}</dct:description>
       <dct:type>Dataset</dct:type>
+      {model_type}
       <dcat:distribution>{distribution}</dcat:distribution>
     </dcat:Dataset>
   </rdf:RDF></metadata>
@@ -147,6 +154,55 @@ def test_oai_dcat_admits_machine_learning_model_without_neural_wording() -> None
         link.relation == "checkpoint" and link.url.endswith("svm_model_weights.onnx")
         for link in page.records[0].links
     )
+
+
+def test_first_party_model_resource_type_and_pretrain_filename_admit_generic_title() -> None:
+    # Captured-shape fixture from Zenodo record 20388950: dct:type uses the
+    # citedcat Model profile and the first-party file is named `pretrain.pt`.
+    record_xml = oai_record(
+        20388950,
+        title="Pretrained model checkpoints",
+        description="Pretrained model checkpoints",
+        filename="pretrain.pt",
+        url="https://zenodo.org/records/20388950/files/pretrain.pt",
+        model_resource_type=True,
+    )
+    adapter = ZenodoOaiModelCandidatesSourceAdapter(
+        client=Client(response(harvest_page(record_xml))),
+        clock=lambda: datetime(2026, 9, 22, 12, 0, tzinfo=UTC),
+    )
+
+    page = adapter.fetch_page({})
+
+    assert len(page.records) == 1
+    candidate = page.records[0]
+    assert candidate.source_record_id == "record:20388950"
+    assert candidate.models[0].name == "Pretrained model checkpoints"
+    assert candidate.models[0].status.value == "candidate"
+    assert candidate.raw["candidate_signal"] == (
+        "explicit Zenodo Model resource type plus pretrained checkpoint filename"
+    )
+    assert any(
+        link.relation == "checkpoint"
+        and link.url == "https://zenodo.org/records/20388950/files/pretrain.pt"
+        for link in candidate.links
+    )
+
+
+def test_pretrain_filename_without_model_resource_type_or_neural_context_is_rejected() -> None:
+    record_xml = oai_record(
+        20388951,
+        title="Pretrained model checkpoints",
+        description="Pretrained model checkpoints",
+        filename="pretrain.pt",
+        url="https://zenodo.org/records/20388951/files/pretrain.pt",
+    )
+    adapter = ZenodoOaiModelCandidatesSourceAdapter(
+        client=Client(response(harvest_page(record_xml))),
+        clock=lambda: datetime(2026, 9, 22, 12, 0, tzinfo=UTC),
+    )
+
+    assert adapter.fetch_page({}).records == ()
 
 
 def test_oai_partition_passes_community_and_datestamp_window() -> None:

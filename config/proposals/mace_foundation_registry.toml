@@ -11,7 +11,8 @@ schedule = "weekly"
 max_response_bytes = 4194304
 max_entries = 1000
 
-# The adapter reads only the literal `mace_mp_urls` and `polar_model_urls` maps.
-# It preserves source-native keys and direct GitHub release URLs, pins the source
-# file to a commit, and does not fetch weight bytes. MACE-OFF23 is listed by its
-# separate adapter; the source file does not define a MACE-ANI URL map.
+# The adapter reads the literal `mace_mp_urls` and `polar_model_urls` maps and
+# the single `mace_mdp_default_url` loader constant. It preserves source-native
+# keys and exact artifact URLs, pins the source file to a commit, and does not
+# fetch weight bytes. MACE-OFF23 is listed by its separate adapter; MACE-ANI-CC
+# has no separate first-party URL constant in this source.

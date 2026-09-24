@@ -14,7 +14,6 @@ from modelome.models import ArtifactKind, Identifier, Link, SourceIssue, SourceP
 from modelome.normalize import (
     canonicalize_url,
     content_hash,
-    extract_url_mentions,
     infer_url_relation,
 )
 
@@ -24,9 +23,10 @@ _OAI_NAMESPACE = "http://www.openarchives.org/OAI/2.0/"
 _ARXIV_RAW_NAMESPACE = "http://arxiv.org/OAI/arXivRaw/"
 _VERSION_RE = re.compile(r"v[1-9]\d*")
 _DOI_RE = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
+_ARXIV_URL_RE = re.compile(r"https?:\s*//[^\s<>\"']+")
 _OAI_IDENTIFIER_PREFIX = "oai:arxiv.org:"
 _ABSTRACT_WEIGHTS_URL_RE = re.compile(
-    r"\b(?:pre[- ]?trained|trained|model)\s+weights?\b[^.!?\n]{0,160}"
+    r"\b(?:pre[- ]?trained|trained|model)\s+(?:weights?|models?)\b[^.!?\n]{0,160}"
     r"\b(?:available|released|hosted|provided|published)\b"
     r"(?:\s+(?:at|on|from|via|here))?\s*:?\s*$",
     re.IGNORECASE,
@@ -683,7 +683,7 @@ class ArxivSourceAdapter:
         if license_url := _optional_web_url(raw_fields.get("license")):
             links.append(Link(license_url, relation="license", locator="metadata.license"))
         comments = _text(raw_fields.get("comments"))
-        for url, span in extract_url_mentions(comments):
+        for url, span in _arxiv_url_mentions(comments):
             if _optional_web_url(url):
                 links.append(
                     Link(
@@ -692,7 +692,7 @@ class ArxivSourceAdapter:
                         locator=f"metadata.comments:{span}",
                     )
                 )
-        for url, span in extract_url_mentions(abstract):
+        for url, span in _arxiv_url_mentions(abstract):
             if _optional_web_url(url):
                 relation = _arxiv_abstract_url_relation(abstract, span)
                 links.append(
@@ -1043,6 +1043,29 @@ def _arxiv_abstract_url_relation(abstract: str, span: str) -> str:
     if relation == "embedded" and _ABSTRACT_CODE_URL_RE.search(clause):
         return "implementation"
     return relation
+
+
+def _arxiv_url_mentions(value: str) -> list[tuple[str, str]]:
+    """Extract URLs including arXiv's displayed ``https: //`` spelling.
+
+    arXiv's first-party abstract page can render author-supplied links with a
+    space after the scheme colon. Keep locator offsets against the original
+    metadata text, but canonicalize the URL after removing only that separator.
+    """
+
+    found: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for match in _ARXIV_URL_RE.finditer(value):
+        candidate = re.sub(r"^(https?:)\s+//", r"\1//", match.group(0), flags=re.IGNORECASE)
+        try:
+            url = canonicalize_url(candidate)
+        except ValueError:
+            continue
+        if url in seen:
+            continue
+        seen.add(url)
+        found.append((url, f"text:{match.start()}-{match.end()}"))
+    return found
 
 
 def _collapse_space(value: str) -> str:

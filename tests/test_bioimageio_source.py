@@ -373,6 +373,80 @@ def test_enumerates_every_exact_model_version_and_retains_rdf_weight_and_link_ev
     assert client.calls[5][0] == INDEX_URL
 
 
+@pytest.mark.parametrize("checkpoint", ["cpdino", "cpdino-vitb"])
+def test_adds_cellpose_model_identity_for_exact_official_hub_checkpoint_url(
+    checkpoint: str,
+) -> None:
+    rdf = b"type: model\nname: CellposeDINO ViTL\n"
+    control = version("cellpose-dino", "v0", rdf, created_at="2026-09-01T00:00:00Z")
+    checkpoint_url = f"https://huggingface.co/mouseland/cellpose-sam/resolve/main/{checkpoint}"
+    client = QueuedClient(
+        json_response(index(item("cellpose-dino", control))),
+        json_response(
+            detail(
+                "cellpose-dino",
+                "CellposeDINO ViTL",
+                manifest={
+                    "weights": {
+                        "pytorch_state_dict": {
+                            "source": checkpoint_url,
+                            "sha256": "a" * 64,
+                        }
+                    }
+                },
+            ),
+            url=f"{ARTIFACT_BASE}/cellpose-dino",
+        ),
+        rdf_response(rdf, control["source"]),
+    )
+
+    page = adapter(client).fetch_page({})
+    model = page.records[0].models[0]
+
+    assert Identifier("cellpose:model", checkpoint) in model.identifiers
+    assert (
+        "weights",
+        checkpoint_url,
+        False,
+    ) in {(link.relation, link.url, link.crawl) for link in page.records[0].links}
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "https://huggingface.co/other-org/cellpose-sam/resolve/main/cpdino",
+        "https://huggingface.co/mouseland/cellpose-sam/resolve/main/unlisted-model",
+        "https://huggingface.co/mouseland/cellpose-sam/resolve/feature/cpdino",
+    ],
+)
+def test_does_not_add_cellpose_identity_for_unverified_hub_file_urls(source: str) -> None:
+    rdf = b"type: model\nname: External Model\n"
+    control = version("external-model", "v0", rdf, created_at="2026-09-01T00:00:00Z")
+    client = QueuedClient(
+        json_response(index(item("external-model", control))),
+        json_response(
+            detail(
+                "external-model",
+                "External Model",
+                manifest={
+                    "weights": {
+                        "pytorch_state_dict": {"source": source}
+                    }
+                },
+            ),
+            url=f"{ARTIFACT_BASE}/external-model",
+        ),
+        rdf_response(rdf, control["source"]),
+    )
+
+    page = adapter(client).fetch_page({})
+
+    assert all(
+        identifier.namespace != "cellpose:model"
+        for identifier in page.records[0].models[0].identifiers
+    )
+
+
 def test_incremental_scan_fetches_only_new_versions_and_tombstones_removed_versions() -> None:
     keep_rdf = b"type: model\nname: Kept\n"
     remove_rdf = b"type: model\nname: Removed\n"

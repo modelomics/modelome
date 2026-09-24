@@ -357,6 +357,76 @@ def test_garden_fetches_added_vision_readme_at_pinned_revision() -> None:
     assert client.calls == [adapter.raw_url(REVISION, "official/vision/README.md")]
 
 
+def test_garden_vision_readme_covers_24_direct_checkpoint_matrix_rows() -> None:
+    # The official vision README contains 24 row-local checkpoint links across
+    # classification, detection, and segmentation. Keep the exact handles here
+    # so each remains attached to its source-declared model variant.
+    rows = [
+        ("ResNet-50", "https://storage.googleapis.com/tf_model_garden/vision/resnet/"
+         "resnet-50-i224.tar.gz"),
+        ("ResNet-101", "https://storage.googleapis.com/tf_model_garden/vision/resnet/"
+         "resnet-101-i224.tar.gz"),
+        ("ResNet-152", "https://storage.googleapis.com/tf_model_garden/vision/resnet/"
+         "resnet-152-i224.tar.gz"),
+        ("ResNet-RS-50", "https://storage.googleapis.com/tf_model_garden/vision/resnet-rs/"
+         "resnet-rs-50-i160.tar.gz"),
+        ("ResNet-RS-101", "https://storage.googleapis.com/tf_model_garden/vision/resnet-rs/"
+         "resnet-rs-101-i160.tar.gz"),
+        ("ResNet-RS-101", "https://storage.googleapis.com/tf_model_garden/vision/resnet-rs/"
+         "resnet-rs-101-i192.tar.gz"),
+        ("ResNet-RS-152", "https://storage.googleapis.com/tf_model_garden/vision/resnet-rs/"
+         "resnet-rs-152-i192.tar.gz"),
+        ("ResNet-RS-152", "https://storage.googleapis.com/tf_model_garden/vision/resnet-rs/"
+         "resnet-rs-152-i224.tar.gz"),
+        ("ResNet-RS-152", "https://storage.googleapis.com/tf_model_garden/vision/resnet-rs/"
+         "resnet-rs-152-i256.tar.gz"),
+        ("ResNet-RS-200", "https://storage.googleapis.com/tf_model_garden/vision/resnet-rs/"
+         "resnet-rs-200-i256.tar.gz"),
+        ("ResNet-RS-270", "https://storage.googleapis.com/tf_model_garden/vision/resnet-rs/"
+         "resnet-rs-270-i256.tar.gz"),
+        ("ResNet-RS-350", "https://storage.googleapis.com/tf_model_garden/vision/resnet-rs/"
+         "resnet-rs-350-i256.tar.gz"),
+        ("ResNet-RS-350", "https://storage.googleapis.com/tf_model_garden/vision/resnet-rs/"
+         "resnet-rs-350-i320.tar.gz"),
+        ("ViT-ti16", "https://storage.googleapis.com/tf_model_garden/vision/vit/"
+         "vit-deit-imagenet-ti16.tar.gz"),
+        ("ViT-s16", "https://storage.googleapis.com/tf_model_garden/vision/vit/"
+         "vit-deit-imagenet-s16.tar.gz"),
+        ("ViT-b16", "https://storage.googleapis.com/tf_model_garden/vision/vit/"
+         "vit-deit-imagenet-b16.tar.gz"),
+        ("ViT-l16", "https://storage.googleapis.com/tf_model_garden/vision/vit/"
+         "vit-deit-imagenet-l16.tar.gz"),
+        ("R50-FPN", "https://storage.googleapis.com/tf_model_garden/vision/retinanet/"
+         "retinanet-resnet50fpn.tar.gz"),
+        ("SpineNet-49", "https://storage.googleapis.com/tf_model_garden/vision/spinenet/"
+         "spinenet-49-i640.tar.gz"),
+        ("SpineNet-96", "https://storage.googleapis.com/tf_model_garden/vision/spinenet/"
+         "spinenet-96-i1024.tar.gz"),
+        ("SpineNet-143", "https://storage.googleapis.com/tf_model_garden/vision/spinenet/"
+         "spinenet-143-i1280.tar.gz"),
+        ("Mobile SpineNet-49", "https://storage.googleapis.com/tf_model_garden/vision/"
+         "retinanet/spinenet49mobile.tar.gz"),
+        ("YOLOv7", "https://storage.googleapis.com/tf_model_garden/vision/yolo/yolov7/"
+         "yolov7.tar.gz"),
+        ("DeepLabV3+", "https://storage.googleapis.com/tf_model_garden/vision/"
+         "deeplabv3plus/dilated-resnet-101-deeplabv3plus.tar.gz"),
+    ]
+    document = "\n".join(
+        ["| Model | Checkpoint |", "|---|---|"]
+        + [f"| {name} | [ckpt]({url}) |" for name, url in rows]
+    )
+
+    records = TensorFlowGardenSourceAdapter(client=Client())._records(
+        "official/vision/README.md", REVISION, document
+    )
+
+    assert len(records) == 24
+    assert [record.title for record in records] == [name for name, _ in rows]
+    assert [record.releases[0].metadata["checkpoints"][0] for record in records] == [
+        url for _, url in rows
+    ]
+
+
 def test_garden_resolves_first_party_config_initialization_checkpoint() -> None:
     table = "\n".join(
         [

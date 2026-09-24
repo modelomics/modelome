@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **521 enabled
-source entries** (495 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **530 enabled
+source entries** (504 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -765,6 +765,20 @@ describes 111 models, while the scanner reports the actual assets it observes.
 MiniMax model IDs become loadable when `MINIMAX_API_KEY` is set. All these sources
 read metadata and record links without downloading checkpoint bytes.
 
+Further enabled sources include Boardwalk's anonymous hosted-model list (five IDs at
+the latest check), the FLOWER VLA collection (nine pinned policies), MaRS (four
+Zenodo encoder files), PaddleNLP UNIMO (seven checkpoints), PMTransformer (one
+distinct Figshare checkpoint), Sony Woosh (eight released model and conditioner
+bundles), and timm's historical DLA family (12 direct checkpoint URLs). A second
+curated GitHub release scan covers four repositories with 17 first-party documented
+weight files; a full metadata scan found 18 matching release assets. The ONNX
+Model Zoo's owner-scoped Hugging Face listing supplies
+version-pinned ONNX file references; its first three pages yielded 300 repo IDs
+and 2,624 ONNX links in a bounded metadata-only sync. It shares exact repo identities
+with the global Hugging Face source. Roboflow Universe remains an opt-in proposal:
+its public UI exposes selected model IDs, but the CLI currently receives HTTP 403
+for the listing request.
+
 The 2025 ACL Anthology XML source adds paper and abstract evidence for 1,966 records in
 the current collection file. It extracts implementation links only when an abstract
 explicitly identifies a model-weight or checkpoint URL. This source is a bounded
@@ -925,7 +939,7 @@ mutable availability observations unless the operator has evidence otherwise. Se
 | AWS Bedrock | [Public model-card catalog](https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html) | **Enabled.** Retain each publicly listed first-party card as a source-scoped model identity and later bounded enrichment resource. This avoids account-scoped custom/provisioned model discovery and does not identify a Bedrock serving card with the model's origin paper, code, or weights. |
 | AWS SageMaker JumpStart | [Available foundation models](https://docs.aws.amazon.com/sagemaker/latest/dg/jumpstart-foundation-models-latest.html) | **Enabled.** Retain every public table row's exact deployment model ID and display name without calling account-scoped hub or Marketplace APIs. This is dated catalog evidence, not origin-model or historical-census evidence. |
 | Azure AI Foundry | [Models list](https://learn.microsoft.com/en-us/rest/api/aifoundry/accountmanagement/models/list) | Publisher/model/version and regional availability; distinguish catalog listing from a provisioned deployment. |
-| NVIDIA NGC | [Catalog API/CLI](https://docs.ngc.nvidia.com/sdk/api.html) | **Enabled for the guest-visible current `MODEL` group.** Preserve NGC-native model and declared latest-version IDs plus model-card URL. The direct public version-metadata endpoint resolves one card's declared Markdown resources at a time. This is a mutable public listing, not a historical export; archives and artifact bytes remain outside scope. |
+| NVIDIA NGC | [Catalog API/CLI](https://docs.ngc.nvidia.com/sdk/api.html) | **Enabled for the guest-visible current `MODEL` group.** Preserve NGC-native model IDs, model-card URLs, and all exact versions returned by the guest-readable version route. The active scan uses 25 models per page so its per-model version lookups checkpoint frequently; inaccessible inventories retain the catalog row with an availability status. A two-page metadata sync captured 50 models and 64 releases. This is a mutable public listing, not a historical export; archives and artifact bytes remain outside scope. |
 
 For a provider that offers only web pages, prefer an official sitemap, RSS/Atom feed,
 OpenAPI document, JSON-LD, or documented export. Check robots and terms before retrieval.

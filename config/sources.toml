@@ -19,7 +19,7 @@ entry_tags = ["field:machine-learning", "ecosystem:huggingface"]
 url = "https://huggingface.co/api/models"
 artifact_kind = "model_card"
 schedule = "daily"
-page_size = 100
+page_size = 300
 overlap_days = 1
 created_at_sweep_interval_days = 30
 max_response_bytes = 16777216
@@ -100,7 +100,8 @@ url = "https://api.ngc.nvidia.com/v2/search/catalog/resources/MODEL"
 model_page_base_url = "https://catalog.ngc.nvidia.com"
 metadata_base_url = "https://api.ngc.nvidia.com"
 schedule = "daily"
-page_size = 200
+page_size = 25
+include_all_versions = true
 max_response_bytes = 4194304
 
 # NeMo's first-party checkpoint tables directly pair released model names with
@@ -371,6 +372,112 @@ items_path = "data"
 id_path = "id"
 name_path = "id"
 created_path = "created"
+
+# Boardwalk's anonymous model API exposes exact hosted model IDs.
+[[source]]
+name = "boardwalk-public-models"
+adapter = "json_catalog"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:boardwalk", "kind:hosted-model"]
+url = "https://api.boardwalk.cloud/v1/models"
+provider_namespace = "boardwalk:model"
+model_card_url_template = "https://www.boardwalk.cloud/docs/models/{id_path}"
+model_page_crawl = false
+schedule = "daily"
+max_response_bytes = 4194304
+
+[source.mapping]
+items_path = "data"
+id_path = "id"
+name_path = "display_name"
+
+# Author-maintained FLOWER VLA collection with revision-pinned policy files.
+[[source]]
+name = "flower-vla-collection"
+adapter = "flower_vla_collection"
+enabled = true
+entry_tags = ["field:robotics", "ecosystem:huggingface", "kind:policy-checkpoint"]
+schedule = "weekly"
+max_response_bytes = 4194304
+max_entries = 24
+
+# Four encoder checkpoints in the first-party MaRS Zenodo record.
+[[source]]
+name = "mars-zenodo-checkpoints"
+adapter = "mars_zenodo_checkpoints"
+enabled = true
+entry_tags = ["field:remote-sensing", "ecosystem:zenodo", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+max_files = 20
+
+# PaddleNLP's UNIMO registry declares seven exact model_state URLs.
+[[source]]
+name = "paddlenlp-unimo-pretrained-registry"
+adapter = "paddlenlp_unimo_registry"
+enabled = true
+entry_tags = ["field:natural-language-processing", "ecosystem:paddlenlp", "kind:checkpoint"]
+repository = "PaddlePaddle/PaddleNLP"
+branch = "develop"
+source_path = "paddlenlp/transformers/unimo/configuration.py"
+provider_namespace = "paddlenlp:transformer-model"
+schedule = "weekly"
+max_response_bytes = 4194304
+
+# PMTransformer's distinct Figshare checkpoint from the shared materials article.
+[[source]]
+name = "pmtransformer-figshare-checkpoint"
+adapter = "pmtransformer_figshare"
+enabled = true
+entry_tags = ["field:materials-science", "ecosystem:figshare", "kind:checkpoint"]
+schedule = "weekly"
+max_response_bytes = 2097152
+
+# Sony AI's immutable Woosh release lists eight model/conditioner bundles.
+[[source]]
+name = "sony-woosh-release-assets"
+adapter = "sony_woosh_release_assets"
+enabled = true
+entry_tags = ["field:generative-audio-modeling", "ecosystem:sony-research", "kind:checkpoint-bundle"]
+repository = "SonyResearch/Woosh"
+release_tag = "v1.0.0"
+schedule = "weekly"
+max_response_bytes = 2097152
+max_assets = 100
+
+# timm v0.6.13 declares twelve legacy DLA checkpoint URLs.
+[[source]]
+name = "timm-legacy-dla-v0613"
+adapter = "timm_legacy_dla"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:timm", "kind:checkpoint"]
+schedule = "weekly"
+
+# Four exact GitHub release archives add seventeen documented weight files.
+[[source]]
+name = "github-curated-model-release-assets-17"
+adapter = "github_curated_release_assets"
+enabled = true
+repository_names = ["vlad3996/forgeryscope", "jlherraiz/ULDPET_nnFormer_FILM", "bwchen05/RegionRoute", "xvjiarui/VFS"]
+page_size = 100
+max_releases_per_repository = 120
+max_assets_per_release = 100
+max_release_pages_per_repository = 2
+max_asset_pages_per_release = 1
+schedule = "monthly"
+entry_tags = ["ecosystem:github", "kind:release-asset"]
+
+# ONNX Model Zoo's owner-scoped Hub listing exposes SHA-pinned model files.
+[[source]]
+name = "onnx-model-zoo-hub"
+adapter = "onnx_model_zoo_hub"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:onnx", "ecosystem:huggingface", "kind:pretrained-model"]
+url = "https://huggingface.co/api/models?author=onnxmodelzoo"
+page_size = 100
+max_response_bytes = 16777216
+max_entries = 5000
+schedule = "weekly"
 
 # First-party documented estimator and sampler classes (no trained releases).
 [[source]]

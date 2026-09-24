@@ -91,6 +91,7 @@ from modelome.sources.falcon_vla_checkpoint_zoo import FalconVLACheckpointZooAda
 from modelome.sources.fengwu_checkpoint_registry import FengWuCheckpointRegistrySourceAdapter
 from modelome.sources.figshare_model_candidates import FigshareModelCandidatesSourceAdapter
 from modelome.sources.figshare_model_candidates_workflow import FigshareModelCandidatesWorkflow
+from modelome.sources.flower_vla_collection import FlowerVLACollectionAdapter
 from modelome.sources.fourcastnet_checkpoint_registry import (
     FourCastNetCheckpointRegistrySourceAdapter,
 )
@@ -174,6 +175,7 @@ from modelome.sources.mace_registry import MaceOff23CheckpointRegistrySourceAdap
 from modelome.sources.markdown_checkpoint_list import MarkdownCheckpointListSourceAdapter
 from modelome.sources.markdown_model_card_list import MarkdownModelCardListSourceAdapter
 from modelome.sources.markdown_model_table import MarkdownModelTableSourceAdapter
+from modelome.sources.mars_zenodo_checkpoints import MarsZenodoCheckpointsSourceAdapter
 from modelome.sources.mediapipe_model_catalog import MediaPipeModelCatalogSourceAdapter
 from modelome.sources.medicalnet_registry import MedicalNetRegistrySourceAdapter
 from modelome.sources.medigan_registry import MediganRegistrySourceAdapter
@@ -268,6 +270,7 @@ from modelome.sources.paddlenlp_taskflow_text_similarity import (
     PaddleNlpTaskflowTextSimilaritySourceAdapter,
 )
 from modelome.sources.paddlenlp_taskflow_uie import PaddleNlpTaskflowUieSourceAdapter
+from modelome.sources.paddlenlp_unimo_registry import PaddleNlpUnimoRegistrySourceAdapter
 from modelome.sources.paddlenlp_xlm_registry import PaddleNlpXlmRegistrySourceAdapter
 from modelome.sources.paddleocr_current_model_list import (
     PaddleOcrCurrentModelListSourceAdapter,
@@ -297,6 +300,7 @@ from modelome.sources.plos import PlosSourceAdapter
 from modelome.sources.pmc import PmcSourceAdapter
 from modelome.sources.pmlr import PmlrSourceAdapter
 from modelome.sources.pmt_pretrained_checkpoints import PMTPretrainedCheckpointSourceAdapter
+from modelome.sources.pmtransformer_figshare import PMTransformerFigshareAdapter
 from modelome.sources.proteinmpnn import ProteinMpnSourceAdapter
 from modelome.sources.pubmed import PubMedBulkSourceAdapter
 from modelome.sources.pyg_dimenet_checkpoints import PyGDimeNetCheckpointSourceAdapter
@@ -325,6 +329,7 @@ from modelome.sources.sherpa_audio_tagging import SherpaAudioTaggingSourceAdapte
 from modelome.sources.sherpa_source_separation import SherpaSourceSeparationSourceAdapter
 from modelome.sources.sherpa_tts_model_release import SherpaTtsModelReleaseSourceAdapter
 from modelome.sources.software_heritage import SoftwareHeritageOriginSourceAdapter
+from modelome.sources.sony_woosh_release_assets import SonyWooshReleaseAssetsSourceAdapter
 from modelome.sources.spacy_models import SpacyModelsSourceAdapter
 from modelome.sources.ssl4eo_s12_drive_checkpoints import (
     SSL4EOS12DriveCheckpointSourceAdapter,
@@ -345,6 +350,7 @@ from modelome.sources.tensorflow_garden import TensorFlowGardenSourceAdapter
 from modelome.sources.tensorflow_hub_archive import TensorFlowHubArchiveSourceAdapter
 from modelome.sources.tensorflow_tpu_efficientnet import TensorFlowTPUEfficientNetSourceAdapter
 from modelome.sources.timm_legacy_byobnet import TimmLegacyByobNetSourceAdapter
+from modelome.sources.timm_legacy_dla import TimmLegacyDLASourceAdapter
 from modelome.sources.timm_legacy_efficientnet import TimmLegacyEfficientNetSourceAdapter
 from modelome.sources.timm_legacy_mobilevit import TimmLegacyMobileViTSourceAdapter
 from modelome.sources.timm_legacy_poolformer import TimmLegacyPoolFormerSourceAdapter
@@ -2025,6 +2031,12 @@ def create_source(
             "uvr_model_files",
             "falcon_vla_checkpoint_zoo",
             "github_curated_release_assets",
+            "flower_vla_collection",
+            "mars_zenodo_checkpoints",
+            "paddlenlp_unimo_registry",
+            "pmtransformer_figshare",
+            "sony_woosh_release_assets",
+            "timm_legacy_dla",
         }
         else _required_text(expanded, "url")
     )
@@ -2224,6 +2236,9 @@ def create_source(
                 _text(expanded.get("metadata_base_url")) or "https://api.ngc.nvidia.com"
             ),
             page_size=_integer(expanded.get("page_size"), 200),
+            include_all_versions=_boolean(
+                expanded.get("include_all_versions"), default=False
+            ),
             max_response_bytes=_integer(
                 expanded.get("max_response_bytes"),
                 4 * 1024 * 1024,
@@ -3982,6 +3997,55 @@ def create_source(
             max_entries=_integer(expanded.get("max_entries"), 32),
             **injected,
         )
+
+    if adapter == "flower_vla_collection":
+        return FlowerVLACollectionAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            max_entries=_integer(expanded.get("max_entries"), 24),
+            **injected,
+        )
+
+    if adapter == "mars_zenodo_checkpoints":
+        return MarsZenodoCheckpointsSourceAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_files=_integer(expanded.get("max_files"), 20),
+            client=injected["client"],
+        )
+
+    if adapter == "paddlenlp_unimo_registry":
+        return PaddleNlpUnimoRegistrySourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "PaddlePaddle/PaddleNLP",
+            branch=_text(expanded.get("branch")) or "develop",
+            source_path=_text(expanded.get("source_path"))
+            or "paddlenlp/transformers/unimo/configuration.py",
+            provider_namespace=_text(expanded.get("provider_namespace"))
+            or "paddlenlp:transformer-model",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 4 * 1024 * 1024),
+            **injected,
+        )
+
+    if adapter == "pmtransformer_figshare":
+        return PMTransformerFigshareAdapter(
+            name=name,
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            client=injected["client"],
+        )
+
+    if adapter == "sony_woosh_release_assets":
+        return SonyWooshReleaseAssetsSourceAdapter(
+            name=name,
+            repository=_text(expanded.get("repository")) or "SonyResearch/Woosh",
+            release_tag=_text(expanded.get("release_tag")) or "v1.0.0",
+            max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
+            max_assets=_integer(expanded.get("max_assets"), 100),
+            client=injected["client"],
+        )
+
+    if adapter == "timm_legacy_dla":
+        return TimmLegacyDLASourceAdapter(name=name, **injected)
 
     raise ValueError(f"{name}: unknown source adapter {adapter!r}")
 

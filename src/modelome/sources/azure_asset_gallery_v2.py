@@ -67,8 +67,8 @@ class AzureAssetGalleryV2Adapter:
             raise ValueError("page_size must be between 1 and 1000")
         if max_pages < 1 or max_scan_restarts < 1 or max_response_bytes < 1 or timeout <= 0:
             raise ValueError("pagination, response, and timeout bounds must be positive")
-        if not 0 <= max_hf_origin_details_per_page <= 100:
-            raise ValueError("max_hf_origin_details_per_page must be between 0 and 100")
+        if not 0 <= max_hf_origin_details_per_page <= 1000:
+            raise ValueError("max_hf_origin_details_per_page must be between 0 and 1000")
         self.name = name
         self.page_size = page_size
         self.max_pages = max_pages

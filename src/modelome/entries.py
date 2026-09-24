@@ -503,14 +503,20 @@ def build_entries(seeds: Iterable[Mapping[str, Any]]) -> EntryBuildResult:
             union.union(index, owner)
 
     # Some catalogs declare an exact mirror ID in another model namespace.
-    # Treat that explicit relation as identity evidence so a catalog card that
-    # names its Hugging Face or ModelScope mirror joins the matching card.
-    # Other relation predicates remain descriptive.
+    # OpenRouter additionally provides an exact hugging_face_id for the model
+    # backing a hosted endpoint. These two source-declared relations can join
+    # the corresponding provider model; other relation predicates remain
+    # descriptive (for example, base-model and fine-tune edges).
     for index, candidate in enumerate(candidates):
         for relation in candidate.model_relations:
-            if relation.predicate.casefold() != "mirrors":
+            predicate = relation.predicate.casefold()
+            if predicate not in {"mirrors", "hosted_huggingface_model"}:
                 continue
             for identifier in relation.target_identifiers:
+                if predicate == "hosted_huggingface_model" and (
+                    identifier.namespace != "huggingface:model"
+                ):
+                    continue
                 owner = identifier_owner.get(identifier.key)
                 if owner is not None:
                     union.union(index, owner)

@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from modelome.entries import build_entries, source_record_to_entry_seed
 from modelome.http import HttpResponse
 from modelome.sources.vision_registry_extra import OnnxModelZooHubSourceAdapter
 
@@ -55,6 +56,49 @@ def test_onnx_hub_adapter_uses_owner_scope_and_retains_model_file_links() -> Non
     assert record.source_record_id == "onnxmodelzoo/resnet18_Opset18_timm"
     assert any(
         link.url.endswith("/resolve/" + "a" * 40 + "/model.onnx") and link.relation == "weights"
+        for link in record.links
+    )
+
+
+def test_onnx_hub_exact_huggingface_id_joins_global_hub_record() -> None:
+    client = Client(total=1)
+    record = OnnxModelZooHubSourceAdapter(client=client).fetch_page({}).records[0]
+    onnx_seed = source_record_to_entry_seed(record, source="onnx-model-zoo-hub")
+    hub_id = "onnxmodelzoo/resnet18_Opset18_timm"
+    huggingface_seed = {
+        "source": "huggingface",
+        "source_record_id": hub_id,
+        "canonical_url": f"https://huggingface.co/{hub_id}",
+        "title": "ResNet18 Opset18 timm",
+        "kind": "model_card",
+        "identifiers": [
+            {"namespace": "huggingface:model", "value": hub_id},
+        ],
+        "models": [
+            {
+                "local_id": "model",
+                "name": "ResNet18 Opset18 timm",
+                "identifiers": [
+                    {"namespace": "huggingface:model", "value": hub_id},
+                ],
+            }
+        ],
+    }
+
+    entries = build_entries([onnx_seed, huggingface_seed]).entries
+
+    assert len(entries) == 1
+    assert {(member.source, member.source_record_id) for member in entries[0].members} == {
+        ("onnx-model-zoo-hub", hub_id),
+        ("huggingface", hub_id),
+    }
+    assert [(item.namespace, item.value) for item in entries[0].identifiers] == [
+        ("huggingface:model", hub_id)
+    ]
+    assert len(client.calls) == 1  # Listing metadata only; the ONNX link is not downloaded.
+    assert any(
+        link.url == f"https://huggingface.co/{hub_id}/resolve/{'a' * 40}/model.onnx"
+        and link.relation == "weights"
         for link in record.links
     )
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import tomllib
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -166,6 +168,31 @@ def test_curated_repository_list_identity_changes_checkpoint_and_rejects_duplica
             name="curated-duplicate",
             repository_names=["Phhofm/models", "Phhofm/models"],
         )
+
+
+def test_multi_repository_curated_proposal_has_explicit_inventory_and_budget() -> None:
+    proposal = tomllib.loads(
+        Path("config/proposals/github_curated_model_release_assets.toml").read_text()
+    )["source"][0]
+
+    assert proposal["enabled"] is False
+    assert proposal["repository_names"] == [
+        "vlad3996/forgeryscope",
+        "jlherraiz/ULDPET_nnFormer_FILM",
+        "bwchen05/RegionRoute",
+        "xvjiarui/VFS",
+    ]
+    adapter = GitHubCuratedReleaseAssetsSourceAdapter(
+        name=proposal["name"],
+        repository_names=proposal["repository_names"],
+        page_size=proposal["page_size"],
+        max_releases_per_repository=proposal["max_releases_per_repository"],
+        max_assets_per_release=proposal["max_assets_per_release"],
+        max_release_pages_per_repository=proposal["max_release_pages_per_repository"],
+        max_asset_pages_per_release=proposal["max_asset_pages_per_release"],
+    )
+    assert adapter.max_api_requests == 1_972
+    assert 12 * adapter.max_http_attempts == 48
 
 
 def test_bounded_historical_scan_pages_repository_release_and_assets() -> None:

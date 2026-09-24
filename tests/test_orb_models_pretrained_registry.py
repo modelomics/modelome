@@ -72,6 +72,31 @@ def test_extracts_literal_loader_names_and_exact_weight_urls() -> None:
     )
 
 
+def test_current_loader_functions_form_registry_when_mapping_is_absent() -> None:
+    current_source = '''\
+def orbmol_v2(*, weights_path: str = "https://orbitalmaterials-public-models.s3.us-west-1.amazonaws.com/forcefields/orbmol-v2-teqabfhg-20260523.ckpt"):
+    pass
+
+def orb_v3_direct_20_omat(weights_path: str = "https://orbitalmaterials-public-models.s3.us-west-1.amazonaws.com/forcefields/orb-v3/orb-v3-direct-20-omat-20250404.ckpt"):
+    pass
+
+def custom_model(weights_path=None):
+    pass
+'''
+    assert _parse_pretrained_urls(current_source, "test") == (
+        (
+            "orbmol_v2",
+            "https://orbitalmaterials-public-models.s3.us-west-1.amazonaws.com/"
+            "forcefields/orbmol-v2-teqabfhg-20260523.ckpt",
+        ),
+        (
+            "orb_v3_direct_20_omat",
+            "https://orbitalmaterials-public-models.s3.us-west-1.amazonaws.com/"
+            "forcefields/orb-v3/orb-v3-direct-20-omat-20250404.ckpt",
+        ),
+    )
+
+
 @pytest.mark.parametrize(
     "text",
     [
@@ -115,7 +140,11 @@ def test_live_orb_source_metadata_smoke() -> None:
     except Exception as error:  # pragma: no cover - network-dependent smoke
         pytest.skip(f"live Orb source metadata unavailable: {error}")
     assert page.authoritative_snapshot
-    assert page.upstream_count == 22
+    assert page.upstream_count is not None and page.upstream_count >= 1
+    assert any(
+        record.raw["model_name"].replace("_", "-") == "orbmol-v2"
+        for record in page.records
+    )
     assert all(
         record.raw["checkpoint_url"].startswith(
             "https://orbitalmaterials-public-models.s3.us-west-1.amazonaws.com/forcefields/"

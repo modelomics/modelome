@@ -142,6 +142,10 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
         return None
 
     identifiers = [Identifier("openaire:graph-product", graph_id)]
+    original_ids = tuple(
+        text for item in _sequence(payload.get("originalIds")) if (text := _text(item)) is not None
+    )
+    identifiers.extend(Identifier("openaire-original-id", value) for value in original_ids)
     pids = _sequence(payload.get("pids")) or _sequence(payload.get("pid"))
     canonical_url: str | None = None
     for pid in pids:
@@ -237,6 +241,7 @@ def project_openaire_software(payload: Mapping[str, Any]) -> SourceRecord | None
             "record_type": "openaire_software_product",
             "product_type": "software",
             "openaire_graph_id": graph_id,
+            "original_ids": list(original_ids),
             "source_wide_filtering": False,
             "model_classification_performed": False,
             "pids": [

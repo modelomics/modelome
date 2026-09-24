@@ -1,0 +1,15 @@
+[[source]]
+name = "flower-vla-collection"
+adapter = "flower_vla_collection"
+enabled = false
+max_response_bytes = 4194304
+max_entries = 24
+
+[discovery]
+source = "https://huggingface.co/collections/mbreuss/flower-vla"
+api = "https://huggingface.co/api/collections/mbreuss/flower-vla"
+author = "https://huggingface.co/mbreuss"
+
+[coverage]
+kind = "robotics-policy-checkpoints"
+notes = "Indexes the public FLOWER VLA author collection and verifies one exact root weight object per collection model at its pinned Hub revision. Includes the pretrained policy and benchmark-finetuned policies; does not download weights."

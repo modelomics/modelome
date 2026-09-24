@@ -1,0 +1,12 @@
+# Sony AI's immutable v1.0.0 release contains eight model and conditioner bundles.
+# The adapter reads only the release asset listing and never follows download links.
+[[source]]
+name = "sony-woosh-release-assets"
+adapter = "sony_woosh_release_assets"
+enabled = false
+entry_tags = ["field:generative-audio-modeling", "ecosystem:sony-research", "kind:checkpoint-bundle"]
+repository = "SonyResearch/Woosh"
+release_tag = "v1.0.0"
+max_response_bytes = 2097152
+max_assets = 100
+schedule = "weekly"

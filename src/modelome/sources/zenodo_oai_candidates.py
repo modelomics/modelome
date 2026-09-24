@@ -2,9 +2,10 @@
 
 Zenodo recommends OAI-PMH for bulk metadata access. This adapter scans its
 complete DCAT stream, which includes file distributions, and emits candidate
-hints only where record metadata describes neural models and a distribution
-names a model/checkpoint/weights file in a recognized serialization format. The
-candidate is not a documented or released model assertion.
+hints where record metadata describes neural models or uses Zenodo's explicit
+CitedCat Model resource type, with a distribution naming a model/checkpoint/
+weights file in a recognized serialization format. The candidate is not a
+documented or released model assertion.
 """
 
 from __future__ import annotations
@@ -33,7 +34,8 @@ _OAI = "http://www.openarchives.org/OAI/2.0/"
 _RECORD_ID = re.compile(r"^oai:zenodo\.org:([1-9][0-9]*)$")
 _DOI = re.compile(r"10\.5281/zenodo\.([1-9][0-9]*)", re.IGNORECASE)
 _FILE_MARKER = re.compile(
-    r"(?:^|[._\-/ ])(?:checkpoint|ckpt|model[_ -]?weights|weights|model)(?:[._\-/ ]|$)",
+    r"(?:^|[._\-/ ])(?:checkpoint|ckpt|pre[-_ ]?train(?:ed)?|"
+    r"model[_ -]?weights|weights|model)(?:[._\-/ ]|$)",
     re.I,
 )
 _FILE_SUFFIX = re.compile(
@@ -51,6 +53,7 @@ _NEURAL_SCOPE = re.compile(
     r"artificial[ -]neural[ -](?:network|model))\b",
     re.I,
 )
+_ZENODO_MODEL_TYPE = "https://w3id.org/citedcat-ap/Model"
 _TOKEN_TTL_SECONDS = 105
 _MAX_TOKEN_LENGTH = 8_192
 _MAX_PAGE_RECORDS = 50
@@ -66,9 +69,9 @@ class ZenodoOaiModelCandidatesSourceAdapter:
     coverage_limitation = (
         "Scans the public Zenodo OAI-PMH DCAT stream, one provider page per call. "
         "Optional OAI set and datestamp bounds define a selective harvest; without them, "
-        "the source remains unfiltered. Only records with neural or machine-learning-model "
-        "wording and an explicitly named model, "
-        "checkpoint, or weights file in a recognized model serialization format "
+        "the source remains unfiltered. Records need neural or machine-learning-model "
+        "wording or the exact Zenodo CitedCat Model type, plus an explicitly named model, "
+        "pretrain, checkpoint, or weights file in a recognized serialization format "
         "are emitted. "
         "This is candidate evidence, not a model declaration; restricted files are "
         "not downloaded. Zenodo resumption tokens expire after approximately two "
@@ -107,14 +110,16 @@ class ZenodoOaiModelCandidatesSourceAdapter:
         self.clock = clock
         self.checkpoint_signature = content_hash(
             {
-                "adapter": "zenodo-oai-dcat-model-candidates-v1",
+                "adapter": "zenodo-oai-dcat-model-candidates-v2",
                 "url": self.url,
                 "metadata_prefix": "dcat",
                 "set_spec": self.set_spec,
                 "from_date": self.from_date,
                 "until_date": self.until_date,
                 "max_response_bytes": max_response_bytes,
-                "admission": "neural model wording plus named model/checkpoint/weights file",
+                "admission": (
+                    "neural wording or exact Zenodo Model type plus named model/checkpoint file"
+                ),
             }
         )
 
@@ -176,9 +181,7 @@ class ZenodoOaiModelCandidatesSourceAdapter:
             for raw_record in raw_records
             if (candidate := self._candidate(raw_record)) is not None
         )
-        token_node = next(
-            (node for node in listing if _local(node.tag) == "resumptionToken"), None
-        )
+        token_node = next((node for node in listing if _local(node.tag) == "resumptionToken"), None)
         next_token = (token_node.text or "").strip() if token_node is not None else ""
         pages_seen = _counter(state.get("pages_seen", 0), "pages_seen", self.name) + 1
         records_seen = _counter(state.get("records_seen", 0), "records_seen", self.name)
@@ -243,7 +246,11 @@ class ZenodoOaiModelCandidatesSourceAdapter:
             for key in ("title", "description", "keyword", "subject", "type", "format")
             for value in strings.get(key, [])
         )
-        if _NEURAL_SCOPE.search(context) is None:
+        model_resource = any(
+            value.rstrip("/#") == _ZENODO_MODEL_TYPE.rstrip("/#")
+            for value in strings.get("type", [])
+        )
+        if _NEURAL_SCOPE.search(context) is None and not model_resource:
             return None
 
         matching_files: list[tuple[str, str]] = []
@@ -271,10 +278,7 @@ class ZenodoOaiModelCandidatesSourceAdapter:
             urls = list(dict.fromkeys(urls))
             label = " ".join(label_parts)
             file_evidence = (label, *(urlsplit(url).path for url in urls))
-            if any(
-                _is_model_file_evidence(value)
-                for value in file_evidence
-            ):
+            if any(_is_model_file_evidence(value) for value in file_evidence):
                 matching_files.extend((url, label or url) for url in urls)
             all_file_links.extend((url, label or url) for url in urls)
         # DCAT permits the distribution object itself to be expressed as an RDF
@@ -313,12 +317,22 @@ class ZenodoOaiModelCandidatesSourceAdapter:
             if (
                 not normalized
                 or len(normalized) < 3
-                or f" {normalized} " not in context_key
                 or normalized in {"model", "weights", "checkpoint", "data"}
-                or context_match is None
+                or (not model_resource and f" {normalized} " not in context_key)
             ):
                 continue
-            candidate_name = context_match.group(0)
+            if context_match is None and not model_resource:
+                continue
+            # Zenodo's explicit DataCite Model profile can establish model scope
+            # when the only public title is generic (for example, “Pretrained
+            # model checkpoints”). Keep this a candidate named from that title.
+            candidate_name = (
+                title
+                if model_resource and _NEURAL_SCOPE.search(context) is None
+                else context_match.group(0)
+                if context_match
+                else title
+            )
             # Context matching uses a punctuation-folded form, but local
             # candidate IDs must preserve the exact source filename stem.
             # Otherwise handles such as ``Alpha-Net`` and ``Alpha.Net`` can
@@ -384,7 +398,9 @@ class ZenodoOaiModelCandidatesSourceAdapter:
                     if _local(node.tag) == "setSpec" and (node.text or "").strip()
                 ],
                 "candidate_signal": (
-                    "neural metadata plus named model/checkpoint/weights distribution"
+                    "explicit Zenodo Model resource type plus pretrained checkpoint filename"
+                    if model_resource and _NEURAL_SCOPE.search(context) is None
+                    else "neural metadata plus named model/checkpoint/weights distribution"
                 ),
                 "checkpoint_files": [label for _, label in matching_files],
             },
@@ -443,11 +459,7 @@ def _is_distribution(element: ET.Element) -> bool:
 def _zenodo_distribution_file_url(value: str) -> bool:
     parts = urlsplit(value)
     path = unquote(parts.path)
-    return (
-        _zenodo_file_url(value)
-        and "/files/" in path
-        and _FILE_SUFFIX.search(path) is not None
-    )
+    return _zenodo_file_url(value) and "/files/" in path and _FILE_SUFFIX.search(path) is not None
 
 
 def _is_model_file_evidence(value: str) -> bool:

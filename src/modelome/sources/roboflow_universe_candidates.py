@@ -43,6 +43,7 @@ _PAGE_RANGE = re.compile(
     r"(?P<last>[\d,]+)\s+of\s+(?P<total>[\d,]+)",
     re.IGNORECASE,
 )
+_RESULTS_PER_PAGE = re.compile(r"(?P<count>[\d,]+)\s+results per page", re.IGNORECASE)
 
 
 class _LinksAndText(HTMLParser):
@@ -134,7 +135,27 @@ class RoboflowUniverseCandidatesAdapter:
         if range_match is None:
             raise ValueError(f"{self.name}: search page has no displayed result range")
         first, last, total = (_number(range_match.group(key)) for key in ("first", "last", "total"))
-        if first < 1 or last < first or last > total:
+        page_size_match = _RESULTS_PER_PAGE.search(text)
+        if page_size_match is None:
+            raise ValueError(f"{self.name}: search page has no displayed page size")
+        page_size = _number(page_size_match.group("count"))
+        page_start = (page - 1) * page_size
+        expected_last = min(page * page_size, total)
+        # Roboflow's UI displays the previous page's last index as the next
+        # page's first index (e.g. 1–50 followed by 50–100), despite showing
+        # only 50 projects on each page. Accept that boundary convention and
+        # the usual one-based convention, while validating against its explicit
+        # page size to avoid rejecting valid pages as having one extra result.
+        valid_firsts = {page_start + 1}
+        if page > 1:
+            valid_firsts.add(page_start)
+        if (
+            page_size < 1
+            or total < 1
+            or first not in valid_firsts
+            or last != expected_last
+            or last < first
+        ):
             raise ValueError(f"{self.name}: invalid displayed result range")
 
         project_urls: list[str] = []
@@ -151,7 +172,7 @@ class RoboflowUniverseCandidatesAdapter:
             if len(project_urls) > self.max_projects_per_page:
                 raise ValueError(f"{self.name}: project count exceeds per-page limit")
 
-        expected = last - first + 1
+        expected = min(page_size, total - page_start)
         if len(project_urls) != expected:
             raise ValueError(f"{self.name}: displayed result range does not match project links")
         records: list[SourceRecord] = []

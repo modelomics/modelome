@@ -34,7 +34,7 @@ class _Client:
 def test_search_page_fetches_explicit_selected_model_ids_from_public_details() -> None:
     listing = """<main><h1>Search Results for object detection</h1>
       <a href="/leo-ueno/people-detection-o4rdr">People Detection</a>
-      <div>Showing 1 - 1 of 1</div></main>"""
+      <div>1 results per page</div><div>Showing 1 - 1 of 1</div></main>"""
     detail = """<main><h1>People Detection Computer Vision Model</h1>
       <div>Model type: RF-DETR NAS</div>
       <code>model_id="people-detection-o4rdr/12"</code></main>"""
@@ -61,8 +61,8 @@ def test_search_page_fetches_explicit_selected_model_ids_from_public_details() -
 
 def test_search_pagination_preserves_query_and_stops_at_displayed_last_page() -> None:
     second = "https://universe.roboflow.com/search?p=1&q=object+detection"
-    listing1 = '<a href="/team/a">A</a><div>Showing 1 - 1 of 2</div>'
-    listing2 = '<a href="/team/b">B</a><div>Showing 2 - 2 of 2</div>'
+    listing1 = '<a href="/team/a">A</a><div>1 results per page</div><div>Showing 1 - 1 of 2</div>'
+    listing2 = '<a href="/team/b">B</a><div>1 results per page</div><div>Showing 2 - 2 of 2</div>'
     detail_a = '<div>model_id="a/3"</div>'
     detail_b = '<div>model_id="b/4"</div>'
     client = _Client({
@@ -85,12 +85,50 @@ def test_search_pagination_preserves_query_and_stops_at_displayed_last_page() ->
     assert [record.title for record in next_page.records] == ["b/4"]
 
 
+def test_page_two_live_project_shape_emits_exact_deployed_model_id() -> None:
+    # The live UI's second page displays "Showing 50 - 100 of 300" and "50
+    # results per page". Its project page inference snippet declares this ID.
+    page_two = "https://universe.roboflow.com/search?p=1&q=object+detection"
+    project_url = "https://universe.roboflow.com/emotions-dectection/human-face-emotions"
+    project_urls = [project_url] + [
+        f"https://universe.roboflow.com/team/project-{index}" for index in range(49)
+    ]
+    anchors = "".join(
+        f'<a href="{url.removeprefix("https://universe.roboflow.com")}">Project</a>'
+        for url in project_urls
+    )
+    listing = f'{anchors}<div>50 results per page</div><div>Showing 50 - 100 of 300</div>'
+    detail = """<main>
+      <div>human-face-emotions/28</div>
+      <div>Model type: yolov8n Model Upload</div>
+      <code>CLIENT.infer(\"image.jpg\", model_id=\"human-face-emotions/28\")</code>
+    </main>"""
+    client = _Client({
+        page_two: listing,
+        project_url: detail,
+        **{url: "<main>No deployed project model</main>" for url in project_urls[1:]},
+    })
+    adapter = RoboflowUniverseCandidatesAdapter(query="object detection", client=client)
+
+    page = adapter.fetch_page({"page": 2})
+
+    assert page.complete is False
+    assert page.next_state == {"page": 3}
+    assert client.calls[0] == page_two
+    assert len(client.calls) == 51
+    assert len(page.records) == 1
+    assert page.records[0].identifiers == (
+        Identifier("roboflow:model", "human-face-emotions/28"),
+    )
+    assert page.records[0].raw["model_type"] == "yolov8n Model Upload"
+
+
 def test_rejects_listing_without_range_or_exact_project_count() -> None:
     client = _Client({_BASE: '<a href="/team/a">A</a>'})
     with pytest.raises(ValueError, match="no displayed result range"):
         RoboflowUniverseCandidatesAdapter(query="object detection", client=client).fetch_page({})
 
-    client = _Client({_BASE: '<a href="/team/a">A</a><div>Showing 1 - 2 of 2</div>'})
+    client = _Client({_BASE: '<div>1 results per page</div><div>Showing 1 - 1 of 2</div>'})
     with pytest.raises(ValueError, match="range does not match project links"):
         RoboflowUniverseCandidatesAdapter(query="object detection", client=client).fetch_page({})
 

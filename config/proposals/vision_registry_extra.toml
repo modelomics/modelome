@@ -2,13 +2,12 @@
 # directs users to the Hugging Face `onnxmodelzoo` organization for continued
 # access. The public organization gallery currently reports 2,326 models.
 # The dedicated adapter follows the owner-scoped Hub cursor and links declared
-# ONNX files without transferring their bytes. The factory route is available;
-# this owner-scoped duplicate of the global Hugging Face source is not in the
-# default catalog.
+# ONNX files without transferring their bytes. The source is enabled in the
+# default catalog; this disabled proposal records its standalone configuration.
 [[source]]
 name = "onnx-model-zoo-hub"
 adapter = "onnx_model_zoo_hub"
-enabled = true
+enabled = false
 entry_tags = ["field:machine-learning", "ecosystem:onnx", "ecosystem:huggingface", "kind:pretrained-model"]
 url = "https://huggingface.co/api/models?author=onnxmodelzoo"
 page_size = 100

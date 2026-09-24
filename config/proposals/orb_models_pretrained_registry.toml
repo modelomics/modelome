@@ -1,6 +1,7 @@
-# Orb's first-party ORB_PRETRAINED_MODELS mapping names each public model ID and
-# loader function. The adapter resolves exact ID/file pairs from literal
-# weights_path defaults at a pinned Git commit and never fetches checkpoint bytes.
+# Orb's first-party pretrained loader module declares exact public checkpoint
+# URLs in literal weights_path defaults. The adapter uses ORB_PRETRAINED_MODELS
+# where present and current public function names when that mapping is absent.
+# It pins the source to a Git commit and never fetches checkpoint bytes.
 [[source]]
 name = "orb-models-pretrained-registry"
 adapter = "orb_models_pretrained_registry"

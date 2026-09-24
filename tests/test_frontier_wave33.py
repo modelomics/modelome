@@ -231,3 +231,28 @@ def test_declared_model_file_promotion_uses_indexes_not_table_materialization(
     monkeypatch.setattr(database, "table_rows", reject_frontier_table_materialization)
 
     assert _promote_declared_model_file_urls(database, limit=1) == [urls[0]]
+
+
+def test_relation_index_deduplicates_repeated_checkpoint_declarations(tmp_path) -> None:
+    database = Database(tmp_path / "store")
+    database.initialize()
+    url = "https://example.org/models/repeated.safetensors"
+    records = tuple(
+        SourceRecord(
+            source_record_id=f"record-{index}",
+            kind=ArtifactKind.CATALOG_RECORD,
+            canonical_url=f"https://catalog.example/record-{index}",
+            title=f"Record {index}",
+            raw={},
+            links=(Link(url, relation="model_artifact", crawl=False),),
+        )
+        for index in range(64)
+    )
+    database.ingest_page(
+        "repeated-checkpoint-catalog",
+        SourcePage(records=records, next_state={}, complete=True),
+    )
+
+    url_id = database._frontier_by_url[url]["id"]
+    assert len(database._url_discovery_url_ids_by_relation["model_artifact"]) == 1
+    assert len(database._url_discoveries_by_url_id[url_id]) == 64

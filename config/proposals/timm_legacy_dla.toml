@@ -1,0 +1,13 @@
+# timm v0.6.13's DLA module declares 12 direct pretrained checkpoint URLs,
+# including DLA and DLA/Res2Net variants. This proposal reads only that
+# immutable release and module.
+[[source]]
+name = "timm-legacy-dla-v0613"
+adapter = "timm_legacy_dla"
+enabled = false
+entry_tags = ["field:computer-vision", "ecosystem:timm", "kind:checkpoint"]
+schedule = "weekly"
+
+[evidence]
+timm_dla_source = "https://github.com/huggingface/pytorch-image-models/blob/v0.6.13/timm/models/dla.py"
+timm_dla_module = "https://raw.githubusercontent.com/huggingface/pytorch-image-models/v0.6.13/timm/models/dla.py"

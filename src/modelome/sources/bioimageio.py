@@ -33,6 +33,10 @@ _DOI_RE = re.compile(r"(?i)^10\.\d{4,9}/\S+$")
 _MAX_ID_CHARS = 1_024
 _MAX_VERSION_CHARS = 256
 _MAX_PATH_CHARS = 16_384
+_CELLPOSE_HUB_CHECKPOINTS = frozenset(
+    {"cpsam_v2", "cpdino", "cpdino-vitb", "cpsam"}
+)
+_CELLPOSE_HUB_REVISION_RE = re.compile(r"^(?:main|[0-9a-f]{40})$")
 
 
 def _utcnow() -> datetime:
@@ -528,6 +532,15 @@ class BioImageIoSourceAdapter:
             rdf_text = rdf_response.body.decode("utf-8")
 
         model_identifier = Identifier("bioimageio:model", control.model_id)
+        model_identifiers = [model_identifier]
+        weight_descriptors = manifest.get("weights")
+        if isinstance(weight_descriptors, Mapping):
+            for descriptor in weight_descriptors.values():
+                if not isinstance(descriptor, Mapping):
+                    continue
+                checkpoint = _cellpose_hub_checkpoint(descriptor.get("source"))
+                if checkpoint:
+                    model_identifiers.append(Identifier("cellpose:model", checkpoint))
         links = [
             Link(detail_url, relation="metadata", locator="$.artifact.id", crawl=False),
         ]
@@ -561,7 +574,6 @@ class BioImageIoSourceAdapter:
 
         manifest_id = _optional_text(manifest.get("id"), _MAX_ID_CHARS)
         aliases = [control.alias]
-        model_identifiers = [model_identifier]
         if manifest_id and manifest_id not in {control.model_id, control.alias, name}:
             aliases.append(manifest_id)
             if identifier := _identifier_from_scalar(manifest_id):
@@ -1151,6 +1163,28 @@ def _identifier_from_scalar(value: str) -> Identifier | None:
         return identifier_from_url(value)
     doi = _normalize_doi(value)
     return Identifier("doi", doi) if doi else None
+
+
+def _cellpose_hub_checkpoint(value: Any) -> str | None:
+    if isinstance(value, Mapping):
+        value = value.get("source")
+    source = _optional_text(value, _MAX_PATH_CHARS)
+    if not source:
+        return None
+    parts = urlsplit(source)
+    path_parts = parts.path.strip("/").split("/")
+    if (
+        parts.scheme != "https"
+        or parts.netloc.casefold() != "huggingface.co"
+        or parts.query
+        or parts.fragment
+        or len(path_parts) != 5
+        or path_parts[:3] != ["mouseland", "cellpose-sam", "resolve"]
+        or not _CELLPOSE_HUB_REVISION_RE.fullmatch(path_parts[3])
+        or path_parts[4] not in _CELLPOSE_HUB_CHECKPOINTS
+    ):
+        return None
+    return path_parts[4]
 
 
 def _normalize_doi(value: Any) -> str | None:

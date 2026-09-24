@@ -291,6 +291,69 @@ def test_unauthorized_detail_and_file_manifests_preserve_public_listing_identity
     assert len(client.calls) == 4
 
 
+def test_public_embedded_latest_version_files_survive_detail_permission_denial() -> None:
+    client = _Client(
+        {
+            "models": [
+                {
+                    "ref": "devverma16/res101-cross-ddr",
+                    "isPrivate": False,
+                    "instances": [
+                        {
+                            "id": 752549,
+                            "slug": "default",
+                            "framework": "pyTorch",
+                            "versionNumber": 1,
+                            "versionId": 1003300,
+                            "downloadUrl": (
+                                "/models/devverma16/res101-cross-ddr/PyTorch/default/1/download"
+                            ),
+                        }
+                    ],
+                }
+            ],
+            "totalResults": 1,
+        },
+        {},
+        {},
+        {
+            "files": [
+                {
+                    "name": "teacher_resnet101_ddr_best.pth",
+                    "size": 170680656,
+                    "creationDate": "2026-09-24T15:26:04.0484147Z",
+                }
+            ],
+            "nextPageToken": "",
+        },
+        statuses=(200, 403, 403, 200),
+    )
+
+    page = KaggleModelsSourceAdapter(
+        client=client,
+        include_all_versions=True,
+        include_version_files=True,
+    ).fetch_page({})
+
+    release = page.records[0].releases[0]
+    assert release.version == "1"
+    assert release.revision == "1003300"
+    assert release.metadata["variation_inventory_status"] == "unavailable_unauthorized"
+    assert release.metadata["version_inventory_status"] == "unavailable_unauthorized"
+    assert release.metadata["file_manifest_status"] == "complete"
+    assert release.metadata["files"] == (
+        {
+            "name": "teacher_resnet101_ddr_best.pth",
+            "size": 170680656,
+            "creation_date": "2026-09-24T15:26:04.0484147Z",
+        },
+    )
+    assert client.calls[-1] == (
+        "https://www.kaggle.com/api/v1/models/devverma16/res101-cross-ddr/pyTorch/default/1/files",
+        {"pageSize": 100},
+    )
+
+
 def test_unauthorized_later_file_page_preserves_known_rows_as_incomplete() -> None:
     client = _Client(
         {

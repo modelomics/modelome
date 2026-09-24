@@ -1005,7 +1005,8 @@ def test_catalog_loads_current_config_and_environment_tokens() -> None:
         "last_modified",
     )
     assert isinstance(sources["ngc-models"], NgcModelsSourceAdapter)
-    assert sources["ngc-models"].page_size == 200
+    assert sources["ngc-models"].page_size == 25
+    assert sources["ngc-models"].include_all_versions is True
     for name in (
         "nemo-asr-checkpoints",
         "nemo-tts-checkpoints",

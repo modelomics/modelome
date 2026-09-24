@@ -54,6 +54,27 @@ def test_projects_exact_software_type_pids_and_provider_urls() -> None:
     assert record.raw["model_classification_performed"] is False
 
 
+def test_preserves_original_source_ids_as_exact_non_pid_identity() -> None:
+    original_ids = ["10.5281/zenodo.12345", "oai:repository.example:software/42"]
+    record = project_openaire_software(
+        {
+            "id": "openaire-software-original-ids",
+            "type": "software",
+            "mainTitle": "Software with source identifiers",
+            "originalIds": original_ids,
+        }
+    )
+
+    assert record is not None
+    assert [
+        (identifier.namespace, identifier.value)
+        for identifier in record.identifiers
+        if identifier.namespace == "openaire-original-id"
+    ] == [("openaire-original-id", item) for item in original_ids]
+    assert record.raw["original_ids"] == original_ids
+    assert not any(identifier.namespace == "doi" for identifier in record.identifiers)
+
+
 def test_does_not_infer_software_or_model_from_text() -> None:
     payload = _software()
     payload["type"] = "otherresearchproduct"

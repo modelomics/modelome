@@ -28,6 +28,7 @@ _FAMILIES = {
     "mace_mp_urls": ("mace-mp", "mace:mp-checkpoint"),
     "polar_model_urls": ("mace-polar", "mace:polar-checkpoint"),
 }
+_MDP_URL = "https://raw.githubusercontent.com/Nilsgoe/MACE-MDP/main/models/MACE-MDP.model"
 
 
 def _utcnow() -> datetime:
@@ -44,9 +45,9 @@ class MaceFoundationCheckpointRegistrySourceAdapter:
 
     disable_derived_extraction = True
     coverage_limitation = (
-        "Covers literal `mace_mp_urls` and `polar_model_urls` entries in the MACE "
-        "foundation loader. It excludes MACE-OFF23 (indexed separately), MACE-ANI "
-        "and MACE-MDP (not listed in these maps), arbitrary URLs, and user-trained "
+        "Covers literal `mace_mp_urls`, `polar_model_urls`, and the MACE-MDP "
+        "default URL in the MACE foundation loader. It excludes MACE-OFF23 "
+        "(indexed separately), MACE-ANI-CC, arbitrary URLs, and user-trained "
         "checkpoints; model binaries are not fetched."
     )
 
@@ -74,7 +75,7 @@ class MaceFoundationCheckpointRegistrySourceAdapter:
         self.client = client or HttpClient(max_response_bytes=max_response_bytes)
         self.clock = clock
         self.checkpoint_signature = content_hash({
-            "adapter": "mace-foundation-literal-maps-v1",
+            "adapter": "mace-foundation-literal-maps-v2",
             "repository": repository,
             "branch": branch,
             "source_path": source_path,
@@ -168,7 +169,11 @@ class MaceFoundationCheckpointRegistrySourceAdapter:
 
 
 def _family_map(family: str) -> str:
-    return "mace_mp_urls" if family == "mace-mp" else "polar_model_urls"
+    return {
+        "mace-mp": "mace_mp_urls",
+        "mace-polar": "polar_model_urls",
+        "mace-mdp": "mace_mdp_default_url",
+    }[family]
 
 
 def _parse_maps(
@@ -179,23 +184,30 @@ def _parse_maps(
     except SyntaxError as exc:
         raise ValueError(f"{source}: source is not valid Python: {exc.msg}") from exc
     assignments: dict[str, ast.Dict] = {}
+    mdp_url: str | None = None
     for statement in module.body:
         if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
             continue
         target = statement.targets[0]
+        if isinstance(target, ast.Name) and target.id == "mace_mdp_default_url":
+            if mdp_url is not None:
+                raise ValueError(f"{source}: duplicate MACE-MDP default URL")
+            mdp_url = _literal_string(statement.value)
+            continue
         if isinstance(target, ast.Name) and target.id in _FAMILIES:
             if target.id in assignments or not isinstance(statement.value, ast.Dict):
                 raise ValueError(
                     f"{source}: {_family_map(target.id)} is not one literal dictionary"
                 )
             assignments[target.id] = statement.value
-    if set(assignments) != set(_FAMILIES):
+    if set(assignments) != set(_FAMILIES) or mdp_url != _MDP_URL:
         raise ValueError(f"{source}: expected literal MACE-MP and MACE-Polar maps")
-    count = sum(len(mapping.keys) for mapping in assignments.values())
+    count = sum(len(mapping.keys) for mapping in assignments.values()) + 1
     if count > maximum:
         raise ValueError(f"{source}: registry exceeds {maximum} entries")
 
     results: list[tuple[str, str, str, str]] = []
+    results.append(("mace-mdp", "mace:mdp-checkpoint", "default", mdp_url))
     for map_name, (family, namespace) in _FAMILIES.items():
         mapping = assignments[map_name]
         if not mapping.keys:
@@ -228,6 +240,8 @@ def _valid_foundation_url(map_name: str, handle: str, url: str) -> bool:
     segments = parts.path.split("/")
     if not segments or not segments[-1].endswith(".model"):
         return False
+    if map_name == "mace_mdp_default_url":
+        return handle == "default" and url == _MDP_URL
     if map_name == "polar_model_urls":
         return (
             parts.hostname == "github.com"
