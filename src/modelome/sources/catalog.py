@@ -229,6 +229,7 @@ from modelome.sources.tensorflow_audioset_checkpoints import (
     TensorFlowAudioSetCheckpointSourceAdapter,
 )
 from modelome.sources.tensorflow_garden import TensorFlowGardenSourceAdapter
+from modelome.sources.tensorflow_hub_archive import TensorFlowHubArchiveSourceAdapter
 from modelome.sources.tensorflow_tpu_efficientnet import TensorFlowTPUEfficientNetSourceAdapter
 from modelome.sources.timm_model_registry import TimmModelRegistrySourceAdapter
 from modelome.sources.torch_hub_extra import TorchHubListingSourceAdapter
@@ -878,6 +879,20 @@ def create_source(
             url=_required_text(expanded, "url"),
             max_response_bytes=_integer(expanded.get("max_response_bytes"), 2 * 1024 * 1024),
             max_entries=_integer(expanded.get("max_entries"), 200),
+            client=injected["client"],
+        )
+
+    if adapter == "tensorflow_hub_archive":
+        if _required_text(expanded, "repository") != "tensorflow/tfhub.dev":
+            raise ValueError(f"{name}: unsupported TensorFlow Hub archive repository")
+        if _required_text(expanded, "branch") != "master":
+            raise ValueError(f"{name}: unsupported TensorFlow Hub archive branch")
+        return TensorFlowHubArchiveSourceAdapter(
+            name=name,
+            max_archive_bytes=_integer(expanded.get("max_archive_bytes"), 128 * 1024 * 1024),
+            max_document_bytes=_integer(expanded.get("max_document_bytes"), 2 * 1024 * 1024),
+            max_documents=_integer(expanded.get("max_documents"), 20_000),
+            max_records=_integer(expanded.get("max_records"), 20_000),
             client=injected["client"],
         )
 

@@ -57,7 +57,9 @@ class KerasHubPresetRegistrySourceAdapter:
     ``**name`` expansion only when ``name`` was assigned an earlier literal
     dictionary in the same source file. ``kaggle://`` and ``hf://`` values are
     converted only to their corresponding public landing URLs; archive or
-    weight bytes are never requested.
+    weight bytes are never requested. For archived KerasCV only, nonliteral
+    aggregate collections are skipped while literal per-model declarations are
+    retained.
     """
 
     disable_derived_extraction = True
@@ -65,7 +67,8 @@ class KerasHubPresetRegistrySourceAdapter:
         "Covers literal pretrained-preset entries and their declared Kaggle or "
         "Hugging Face handles in KerasHub's public preset-source files at one Git "
         "commit. It does not execute KerasHub, infer a paper or origin model, "
-        "enumerate dynamic presets, or download artifacts."
+        "enumerate dynamic presets, or download artifacts. KerasCV scans skip "
+        "nonliteral aggregate collections while retaining literal per-model files."
     )
 
     def __init__(
@@ -207,7 +210,12 @@ class KerasHubPresetRegistrySourceAdapter:
         result: list[_Preset] = []
         seen: set[tuple[str, str, str]] = set()
         for path, source in sorted(files.items()):
-            for preset in _parse_presets(source, path, self.name):
+            for preset in _parse_presets(
+                source,
+                path,
+                self.name,
+                allow_dynamic_preset_collections=self.repository == "keras-team/keras-cv",
+            ):
                 key = (preset.path, preset.collection, preset.name)
                 if key in seen:
                     raise ValueError(f"{self.name}: duplicate source preset {key!r}")
@@ -336,7 +344,13 @@ def _preset_files(
     return files
 
 
-def _parse_presets(source: str, path: str, name: str) -> tuple[_Preset, ...]:
+def _parse_presets(
+    source: str,
+    path: str,
+    name: str,
+    *,
+    allow_dynamic_preset_collections: bool = False,
+) -> tuple[_Preset, ...]:
     try:
         tree = ast.parse(source, filename=path)
     except SyntaxError as error:
@@ -351,7 +365,7 @@ def _parse_presets(source: str, path: str, name: str) -> tuple[_Preset, ...]:
             continue
         entries = _literal_mapping_entries(statement.value, literal_mappings)
         if entries is None:
-            if target.id.endswith("_presets"):
+            if target.id.endswith("_presets") and not allow_dynamic_preset_collections:
                 raise ValueError(f"{name}: {path}:{target.id} is not a literal dictionary")
             continue
         literal_mappings[target.id] = entries
@@ -360,15 +374,26 @@ def _parse_presets(source: str, path: str, name: str) -> tuple[_Preset, ...]:
         for preset_name, value_node in entries.items():
             fields = _dict_fields(value_node)
             if not preset_name or fields is None:
-                raise ValueError(
-                    f"{name}: {path}:{target.id} has a nonliteral preset declaration"
-                )
+                if not allow_dynamic_preset_collections or not preset_name:
+                    raise ValueError(
+                        f"{name}: {path}:{target.id} has a nonliteral preset declaration"
+                    )
+                # KerasCV has literal row dictionaries with occasional computed
+                # metadata/config fields. Keep only individually literal fields;
+                # this cannot associate a handle from a sibling row or execute code.
+                fields = _partial_dict_fields(value_node)
+                if fields is None:
+                    continue
             handles = tuple(
                 (field, value)
                 for field, value in fields.items()
                 if field in {"kaggle_handle", "hf_handle"}
                 and isinstance(value, str)
                 and value
+                and (
+                    not allow_dynamic_preset_collections
+                    or value.startswith(("kaggle://", "hf://"))
+                )
             )
             if not handles:
                 continue
@@ -385,6 +410,22 @@ def _parse_presets(source: str, path: str, name: str) -> tuple[_Preset, ...]:
                 )
             )
     return tuple(result)
+
+
+def _partial_dict_fields(node: ast.AST) -> dict[str, Any] | None:
+    """Read literal top-level fields from a dictionary without evaluating expressions."""
+
+    if not isinstance(node, ast.Dict):
+        return None
+    fields: dict[str, Any] = {}
+    for key_node, value_node in zip(node.keys, node.values, strict=True):
+        key = _literal_string(key_node)
+        if not key:
+            continue
+        value = _literal_value(value_node)
+        if value is not _UNSET:
+            fields[key] = value
+    return fields
 
 
 def _literal_mapping_entries(

@@ -1,0 +1,24 @@
+# KerasCV v0.8.0 integrated pretrained presets with Kaggle Models, with model
+# variations carrying pretrained weights (see the official release notes). Its
+# archived source has separate literal *_presets.py files, distinct from the
+# successor keras-team/keras-hub repository registry.
+[[source]]
+name = "keras-cv-preset-registry"
+adapter = "keras_hub_preset_registry"
+enabled = false
+entry_tags = ["field:computer-vision", "ecosystem:keras-cv", "kind:pretrained-model"]
+repository = "keras-team/keras-cv"
+branch = "master"
+preset_root = "keras_cv/src/models"
+schedule = "weekly"
+max_archive_bytes = 67108864
+max_file_bytes = 2097152
+max_files = 5000
+max_presets = 100000
+
+# Scope is literal preset dictionary entries and their exact Kaggle/HF handles
+# in the archived repository at one resolved Git revision. No weights are fetched.
+[evidence]
+official_repository = "https://github.com/keras-team/keras-cv"
+official_release = "https://github.com/keras-team/keras-cv/releases/tag/v0.8.0"
+scope = "Archived KerasCV preset definitions are source-distinct from current KerasHub definitions; source-native identity retains path, collection, and exact preset key."

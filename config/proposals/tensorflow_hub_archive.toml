@@ -1,0 +1,25 @@
+# The official historical tfhub.dev website source preserves exact versioned
+# model-card paths, including handles that do not expose current Kaggle search IDs.
+# This source records documentation identities only; asset availability is unknown.
+[[source]]
+name = "tensorflow-hub-archive"
+adapter = "tensorflow_hub_archive"
+enabled = false
+entry_tags = ["field:machine-learning", "ecosystem:tensorflow-hub", "kind:pretrained-model", "status:historical-catalog"]
+repository = "tensorflow/tfhub.dev"
+branch = "master"
+schedule = "monthly"
+max_archive_bytes = 134217728
+max_document_bytes = 2097152
+max_documents = 20000
+max_records = 20000
+
+[coverage]
+includes = ["Versioned model documentation under assets/docs/<publisher>/models/<model>/<version>.md"]
+excludes = ["Collections, unversioned publisher pages, untracked web records, and model bytes"]
+availability = "Historical handles only. When present, an exact Module heading supplies the handle only if publisher/version match the path and the model path matches or adds a documented models/ segment; retain the archive-path candidate separately. Do not assert the model page or weights still resolve."
+
+[evidence]
+official_source_repository = "https://github.com/tensorflow/tfhub.dev"
+example_versioned_card = "https://github.com/tensorflow/tfhub.dev/blob/master/assets/docs/deepmind/models/biggan-256/2.md"
+migration_notice = "https://github.com/tensorflow/hub"

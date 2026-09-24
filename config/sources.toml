@@ -7194,3 +7194,32 @@ url = "https://developers.cloudflare.com/changelog/post/2026-05-08-planned-model
 max_response_bytes = 2097152
 max_entries = 200
 schedule = "monthly"
+
+# Archived KerasCV source declares exact public pretrained preset handles.
+[[source]]
+name = "keras-cv-preset-registry"
+adapter = "keras_hub_preset_registry"
+enabled = true
+entry_tags = ["field:computer-vision", "ecosystem:keras-cv", "kind:pretrained-model"]
+repository = "keras-team/keras-cv"
+branch = "master"
+preset_root = "keras_cv/src/models"
+schedule = "weekly"
+max_archive_bytes = 67108864
+max_file_bytes = 2097152
+max_files = 5000
+max_presets = 100000
+
+# First-party tfhub.dev archive retains versioned model-card handles.
+[[source]]
+name = "tensorflow-hub-archive"
+adapter = "tensorflow_hub_archive"
+enabled = true
+entry_tags = ["field:machine-learning", "ecosystem:tensorflow-hub", "kind:pretrained-model", "status:historical-catalog"]
+repository = "tensorflow/tfhub.dev"
+branch = "master"
+schedule = "monthly"
+max_archive_bytes = 134217728
+max_document_bytes = 2097152
+max_documents = 20000
+max_records = 20000

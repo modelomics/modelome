@@ -8,8 +8,8 @@ require a global crawl, full-text download, or bulk transfer during the present 
 
 MODELOME's target source graph combines model catalogs, scholarly indexes, framework
 registries, code archives, domain corpora, and provider APIs. No one source is canonical
-for all neural-model entities. The current default configuration has **398 enabled
-source entries** (381 loadable without provider credentials; a count of `config/sources.toml`,
+for all neural-model entities. The current default configuration has **400 enabled
+source entries** (383 loadable without provider credentials; a count of `config/sources.toml`,
 not a claim that upstream inventories have been exhausted) and enables Hugging Face,
 Kaggle Models, CivitAI, OpenCSG Hub, a bounded ModelScope catalog plane, NVIDIA NGC's
 guest-visible current `MODEL` catalog, first-party NVIDIA NeMo checkpoint tables, Ollama's library cards, Cloudflare Workers AI's
@@ -74,6 +74,11 @@ release assets, Chai-1 components, and 18 WeatherNext 2 object paths declared
 by Google DeepMind. Artifact inventories record metadata; no weights are fetched.
 The WeatherNext object paths are source-declared patterns, without a separate
 object-existence check.
+The archived KerasCV preset declarations add 79 exact public provider handles
+from their source repository; internal `gs://` values are excluded.
+The first-party tfhub.dev source archive supplies 2,371 versioned historical
+model-card records in the current snapshot. This source preserves the archive
+handle and source revision without claiming that old model bytes still resolve.
 The GitLab adapter scans public project release metadata one request per page and emits
 low-confidence model-file candidates. The Cohere and Mistral Models API proposals
 remain opt-in because their authenticated lists can include caller-owned models.
