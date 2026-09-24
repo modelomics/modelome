@@ -97,7 +97,7 @@ class _IndexParser(HTMLParser):
         self.entries: list[_IndexEntry] = []
         self._anchor_href: str | None = None
         self._anchor_text: list[str] = []
-        self._pending: tuple[str, str] | None = None
+        self._pending_entry: tuple[str, str] | None = None
         self._tail: list[str] = []
 
     def handle_starttag(
@@ -115,7 +115,7 @@ class _IndexParser(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag.casefold() != "a" or self._anchor_href is None:
             return
-        self._pending = (self._anchor_href, "".join(self._anchor_text).strip())
+        self._pending_entry = (self._anchor_href, "".join(self._anchor_text).strip())
         self._anchor_href = None
         self._anchor_text = []
         self._tail = []
@@ -123,7 +123,7 @@ class _IndexParser(HTMLParser):
     def handle_data(self, data: str) -> None:
         if self._anchor_href is not None:
             self._anchor_text.append(data)
-        elif self._pending is not None:
+        elif self._pending_entry is not None:
             self._tail.append(data)
 
     def close(self) -> None:
@@ -131,9 +131,9 @@ class _IndexParser(HTMLParser):
         self._flush_pending()
 
     def _flush_pending(self) -> None:
-        if self._pending is None:
+        if self._pending_entry is None:
             return
-        href, label = self._pending
+        href, label = self._pending_entry
         match = _LISTING_TIMESTAMP_RE.search(" ".join(self._tail))
         self.entries.append(
             _IndexEntry(
@@ -143,7 +143,7 @@ class _IndexParser(HTMLParser):
                 size=match.group("size") if match else None,
             )
         )
-        self._pending = None
+        self._pending_entry = None
         self._tail = []
 
 
